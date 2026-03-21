@@ -97,6 +97,16 @@ export default function SeedPage() {
             consulta_id: consulta.id,
             estado: "completado"
           });
+
+          // Crear receta vinculada a la consulta
+          addLog(`  -> Creando receta para la consulta de ${p.nombre}...`);
+          await pb.collection("recetas").create({
+            paciente_id: pacienteRecord.id,
+            consulta_id: consulta.id,
+            fecha: pastDate.toISOString(),
+            medicamentos: i === 0 ? "Lentes aéreos (según receta de refracción)" : "Lágrimas artificiales (Hialuronato de sodio 0.4%)",
+            indicaciones: i === 0 ? "Uso permanente para visión lejana." : "Aplicar 1 gota en ambos ojos cada 6 horas o según necesidad."
+          });
         }
       }
 
@@ -122,7 +132,7 @@ export default function SeedPage() {
         </div>
         
         <p className="text-zinc-600 dark:text-zinc-400 mb-6">
-          Esta herramienta creará 5 pacientes sintéticos, cada uno con 1 turno pendiente y 1 turno completado con su respectiva consulta médica. Ideal para realizar una demostración del sistema.
+          Esta herramienta creará 10 pacientes sintéticos, cada uno con 2 turnos pendientes y 2 turnos completados con su respectiva consulta médica y recetas asociadas. Ideal para realizar una demostración del sistema.
         </p>
 
         <button

@@ -81,7 +81,7 @@ export default function Home() {
 
           {/* Panel de Control */}
           <h2 className="text-2xl font-bold text-zinc-800 dark:text-zinc-200 mb-6">Panel de Control</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             
             {/* Gestión de Pacientes */}
             <Link 
@@ -123,6 +123,20 @@ export default function Home() {
               </div>
               <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Gestión de Consultas</h3>
               <p className="text-sm text-zinc-500 dark:text-zinc-400 flex-grow">Registra diagnósticos, recetas, órdenes de estudios y la evolución clínica detallada.</p>
+            </Link>
+
+            {/* Gestión de Recetas */}
+            <Link 
+              href="/recetas" 
+              className="group bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-orange-500 dark:hover:border-orange-500 transition-all hover:shadow-md flex flex-col h-full"
+            >
+              <div className="w-12 h-12 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2.5 2.5 0 00-2.5-2.5H15" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Gestión de Recetas</h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400 flex-grow">Emite y administra recetas médicas vinculadas a las consultas de los pacientes.</p>
             </Link>
 
           </div>
