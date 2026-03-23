@@ -26,6 +26,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     fecha_nacimiento: "",
     obra_social: "",
     numero_afiliado: "",
+    domicilio: "",
   });
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           fecha_nacimiento: fechaNacimiento,
           obra_social: record.obra_social || "",
           numero_afiliado: record.numero_afiliado || "",
+          domicilio: record.domicilio || "",
         });
       } catch (error) {
         console.error("Error al cargar paciente:", error);
@@ -81,7 +83,12 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     e.preventDefault();
     setIsLoading(true);
     try {
-      await pb.collection("pacientes").update(pacienteId, formData);
+      const dataToSave = {
+        ...formData,
+        nombre: formData.nombre.toUpperCase(),
+        apellido: formData.apellido.toUpperCase()
+      };
+      await pb.collection("pacientes").update(pacienteId, dataToSave);
       router.push("/pacientes");
     } catch (error) {
       console.error("Error al actualizar paciente:", error);
@@ -129,14 +136,14 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   <h3 className="font-semibold text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-800 pb-2">Datos Personales</h3>
                   
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nombre *</label>
-                    <input required type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70" />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Apellido *</label>
-                    <input required type="text" name="apellido" value={formData.apellido} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70" />
-                  </div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Apellido *</label>
+                  <input required type="text" name="apellido" value={formData.apellido} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase disabled:opacity-70" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nombre *</label>
+                  <input required type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase disabled:opacity-70" />
+                </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">DNI</label>
@@ -161,6 +168,11 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Email</label>
                     <input type="email" name="email" value={formData.email} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70" />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Domicilio</label>
+                    <input type="text" name="domicilio" value={formData.domicilio} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70" />
                   </div>
                   
                   <div>

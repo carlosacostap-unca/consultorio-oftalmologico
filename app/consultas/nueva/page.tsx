@@ -14,6 +14,7 @@ interface Paciente {
   obra_social: string;
   numero_afiliado: string;
   fecha_nacimiento: string;
+  domicilio?: string;
 }
 
 export default function NuevaConsultaPage() {
@@ -52,19 +53,28 @@ function NuevaConsultaForm() {
     ref_lejos_od_esf: "", ref_lejos_od_cil: "", ref_lejos_od_eje: "",
     ref_lejos_oi_esf: "", ref_lejos_oi_cil: "", ref_lejos_oi_eje: "",
     
+    add_value: "",
+
     ref_cerca_od_esf: "", ref_cerca_od_cil: "", ref_cerca_od_eje: "",
     ref_cerca_oi_esf: "", ref_cerca_oi_cil: "", ref_cerca_oi_eje: "",
     
     pio_od: "", pio_oi: "",
+    biomicroscopia: "",
     fondo_ojo: "",
     diagnostico: "",
     tratamiento: "",
     
     ant_alergico: false, ant_asmatico: false, ant_reuma: false,
-    ant_gota: false, ant_herpes: false, ant_diabetes: false
+    ant_gota: false, ant_herpes: false, ant_diabetes: false,
+    ant_glaucoma: false, ant_maculopatia: false, ant_hipertension: false,
+    ant_otra: ""
   };
 
   const [formData, setFormData] = useState(initialFormState);
+
+  // Estado para la búsqueda de pacientes
+  const [patientSearchQuery, setPatientSearchQuery] = useState("");
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -109,8 +119,36 @@ function NuevaConsultaForm() {
     if (formData.paciente_id) {
       const p = pacientes.find(p => p.id === formData.paciente_id) || null;
       setSelectedPacienteData(p);
+      if (p) {
+        setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni}`);
+      }
+
+      // Cargar antecedentes fijos de la última consulta del paciente
+      const loadAntecedentes = async () => {
+        try {
+          const lastConsulta = await pb.collection("consultas").getFirstListItem(`paciente_id="${formData.paciente_id}"`, {
+            sort: "-created",
+          });
+          if (lastConsulta) {
+            setFormData(prev => ({
+              ...prev,
+              ant_diabetes: lastConsulta.ant_diabetes || false,
+              ant_glaucoma: lastConsulta.ant_glaucoma || false,
+              ant_maculopatia: lastConsulta.ant_maculopatia || false,
+              ant_asmatico: lastConsulta.ant_asmatico || false,
+              ant_hipertension: lastConsulta.ant_hipertension || false,
+              ant_alergico: lastConsulta.ant_alergico || false,
+              ant_otra: lastConsulta.ant_otra || "",
+            }));
+          }
+        } catch (err) {
+          // Si no hay consulta previa, no hacemos nada
+        }
+      };
+      loadAntecedentes();
     } else {
       setSelectedPacienteData(null);
+      setPatientSearchQuery("");
     }
   }, [formData.paciente_id, pacientes]);
 
@@ -119,6 +157,30 @@ function NuevaConsultaForm() {
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else if (name === 'add_value') {
+      setFormData((prev) => {
+        // Al cambiar ADD, copiamos cilindro y eje de lejos a cerca, y sumamos esfera + ADD
+        const addNum = parseFloat(value.replace(',', '.')) || 0;
+        const esfOdNum = parseFloat(prev.ref_lejos_od_esf.replace(',', '.')) || 0;
+        const esfOiNum = parseFloat(prev.ref_lejos_oi_esf.replace(',', '.')) || 0;
+        
+        // Función para formatear el número (si es >0 añadir +, si no, dejar como string)
+        const formatNum = (num: number) => {
+          if (isNaN(num)) return "";
+          return num > 0 ? `+${num}` : `${num}`;
+        };
+
+        return {
+          ...prev,
+          add_value: value,
+          ref_cerca_od_esf: value !== "" ? formatNum(esfOdNum + addNum) : prev.ref_cerca_od_esf,
+          ref_cerca_oi_esf: value !== "" ? formatNum(esfOiNum + addNum) : prev.ref_cerca_oi_esf,
+          ref_cerca_od_cil: value !== "" ? prev.ref_lejos_od_cil : prev.ref_cerca_od_cil,
+          ref_cerca_od_eje: value !== "" ? prev.ref_lejos_od_eje : prev.ref_cerca_od_eje,
+          ref_cerca_oi_cil: value !== "" ? prev.ref_lejos_oi_cil : prev.ref_cerca_oi_cil,
+          ref_cerca_oi_eje: value !== "" ? prev.ref_lejos_oi_eje : prev.ref_cerca_oi_eje,
+        };
+      });
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -214,17 +276,47 @@ function NuevaConsultaForm() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white dark:bg-zinc-800 p-3 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm">
-                <div className="col-span-12 md:col-span-5">
+                <div className="col-span-12 md:col-span-5 relative">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
-                  <select 
-                    required name="paciente_id" value={formData.paciente_id} onChange={handleInputChange} 
+                  <input
+                    type="text"
+                    value={patientSearchQuery}
+                    onChange={(e) => {
+                      setPatientSearchQuery(e.target.value);
+                      setShowPatientDropdown(true);
+                      if (formData.paciente_id) {
+                        setFormData(prev => ({ ...prev, paciente_id: "" }));
+                      }
+                    }}
+                    onFocus={() => setShowPatientDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
+                    placeholder="Buscar por Apellido, Nombre o DNI"
                     className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]"
-                  >
-                    <option value="">-- Seleccionar --</option>
-                    {pacientes.map(p => (
-                      <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>
-                    ))}
-                  </select>
+                  />
+                  {showPatientDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-lg max-h-60 overflow-y-auto">
+                      {pacientes
+                        .filter(p => 
+                          p.apellido.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
+                          p.nombre.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
+                          p.dni.includes(patientSearchQuery)
+                        )
+                        .map(p => (
+                          <div
+                            key={p.id}
+                            className="px-3 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, paciente_id: p.id }));
+                              setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni}`);
+                              setShowPatientDropdown(false);
+                            }}
+                          >
+                            <div className="font-bold">{p.apellido}, {p.nombre}</div>
+                            <div className="text-xs text-zinc-500">DNI: {p.dni}</div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
                 <div className="col-span-4 md:col-span-2">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
@@ -236,6 +328,48 @@ function NuevaConsultaForm() {
                 <div className="col-span-8 md:col-span-5">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={selectedPacienteData?.obra_social || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+                <div className="col-span-12">
+                  <label className="block text-xs font-semibold mb-1">Domicilio</label>
+                  <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+              </div>
+            </div>
+
+            {/* Sección: ANTECEDENTES */}
+            <div className="mb-6">
+              <div className="flex items-center mb-2">
+                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Antecedentes Fijos</h3>
+                <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
+              </div>
+              <div className="p-3 border-2 border-zinc-300 dark:border-zinc-600 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex flex-wrap items-center gap-6 shadow-inner">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_diabetes" checked={formData.ant_diabetes} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">DIABETES</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_glaucoma" checked={formData.ant_glaucoma} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">GLAUCOMA</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_maculopatia" checked={formData.ant_maculopatia} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">MACULOPATIA</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_asmatico" checked={formData.ant_asmatico} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">ASMA</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_hipertension" checked={formData.ant_hipertension} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">HIPERTENSION</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_alergico" checked={formData.ant_alergico} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">ALERGIA</span>
+                </label>
+                <div className="flex items-center gap-2 flex-grow">
+                  <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
+                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
                 </div>
               </div>
             </div>
@@ -318,6 +452,12 @@ function NuevaConsultaForm() {
                       <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} onChange={handleInputChange} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                       <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} onChange={handleInputChange} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                     </div>
+                    
+                    {/* ADD */}
+                    <div className="mt-3 flex justify-end items-center gap-2">
+                      <label className="font-bold text-sm text-[#2d8f8f] dark:text-emerald-500">ADD:</label>
+                      <input type="text" name="add_value" value={formData.add_value} onChange={handleInputChange} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
+                    </div>
                   </div>
                   
                   {/* CERCA */}
@@ -359,6 +499,11 @@ function NuevaConsultaForm() {
                   </div>
 
                   <div className="flex gap-2 items-start">
+                    <label className="font-bold text-sm min-w-[150px] pt-1">BIOMICROSCOPIA:</label>
+                    <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                  </div>
+
+                  <div className="flex gap-2 items-start">
                     <label className="font-bold text-sm min-w-[150px] pt-1">FONDO DE OJO:</label>
                     <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
@@ -372,34 +517,6 @@ function NuevaConsultaForm() {
                     <label className="font-bold text-sm min-w-[150px] pt-1">TRATAMIENTO:</label>
                     <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
-                </div>
-
-                {/* Antecedentes (Checkboxes) */}
-                <div className="mt-4 p-3 border-2 border-zinc-300 dark:border-zinc-600 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex flex-wrap justify-center gap-6 shadow-inner">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_alergico" checked={formData.ant_alergico} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                    <span className="font-semibold text-sm">Alérgico</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_asmatico" checked={formData.ant_asmatico} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                    <span className="font-semibold text-sm">Asmático</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_reuma" checked={formData.ant_reuma} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                    <span className="font-semibold text-sm">Reuma</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_gota" checked={formData.ant_gota} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                    <span className="font-semibold text-sm">Gota</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_herpes" checked={formData.ant_herpes} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                    <span className="font-semibold text-sm">Herpes</span>
-                  </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_diabetes" checked={formData.ant_diabetes} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                    <span className="font-semibold text-sm">Diabetes</span>
-                  </label>
                 </div>
               </div>
             </div>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/utils";
 
 interface Paciente {
   id: string;
@@ -13,6 +14,7 @@ interface Paciente {
   obra_social: string;
   numero_afiliado: string;
   fecha_nacimiento: string;
+  domicilio?: string;
 }
 
 interface Consulta {
@@ -208,7 +210,7 @@ export default function ConsultasPage() {
                       <tr key={consulta.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                            {fecha.toLocaleDateString()}
+                            {formatDate(fecha)}
                           </div>
                         </td>
                         <td className="px-6 py-4">

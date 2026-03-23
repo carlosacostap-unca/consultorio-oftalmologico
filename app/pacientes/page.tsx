@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/utils";
 
 // Interfaz para el tipo de datos del Paciente
 interface Patient {
@@ -16,6 +17,7 @@ interface Patient {
   fecha_nacimiento: string;
   obra_social: string;
   numero_afiliado: string;
+  domicilio: string;
   created: string;
 }
 
@@ -183,10 +185,10 @@ export default function PacientesPage() {
                     <tr key={paciente.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                          {paciente.apellido}, {paciente.nombre}
+                          {paciente.apellido.toUpperCase()}, {paciente.nombre.toUpperCase()}
                         </div>
                         <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                          Nac: {paciente.fecha_nacimiento ? new Date(paciente.fecha_nacimiento).toLocaleDateString() : '-'}
+                          Nac: {paciente.fecha_nacimiento ? formatDate(paciente.fecha_nacimiento) : '-'}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
@@ -195,6 +197,11 @@ export default function PacientesPage() {
                       <td className="px-6 py-4">
                         <div className="text-zinc-600 dark:text-zinc-300">{paciente.telefono}</div>
                         <div className="text-xs text-zinc-500 dark:text-zinc-400">{paciente.email}</div>
+                        {paciente.domicilio && (
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1 truncate max-w-[200px]" title={paciente.domicilio}>
+                            <span className="font-medium">Dom:</span> {paciente.domicilio}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-zinc-600 dark:text-zinc-300">

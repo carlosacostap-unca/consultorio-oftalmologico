@@ -4,12 +4,17 @@ import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { formatDate } from "@/lib/utils";
 
 interface Paciente {
   id: string;
   nombre: string;
   apellido: string;
   dni: string;
+  email: string;
+  obra_social: string;
+  numero_afiliado: string;
+  domicilio?: string;
 }
 
 interface Consulta {
@@ -213,7 +218,7 @@ export default function RecetasPage() {
                   {filteredRecetas.map((receta) => (
                     <tr key={receta.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
-                        {receta.fecha ? new Date(receta.fecha).toLocaleDateString("es-AR") : "Sin fecha"}
+                        {receta.fecha ? formatDate(receta.fecha) : "Sin fecha"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">

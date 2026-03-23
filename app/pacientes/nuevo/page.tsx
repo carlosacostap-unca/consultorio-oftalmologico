@@ -19,6 +19,7 @@ export default function NuevoPacientePage() {
     fecha_nacimiento: "",
     obra_social: "",
     numero_afiliado: "",
+    domicilio: "",
   });
 
   useEffect(() => {
@@ -39,7 +40,12 @@ export default function NuevoPacientePage() {
     e.preventDefault();
     setIsLoading(true);
     try {
-      await pb.collection("pacientes").create(formData);
+      const dataToSave = {
+        ...formData,
+        nombre: formData.nombre.toUpperCase(),
+        apellido: formData.apellido.toUpperCase()
+      };
+      await pb.collection("pacientes").create(dataToSave);
       router.push("/pacientes");
     } catch (error) {
       console.error("Error al crear paciente:", error);
@@ -78,13 +84,13 @@ export default function NuevoPacientePage() {
                 <h3 className="font-semibold text-zinc-800 dark:text-zinc-200 border-b border-zinc-200 dark:border-zinc-800 pb-2">Datos Personales</h3>
                 
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nombre *</label>
-                  <input required type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
-                </div>
-                
-                <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Apellido *</label>
-                  <input required type="text" name="apellido" value={formData.apellido} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
+                  <input required type="text" name="apellido" value={formData.apellido} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nombre *</label>
+                  <input required type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase" />
                 </div>
                 
                 <div>
@@ -110,6 +116,11 @@ export default function NuevoPacientePage() {
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Email</label>
                   <input type="email" name="email" value={formData.email} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Domicilio</label>
+                  <input type="text" name="domicilio" value={formData.domicilio} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
                 </div>
                 
                 <div>

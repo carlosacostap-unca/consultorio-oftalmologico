@@ -5,6 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { formatDate } from "@/lib/utils";
 
 interface Paciente {
   id: string;
@@ -14,6 +15,7 @@ interface Paciente {
   obra_social: string;
   numero_afiliado: string;
   fecha_nacimiento: string;
+  domicilio?: string;
 }
 
 import { use } from "react";
@@ -60,10 +62,13 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     ref_lejos_od_esf: "", ref_lejos_od_cil: "", ref_lejos_od_eje: "",
     ref_lejos_oi_esf: "", ref_lejos_oi_cil: "", ref_lejos_oi_eje: "",
     
+    add_value: "",
+
     ref_cerca_od_esf: "", ref_cerca_od_cil: "", ref_cerca_od_eje: "",
     ref_cerca_oi_esf: "", ref_cerca_oi_cil: "", ref_cerca_oi_eje: "",
     
     pio_od: "", pio_oi: "",
+    biomicroscopia: "",
     fondo_ojo: "",
     diagnostico: "",
     tratamiento: "",
@@ -146,6 +151,28 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     if (type === 'checkbox') {
       const checked = (e.target as HTMLInputElement).checked;
       setFormData((prev) => ({ ...prev, [name]: checked }));
+    } else if (name === 'add_value') {
+      setFormData((prev) => {
+        const addNum = parseFloat(value.replace(',', '.')) || 0;
+        const esfOdNum = parseFloat(prev.ref_lejos_od_esf.replace(',', '.')) || 0;
+        const esfOiNum = parseFloat(prev.ref_lejos_oi_esf.replace(',', '.')) || 0;
+        
+        const formatNum = (num: number) => {
+          if (isNaN(num)) return "";
+          return num > 0 ? `+${num}` : `${num}`;
+        };
+
+        return {
+          ...prev,
+          add_value: value,
+          ref_cerca_od_esf: value !== "" ? formatNum(esfOdNum + addNum) : prev.ref_cerca_od_esf,
+          ref_cerca_oi_esf: value !== "" ? formatNum(esfOiNum + addNum) : prev.ref_cerca_oi_esf,
+          ref_cerca_od_cil: value !== "" ? prev.ref_lejos_od_cil : prev.ref_cerca_od_cil,
+          ref_cerca_od_eje: value !== "" ? prev.ref_lejos_od_eje : prev.ref_cerca_od_eje,
+          ref_cerca_oi_cil: value !== "" ? prev.ref_lejos_oi_cil : prev.ref_cerca_oi_cil,
+          ref_cerca_oi_eje: value !== "" ? prev.ref_lejos_oi_eje : prev.ref_cerca_oi_eje,
+        };
+      });
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
@@ -349,6 +376,12 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                       <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                       <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                     </div>
+                    
+                    {/* ADD */}
+                    <div className="mt-3 flex justify-end items-center gap-2">
+                      <label className="font-bold text-sm text-[#2d8f8f] dark:text-emerald-500">ADD:</label>
+                      <input type="text" name="add_value" value={formData.add_value} onChange={handleInputChange} disabled={isViewMode} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
+                    </div>
                   </div>
                   
                   {/* CERCA */}
@@ -387,6 +420,11 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                       <span className="font-semibold text-xs">OJO IZQUIERDO:</span>
                       <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} disabled={isViewMode} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
                     </div>
+                  </div>
+
+                  <div className="flex gap-2 items-start">
+                    <label className="font-bold text-sm min-w-[150px] pt-1">BIOMICROSCOPIA:</label>
+                    <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} disabled={isViewMode} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
 
                   <div className="flex gap-2 items-start">
@@ -464,7 +502,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                       <div key={receta.id} className="border border-zinc-200 dark:border-zinc-700 p-3 rounded-lg bg-zinc-50 dark:bg-zinc-900/50">
                         <div className="flex justify-between items-start mb-2">
                           <span className="font-semibold text-sm">
-                            {new Date(receta.fecha).toLocaleDateString("es-AR")}
+                            {formatDate(receta.fecha)}
                           </span>
                           <Link
                             href={`/recetas/${receta.id}?mode=view`}

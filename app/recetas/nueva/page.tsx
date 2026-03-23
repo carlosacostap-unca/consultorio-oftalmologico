@@ -4,12 +4,14 @@ import { useState, useEffect, Suspense } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { formatDate } from "@/lib/utils";
 
 interface Paciente {
   id: string;
   nombre: string;
   apellido: string;
   dni: string;
+  domicilio?: string;
 }
 
 interface Consulta {
@@ -166,18 +168,33 @@ function NuevaRecetaForm() {
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                     Consulta Relacionada (Opcional)
                   </label>
-                  <select
-                    value={formData.consulta_id}
-                    onChange={(e) => setFormData({ ...formData, consulta_id: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"
-                  >
-                    <option value="">Ninguna o crear sin consulta</option>
-                    {consultas.map((consulta) => (
-                      <option key={consulta.id} value={consulta.id}>
-                        {new Date(consulta.fecha).toLocaleDateString("es-AR")} - {consulta.diagnostico ? consulta.diagnostico.substring(0, 50) + "..." : "Sin diagnóstico"}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.consulta_id}
+                      onChange={(e) => setFormData({ ...formData, consulta_id: e.target.value })}
+                      className="flex-grow px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"
+                    >
+                      <option value="">Ninguna o crear sin consulta</option>
+                      {consultas.map((consulta) => (
+                        <option key={consulta.id} value={consulta.id}>
+                          {formatDate(consulta.fecha)} - {consulta.diagnostico ? consulta.diagnostico.substring(0, 50) + "..." : "Sin diagnóstico"}
+                        </option>
+                      ))}
+                    </select>
+                    {formData.consulta_id && (
+                      <button
+                        type="button"
+                        onClick={() => window.open(`/consultas/${formData.consulta_id}/imprimir-anteojos`, '_blank')}
+                        className="px-4 py-2.5 bg-[#2d8f8f] hover:bg-[#1f6b6b] text-white rounded-xl transition-colors flex items-center gap-2 whitespace-nowrap"
+                        title="Imprimir receta de anteojos (Lejos y Cerca) de esta consulta"
+                      >
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                        </svg>
+                        Imprimir Anteojos
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 

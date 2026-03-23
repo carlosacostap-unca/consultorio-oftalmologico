@@ -9,6 +9,10 @@ interface Paciente {
   nombre: string;
   apellido: string;
   dni: string;
+  fecha_nacimiento?: string;
+  obra_social?: string;
+  numero_afiliado?: string;
+  domicilio?: string;
 }
 
 export default function NuevoTurnoPage() {
