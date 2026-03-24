@@ -11,6 +11,8 @@ interface Paciente {
   nombre: string;
   apellido: string;
   dni: string;
+  telefono?: string;
+  obra_social?: string;
 }
 
 interface Turno {
@@ -18,26 +20,135 @@ interface Turno {
   paciente_id: string;
   fecha_hora: string;
   motivo: string;
-  estado: "pendiente" | "completado" | "cancelado";
+  estado?: string;
   consulta_id?: string;
+  tipo?: string;
+  duracion?: number;
+  es_sobreturno?: boolean;
+  sobreturno_tipo?: "consulta" | "estudio" | "cirugía";
   expand?: {
     paciente_id: Paciente;
   };
 }
+
+interface Disponibilidad {
+  id: string;
+  fecha_hora_inicio: string;
+  fecha_hora_fin: string;
+  tipo: "Consulta" | "Estudio" | "Cirugía";
+}
+
+const ESTADOS = [
+  "En espera",
+  "En consulta",
+  "Atendido",
+  "Ausente",
+  "Atrasado",
+  "Quiere adelantarlo",
+  "No llegó"
+];
+
+const getEstadoColor = (estado?: string) => {
+  if (!estado) return 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400';
+  switch(estado) {
+    case 'En espera': return 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-100';
+    case 'En consulta': return 'bg-purple-100 dark:bg-purple-900/40 border-purple-300 dark:border-purple-700 text-purple-900 dark:text-purple-100';
+    case 'Atendido': return 'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700 text-emerald-900 dark:text-emerald-100';
+    case 'Ausente': return 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700 text-red-900 dark:text-red-100';
+    case 'Atrasado': return 'bg-orange-100 dark:bg-orange-900/40 border-orange-300 dark:border-orange-700 text-orange-900 dark:text-orange-100';
+    case 'Quiere adelantarlo': return 'bg-teal-100 dark:bg-teal-900/40 border-teal-300 dark:border-teal-700 text-teal-900 dark:text-teal-100';
+    case 'No llegó': return 'bg-zinc-200 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100';
+    // Fallback for old states
+    case 'pendiente': return 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700 text-yellow-900 dark:text-yellow-100';
+    case 'completado': return 'bg-green-100 dark:bg-green-900/40 border-green-300 dark:border-green-700 text-green-900 dark:text-green-100';
+    default: return 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-900 dark:text-gray-100';
+  }
+};
 
 export default function TurnosPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [turnos, setTurnos] = useState<Turno[]>([]);
+  const [disponibilidades, setDisponibilidades] = useState<Disponibilidad[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Vistas
-  const [viewMode, setViewMode] = useState<"list" | "weekly" | "daily">("list");
+  const [viewMode, setViewMode] = useState<"list" | "weekly" | "daily">("weekly");
 
   // Filtros
   const [filterPatient, setFilterPatient] = useState("");
   const [filterDate, setFilterDate] = useState("");
+
+  // Modal de acciones de turno
+  const [selectedTurno, setSelectedTurno] = useState<Turno | null>(null);
+  const [isTurnoModalOpen, setIsTurnoModalOpen] = useState(false);
+  const [editMotivo, setEditMotivo] = useState("");
+  const [editEstado, setEditEstado] = useState("");
+  const [isSavingTurno, setIsSavingTurno] = useState(false);
+
+  const handleTurnoClick = (turno: Turno, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSelectedTurno(turno);
+    setEditMotivo(turno.motivo || "");
+    setEditEstado(turno.estado || "");
+    setIsTurnoModalOpen(true);
+  };
+
+  const closeTurnoModal = () => {
+    setIsTurnoModalOpen(false);
+    setSelectedTurno(null);
+  };
+
+  const handleSaveTurnoChanges = async () => {
+    if (!selectedTurno) return;
+    setIsSavingTurno(true);
+    try {
+      await pb.collection("turnos").update(selectedTurno.id, {
+        motivo: editMotivo,
+        estado: editEstado === "" ? null : editEstado
+      });
+      
+      // Update local state to reflect changes immediately
+      setTurnos(prevTurnos => prevTurnos.map(t => 
+        t.id === selectedTurno.id 
+          ? { ...t, motivo: editMotivo, estado: editEstado === "" ? "" : editEstado }
+          : t
+      ));
+      
+      closeTurnoModal();
+    } catch (error) {
+      console.error("Error al guardar cambios del turno:", error);
+      alert("Hubo un error al guardar los cambios.");
+    } finally {
+      setIsSavingTurno(false);
+    }
+  };
+
+  const getStateColorClass = (estado?: string) => {
+    if (!estado) return 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-500 dark:text-zinc-400 border-dashed';
+    switch (estado) {
+      case 'En espera':
+        return 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700 text-yellow-900 dark:text-yellow-100';
+      case 'En consulta':
+        return 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-100';
+      case 'Atendido':
+      case 'completado': // fallback for old data
+        return 'bg-green-100 dark:bg-green-900/40 border-green-300 dark:border-green-700 text-green-900 dark:text-green-100';
+      case 'Ausente':
+        return 'bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-700 text-red-900 dark:text-red-100';
+      case 'Atrasado':
+        return 'bg-orange-100 dark:bg-orange-900/40 border-orange-300 dark:border-orange-700 text-orange-900 dark:text-orange-100';
+      case 'Quiere adelantarlo':
+        return 'bg-teal-100 dark:bg-teal-900/40 border-teal-300 dark:border-teal-700 text-teal-900 dark:text-teal-100';
+      case 'No llegó':
+        return 'bg-zinc-200 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100';
+      case 'pendiente': // fallback for old data
+        return 'bg-yellow-100 dark:bg-yellow-900/40 border-yellow-300 dark:border-yellow-700 text-yellow-900 dark:text-yellow-100';
+      default:
+        return 'bg-zinc-100 dark:bg-zinc-800 border-zinc-300 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100';
+    }
+  };
 
   // Establecer fecha de hoy por defecto al cambiar a vista diaria o semanal si no hay fecha seleccionada
   useEffect(() => {
@@ -59,11 +170,17 @@ export default function TurnosPage() {
 
     const loadData = async () => {
       try {
-        const turnosRecords = await pb.collection("turnos").getFullList<Turno>({
-          sort: "fecha_hora",
-          expand: "paciente_id",
-        });
+        const [turnosRecords, dispRecords] = await Promise.all([
+          pb.collection("turnos").getFullList<Turno>({
+            sort: "fecha_hora",
+            expand: "paciente_id",
+          }),
+          pb.collection("disponibilidades").getFullList<Disponibilidad>({
+            sort: "fecha_hora_inicio",
+          })
+        ]);
         setTurnos(turnosRecords);
+        setDisponibilidades(dispRecords);
       } catch (error) {
         console.error("Error al cargar datos:", error);
       } finally {
@@ -94,7 +211,12 @@ export default function TurnosPage() {
 
   const handleEstadoChange = async (id: string, nuevoEstado: string) => {
     try {
-      await pb.collection("turnos").update(id, { estado: nuevoEstado });
+      await pb.collection("turnos").update(id, { estado: nuevoEstado === "" ? null : nuevoEstado });
+      setTurnos(prevTurnos => prevTurnos.map(t => 
+        t.id === id 
+          ? { ...t, estado: nuevoEstado === "" ? "" : nuevoEstado }
+          : t
+      ));
     } catch (error) {
       console.error("Error al actualizar estado:", error);
     }
@@ -186,25 +308,30 @@ export default function TurnosPage() {
               <p className="text-zinc-500 dark:text-zinc-400">Agenda y administra las citas médicas</p>
             </div>
           </div>
-          <Link 
-            href="/turnos/nuevo"
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Nuevo Turno
-          </Link>
+          <div className="flex gap-2">
+            <Link 
+              href="/turnos/disponibilidades"
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium rounded-lg transition-colors shadow-sm"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Disponibilidades
+            </Link>
+            <Link 
+              href="/turnos/nuevo"
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Nuevo Turno
+            </Link>
+          </div>
         </div>
 
         {/* Tabs de Vistas */}
         <div className="flex border-b border-zinc-200 dark:border-zinc-800 mb-6">
-          <button 
-            onClick={() => setViewMode('list')}
-            className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${viewMode === 'list' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
-          >
-            Lista
-          </button>
           <button 
             onClick={() => setViewMode('weekly')}
             className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${viewMode === 'weekly' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
@@ -216,6 +343,12 @@ export default function TurnosPage() {
             className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${viewMode === 'daily' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
           >
             Agenda Diaria
+          </button>
+          <button 
+            onClick={() => setViewMode('list')}
+            className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${viewMode === 'list' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+          >
+            Lista
           </button>
         </div>
 
@@ -269,6 +402,7 @@ export default function TurnosPage() {
                       <tr>
                         <th className="px-6 py-4 font-medium">Fecha y Hora</th>
                         <th className="px-6 py-4 font-medium">Paciente</th>
+                        <th className="px-6 py-4 font-medium">Tipo</th>
                         <th className="px-6 py-4 font-medium">Motivo</th>
                         <th className="px-6 py-4 font-medium">Estado</th>
                         <th className="px-6 py-4 font-medium text-right">Acciones</th>
@@ -304,22 +438,37 @@ export default function TurnosPage() {
                                   </div>
                                 )}
                               </td>
+                              <td className="px-6 py-4">
+                                <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                  {turno.tipo || 'Consulta'}
+                                </div>
+                                {turno.es_sobreturno && (
+                                  <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-400">
+                                    SOBRETURNO
+                                  </div>
+                                )}
+                                {turno.duracion && (
+                                  <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">
+                                    {turno.duracion} min
+                                  </div>
+                                )}
+                              </td>
                               <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
                                 {turno.motivo || '-'}
                               </td>
                               <td className="px-6 py-4">
-                                <select 
-                                  value={turno.estado}
+                                <select
+                                  value={turno.estado || ""}
                                   onChange={(e) => handleEstadoChange(turno.id, e.target.value)}
-                                  className={`px-2 py-1 rounded-md text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${
-                                    turno.estado === 'pendiente' ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 border-yellow-200 dark:border-yellow-800/50' : 
-                                    turno.estado === 'completado' ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800/50' : 
-                                    'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800/50'
-                                  }`}
+                                  className={`px-2 py-1 rounded-md text-xs font-medium border focus:outline-none focus:ring-2 focus:ring-blue-500/50 ${getEstadoColor(turno.estado)}`}
                                 >
-                                  <option value="pendiente" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Pendiente</option>
-                                  <option value="completado" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Completado</option>
-                                  <option value="cancelado" className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">Cancelado</option>
+                                  <option value="" className="bg-white dark:bg-zinc-900 text-zinc-500">Sin asignar</option>
+                                  {ESTADOS.map(estado => (
+                                    <option key={estado} value={estado} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{estado}</option>
+                                  ))}
+                                  {turno.estado && !ESTADOS.includes(turno.estado) && (
+                                    <option value={turno.estado} className="bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">{turno.estado}</option>
+                                  )}
                                 </select>
                               </td>
                               <td className="px-6 py-4 text-right flex justify-end gap-2">
@@ -384,54 +533,288 @@ export default function TurnosPage() {
               </div>
             )}
 
-            {/* VISTA SEMANAL */}
-            {viewMode === 'weekly' && (
-              <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
-                {getDaysOfWeek(filterDate).map((day, idx) => {
-                  const dayTurnos = filteredTurnos.filter(t => {
-                    const d = new Date(t.fecha_hora);
-                    return d.getDate() === day.getDate() && d.getMonth() === day.getMonth() && d.getFullYear() === day.getFullYear();
-                  });
-                  const isToday = new Date().toDateString() === day.toDateString();
+            {/* VISTA SEMANAL TIPO GOOGLE CALENDAR */}
+            {viewMode === 'weekly' && (() => {
+              const CALENDAR_START_HOUR = 8;
+              const CALENDAR_END_HOUR = 20;
+              const TOTAL_HOURS = CALENDAR_END_HOUR - CALENDAR_START_HOUR + 1; // 8 to 20 is 13 hours
+              const BASE_SLOT_HEIGHT = 100; // 100px para todos los turnos por igual (altura fija base)
+              const TOTAL_SLOTS = TOTAL_HOURS * 4;
 
-                  return (
-                    <div key={idx} className={`flex flex-col bg-white dark:bg-zinc-900 rounded-xl border ${isToday ? 'border-blue-500 shadow-md' : 'border-zinc-200 dark:border-zinc-800'} overflow-hidden shadow-sm h-full`}>
-                      <div className={`p-3 text-center border-b ${isToday ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50' : 'bg-zinc-50 dark:bg-zinc-950/50 border-zinc-200 dark:border-zinc-800'}`}>
-                        <div className="font-semibold text-zinc-900 dark:text-zinc-100 capitalize">
-                          {day.toLocaleDateString('es-ES', { weekday: 'long' })}
-                        </div>
-                        <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                          {formatDate(day)}
-                        </div>
+              // Calcular la altura global de cada slot de 15 min para alinear la cuadrícula
+              const globalSlotHeights = new Array(TOTAL_SLOTS).fill(BASE_SLOT_HEIGHT);
+              for (let i = 0; i < TOTAL_SLOTS; i++) {
+                const slotStartHour = CALENDAR_START_HOUR + Math.floor(i / 4);
+                const slotStartMin = (i % 4) * 15;
+                
+                let maxTurnos = 1;
+                getDaysOfWeek(filterDate).forEach(day => {
+                  const slotStart = new Date(day.getFullYear(), day.getMonth(), day.getDate(), slotStartHour, slotStartMin);
+                  const turnosHere = filteredTurnos.filter(t => Math.abs(new Date(t.fecha_hora).getTime() - slotStart.getTime()) < 60000);
+                  if (turnosHere.length > maxTurnos) {
+                    maxTurnos = turnosHere.length;
+                  }
+                });
+                globalSlotHeights[i] = maxTurnos * BASE_SLOT_HEIGHT;
+              }
+
+              const globalSlotTops = new Array(TOTAL_SLOTS).fill(0);
+              let currentGlobalTop = 0;
+              for (let i = 0; i < TOTAL_SLOTS; i++) {
+                globalSlotTops[i] = currentGlobalTop;
+                currentGlobalTop += globalSlotHeights[i];
+              }
+              const totalCalendarHeight = currentGlobalTop;
+              
+              return (
+                <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm flex flex-col overflow-x-auto">
+                  <div className="flex-1">
+                    <div className="flex min-w-[800px]">
+                      {/* Columna de Horas */}
+                      <div className="w-16 flex-shrink-0 border-r border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950/50 sticky left-0 z-30">
+                        <div className="h-14 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 bg-zinc-50 dark:bg-zinc-950/50 z-40"></div>
+                        {Array.from({ length: TOTAL_HOURS }).map((_, i) => {
+                          const hour = CALENDAR_START_HOUR + i;
+                          const h = globalSlotHeights[i*4] + globalSlotHeights[i*4+1] + globalSlotHeights[i*4+2] + globalSlotHeights[i*4+3];
+                          return (
+                            <div key={i} className="relative border-b border-zinc-200 dark:border-zinc-800" style={{ height: `${h}px` }}>
+                              <span className="absolute -top-3 right-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-950/50 px-1">
+                                {hour}:00
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <div className="p-2 flex-1 overflow-y-auto space-y-2 min-h-[300px]">
-                        {dayTurnos.length === 0 ? (
-                          <p className="text-xs text-center text-zinc-400 dark:text-zinc-500 py-4">Sin turnos</p>
-                        ) : (
-                          dayTurnos.map(turno => (
-                            <Link href={`/turnos/${turno.id}?mode=view`} key={turno.id} className={`block p-2 rounded-lg border text-xs transition-colors hover:border-blue-300 dark:hover:border-blue-700 ${
-                              turno.estado === 'pendiente' ? 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-100 dark:border-yellow-900/30' : 
-                              turno.estado === 'completado' ? 'bg-green-50 dark:bg-green-900/10 border-green-100 dark:border-green-900/30' : 
-                              'bg-red-50 dark:bg-red-900/10 border-red-100 dark:border-red-900/30'
-                            }`}>
-                              <div className="font-medium text-blue-600 dark:text-blue-400 mb-1 flex justify-between items-center">
-                                <span>{new Date(turno.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+
+                      {/* Columnas de Días */}
+                      <div className="flex-1 grid grid-cols-7">
+                        {getDaysOfWeek(filterDate).map((day, idx) => {
+                          const isToday = new Date().toDateString() === day.toDateString();
+                          
+                          // Filtrar disponibilidades del día
+                          const dayDisponibilidades = disponibilidades.filter(d => {
+                            const date = new Date(d.fecha_hora_inicio);
+                            return date.getDate() === day.getDate() && date.getMonth() === day.getMonth() && date.getFullYear() === day.getFullYear();
+                          });
+
+                          // Filtrar turnos del día
+                          const dayTurnos = filteredTurnos.filter(t => {
+                            const d = new Date(t.fecha_hora);
+                            return d.getDate() === day.getDate() && d.getMonth() === day.getMonth() && d.getFullYear() === day.getFullYear();
+                          });
+
+                          return (
+                            <div key={idx} className="border-r border-zinc-200 dark:border-zinc-800 last:border-r-0 relative min-w-[120px]">
+                              {/* Cabecera del Día */}
+                              <div className={`h-14 border-b border-zinc-200 dark:border-zinc-800 sticky top-0 z-20 flex flex-col items-center justify-center ${isToday ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-white dark:bg-zinc-900'}`}>
+                                <span className={`text-xs font-medium uppercase ${isToday ? 'text-blue-600 dark:text-blue-400' : 'text-zinc-500 dark:text-zinc-400'}`}>
+                                  {day.toLocaleDateString('es-ES', { weekday: 'short' })}
+                                </span>
+                                <span className={`text-lg leading-tight ${isToday ? 'font-bold text-blue-600 dark:text-blue-400 bg-blue-100 dark:bg-blue-900/50 w-7 h-7 rounded-full flex items-center justify-center' : 'text-zinc-700 dark:text-zinc-300'}`}>
+                                  {day.getDate()}
+                                </span>
                               </div>
-                              <div className="font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-                                {turno.expand?.paciente_id ? `${turno.expand.paciente_id.apellido.toUpperCase()}, ${turno.expand.paciente_id.nombre}` : 'Desconocido'}
+                              
+                              {/* Cuadrícula y Eventos */}
+                              <div className="relative" style={{ height: `${totalCalendarHeight}px` }}>
+                                {/* Líneas de horas */}
+                                {Array.from({ length: TOTAL_HOURS }).map((_, i) => {
+                                  const h = globalSlotHeights[i*4] + globalSlotHeights[i*4+1] + globalSlotHeights[i*4+2] + globalSlotHeights[i*4+3];
+                                  const top = globalSlotTops[i*4];
+                                  return (
+                                    <div key={i} className="border-b border-zinc-100 dark:border-zinc-800/50 absolute w-full flex flex-col" style={{ top: `${top}px`, height: `${h}px` }}>
+                                      <div className="border-b border-dashed border-zinc-100 dark:border-zinc-800/30 w-full" style={{ height: `${globalSlotHeights[i*4]}px` }}></div>
+                                      <div className="border-b border-dashed border-zinc-100 dark:border-zinc-800/30 w-full" style={{ height: `${globalSlotHeights[i*4+1]}px` }}></div>
+                                      <div className="border-b border-dashed border-zinc-100 dark:border-zinc-800/30 w-full" style={{ height: `${globalSlotHeights[i*4+2]}px` }}></div>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Bloques de Disponibilidad */}
+                                {dayDisponibilidades.map(disp => {
+                                  const start = new Date(disp.fecha_hora_inicio);
+                                  const end = new Date(disp.fecha_hora_fin);
+                                  
+                                  const startHour = start.getHours() + start.getMinutes() / 60;
+                                  const startIndex = Math.round((startHour - CALENDAR_START_HOUR) * 4);
+                                  
+                                  const endHour = end.getHours() + end.getMinutes() / 60;
+                                  const endIndex = Math.round((endHour - CALENDAR_START_HOUR) * 4);
+                                  
+                                  if (startIndex < 0 || startIndex >= TOTAL_SLOTS) return null;
+                                  
+                                  const top = globalSlotTops[startIndex];
+                                  let height = 0;
+                                  for (let i = startIndex; i < endIndex && i < TOTAL_SLOTS; i++) {
+                                    height += globalSlotHeights[i];
+                                  }
+                                  
+                                  if (top < 0 && top + height <= 0) return null;
+
+                                  if (disp.tipo === 'Consulta') {
+                                    const durationMs = end.getTime() - start.getTime();
+                                    const slotsCount = Math.floor(durationMs / (15 * 60 * 1000));
+                                    
+                                    return (
+                                      <div 
+                                        key={disp.id}
+                                        className="absolute left-1 right-1 z-0 flex flex-col border-l-4 border-emerald-400"
+                                        style={{ top: `${Math.max(0, top)}px`, height: `${height}px` }}
+                                      >
+                                        {Array.from({ length: slotsCount }).map((_, i) => {
+                                          const slotStart = new Date(start.getTime() + i * 15 * 60 * 1000);
+                                          const tzoffset = slotStart.getTimezoneOffset() * 60000;
+                                          const localISOTime = (new Date(slotStart.getTime() - tzoffset)).toISOString().slice(0, 16);
+                                          const slotH = globalSlotHeights[startIndex + i] || BASE_SLOT_HEIGHT;
+
+                                          return (
+                                            <div 
+                                              key={`slot-${i}`} 
+                                              className="border-b border-emerald-200/30 dark:border-emerald-800/30 bg-emerald-50/20 dark:bg-emerald-900/10 hover:bg-emerald-100/60 dark:hover:bg-emerald-800/40 transition-colors group relative flex items-center justify-center flex-shrink-0"
+                                              style={{ height: `${slotH}px` }}
+                                            >
+                                              <span className="absolute left-1 top-0.5 text-xs text-emerald-600/50 font-medium">
+                                                {slotStart.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                              </span>
+                                              <Link 
+                                                href={`/turnos/nuevo?fecha_hora=${localISOTime}&disponibilidad_id=${disp.id}&tipo=Consulta`} 
+                                                className="opacity-0 group-hover:opacity-100 transition-opacity bg-emerald-600 text-white rounded-full p-0.5 shadow-sm hover:scale-110 transform"
+                                                title="Nuevo turno"
+                                              >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                                              </Link>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    );
+                                  }
+
+                                  return (
+                                    <div 
+                                      key={disp.id}
+                                      className="absolute left-1 right-1 bg-emerald-50/40 dark:bg-emerald-900/10 border-l-4 border-emerald-300 dark:border-emerald-700/50 z-0 pointer-events-none rounded"
+                                      style={{ top: `${Math.max(0, top)}px`, height: `${height}px` }}
+                                    >
+                                      <span className="text-xs font-medium text-emerald-600/70 dark:text-emerald-400/50 p-1 block">Disp. {disp.tipo}</span>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Bloques de Todos los Turnos (Normales y Sobreturnos) */}
+                                {dayTurnos.map(turno => {
+                                  const start = new Date(turno.fecha_hora);
+                                  const duration = turno.duracion || 15;
+                                  
+                                  const startHour = start.getHours() + start.getMinutes() / 60;
+                                  const startIndex = Math.round((startHour - CALENDAR_START_HOUR) * 4);
+                                  
+                                  if (startIndex < 0 || startIndex >= TOTAL_SLOTS) return null;
+                                  
+                                  // Agrupar turnos que empiezan exactamente a la misma hora para apilarlos verticalmente
+                                  const overlappingTurnos = dayTurnos.filter(t => Math.abs(new Date(t.fecha_hora).getTime() - start.getTime()) < 60000);
+                                  // Ordenar: turno normal primero, luego sobreturnos (y por ID para estabilidad)
+                                  overlappingTurnos.sort((a, b) => {
+                                    if (a.es_sobreturno === b.es_sobreturno) return a.id.localeCompare(b.id);
+                                    return a.es_sobreturno ? 1 : -1;
+                                  });
+                                  
+                                  const index = overlappingTurnos.findIndex(t => t.id === turno.id);
+                                  const count = overlappingTurnos.length;
+                                  
+                                  const baseTop = globalSlotTops[startIndex];
+                                  
+                                  const bgClass = getStateColorClass(turno.estado);
+                                  const isSobreturno = turno.es_sobreturno;
+                                  
+                                  // Todos los turnos y sobreturnos tienen exactamente la misma altura fija
+                                  const height = BASE_SLOT_HEIGHT;
+                                  // El top suma la posición base más el desplazamiento por turnos anteriores apilados
+                                  const top = baseTop + (index * BASE_SLOT_HEIGHT);
+                                  
+                                  // Ocupan todo el ancho, ya no comparten horizontalmente
+                                  const leftClass = 'left-1 right-1 z-20';
+                                  // Diferenciar visualmente los sobreturnos (borde distinto)
+                                  const borderStyle = isSobreturno ? 'border-2 border-orange-400 dark:border-orange-500' : 'border border-zinc-200 dark:border-zinc-700';
+
+                                  // Verificar si hay un turno asignado inmediatamente después del bloque original
+                                  const endOfThisTurn = new Date(start.getTime() + duration * 60 * 1000);
+                                  const hasNextAssigned = dayTurnos.some(t => Math.abs(new Date(t.fecha_hora).getTime() - endOfThisTurn.getTime()) < 60000);
+
+                                  // Verificar si hay un turno asignado inmediatamente antes del bloque original
+                                  const prevTurn = dayTurnos.find(t => Math.abs(new Date(t.fecha_hora).getTime() + (t.duracion || 15) * 60 * 1000 - start.getTime()) < 60000);
+                                  const hasPrevAssigned = !!prevTurn;
+                                  
+                                  // Comprobar si ya existe un sobreturno en este horario o en el anterior
+                                  const hasSobreturnoHere = overlappingTurnos.some(t => t.es_sobreturno);
+                                  const prevSlotTurnos = prevTurn ? dayTurnos.filter(t => Math.abs(new Date(t.fecha_hora).getTime() - new Date(prevTurn.fecha_hora).getTime()) < 60000) : [];
+                                  const prevHasSobreturno = prevSlotTurnos.some(t => t.es_sobreturno);
+                                  
+                                  // Solo mostrar botones "+" en los extremos del bloque apilado si no hay sobreturnos ya asignados en ese hueco
+                                  const showUpperPlus = (index === 0) && hasPrevAssigned && prevTurn && !prevHasSobreturno;
+                                  const showLowerPlus = (index === count - 1) && hasNextAssigned && !hasSobreturnoHere;
+
+                                  return (
+                                    <div 
+                                      key={turno.id}
+                                      className={`absolute ${leftClass} rounded ${borderStyle} hover:z-40 group transition-all hover:shadow-lg hover:ring-2 hover:ring-blue-400/50 cursor-pointer ${bgClass} opacity-100 shadow-sm`}
+                                      style={{ top: `${Math.max(0, top)}px`, height: `${height}px`, minHeight: `${BASE_SLOT_HEIGHT}px` }}
+                                      onClick={(e) => handleTurnoClick(turno, e)}
+                                    >
+                                      <div className="p-1 h-full relative flex flex-col justify-center overflow-hidden rounded">
+                                        {isSobreturno && (
+                                          <div className="mb-0.5">
+                                            <span className="text-[10px] font-bold uppercase text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/50 px-1.5 py-0.5 rounded inline-block">
+                                              SOBRETURNO
+                                            </span>
+                                          </div>
+                                        )}
+                                        <div className="font-semibold text-sm leading-tight break-words whitespace-normal">
+                                          {turno.expand?.paciente_id ? `${turno.expand.paciente_id.apellido}, ${turno.expand.paciente_id.nombre}` : 'Sin paciente'}
+                                        </div>
+                                        <div className="text-xs leading-tight opacity-80 truncate mt-0.5">
+                                          {start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - {turno.tipo || 'Consulta'}
+                                        </div>
+                                      </div>
+
+                                      {/* Botón "+" para sobreturno (ubicado en el borde superior) */}
+                                      {showUpperPlus && (
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                          <Link 
+                                            href={`/turnos/sobreturno/nuevo?fecha_hora=${prevTurn.fecha_hora}&tipo=${prevTurn.tipo || 'Consulta'}`} 
+                                            className="absolute -top-2.5 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-orange-500 text-white rounded-full p-0.5 shadow-md hover:scale-110 hover:bg-orange-600 z-30 border border-white dark:border-zinc-800"
+                                            title="Añadir sobreturno"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                          </Link>
+                                        </div>
+                                      )}
+
+                                      {/* Botón "+" para sobreturno (ubicado en el borde inferior) */}
+                                      {showLowerPlus && (
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                          <Link 
+                                            href={`/turnos/sobreturno/nuevo?fecha_hora=${turno.fecha_hora}&tipo=${turno.tipo || 'Consulta'}`} 
+                                            className="absolute -bottom-2.5 left-1/2 transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity bg-orange-500 text-white rounded-full p-0.5 shadow-md hover:scale-110 hover:bg-orange-600 z-30 border border-white dark:border-zinc-800"
+                                            title="Añadir sobreturno"
+                                          >
+                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                                          </Link>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
                               </div>
-                              <div className="text-zinc-500 dark:text-zinc-400 truncate mt-1" title={turno.motivo}>
-                                {turno.motivo || 'Sin motivo'}
-                              </div>
-                            </Link>
-                          ))
-                        )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-            )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* VISTA DIARIA */}
             {viewMode === 'daily' && (
@@ -456,13 +839,14 @@ export default function TurnosPage() {
                             <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                               {new Date(turno.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
-                            <div className="mt-2">
-                              <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                                turno.estado === 'pendiente' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' : 
-                                turno.estado === 'completado' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 
-                                'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
-                              }`}>
-                                {turno.estado.charAt(0).toUpperCase() + turno.estado.slice(1)}
+                            <div className="mt-2 flex flex-col gap-1 items-center sm:items-start">
+                              {turno.es_sobreturno && (
+                                <span className="text-[10px] font-bold uppercase text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/50 px-2 py-0.5 rounded-full">
+                                  SOBRETURNO
+                                </span>
+                              )}
+                              <span className={`text-xs font-medium px-2.5 py-1 rounded-full inline-block ${getStateColorClass(turno.estado)}`}>
+                                {turno.estado ? turno.estado.charAt(0).toUpperCase() + turno.estado.slice(1) : 'Sin asignar'}
                               </span>
                             </div>
                           </div>
@@ -471,20 +855,25 @@ export default function TurnosPage() {
                             <div className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                               {turno.expand?.paciente_id ? `${turno.expand.paciente_id.apellido.toUpperCase()}, ${turno.expand.paciente_id.nombre.toUpperCase()}` : 'Paciente no encontrado'}
                             </div>
-                            <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-1 flex items-center gap-1">
+                            <div className="mt-1 flex flex-wrap gap-2 items-center">
+                              {turno.expand?.paciente_id && (
+                                <span className="inline-flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 bg-zinc-100 dark:bg-zinc-800/50 px-2.5 py-1 rounded-md">
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                                  </svg>
+                                  {turno.expand.paciente_id.dni}
+                                </span>
+                              )}
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                                {turno.tipo || 'Consulta'} {turno.duracion ? `(${turno.duracion} min)` : ''}
+                              </span>
+                            </div>
+                            <div className="text-sm text-zinc-600 dark:text-zinc-300 mt-2 flex items-center gap-1">
                               <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                               </svg>
                               <span className="font-medium">Motivo:</span> {turno.motivo || 'No especificado'}
                             </div>
-                            {turno.expand?.paciente_id && (
-                              <div className="text-sm text-zinc-500 dark:text-zinc-400 mt-1 flex items-center gap-1">
-                                <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
-                                </svg>
-                                <span className="font-medium">DNI:</span> {turno.expand.paciente_id.dni}
-                              </div>
-                            )}
                           </div>
                           
                           <div className="flex items-center justify-end sm:justify-start gap-2 pt-4 sm:pt-0 border-t sm:border-t-0 border-zinc-200 dark:border-zinc-800">
@@ -549,6 +938,140 @@ export default function TurnosPage() {
           </>
         )}
       </div>
+
+      {/* Modal de Acciones de Turno */}
+      {isTurnoModalOpen && selectedTurno && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={closeTurnoModal}>
+          <div 
+            className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-sm overflow-hidden flex flex-col transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className={`p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-start ${getStateColorClass(selectedTurno.estado)} bg-opacity-20 dark:bg-opacity-10`}>
+              <div>
+                <h3 className="font-bold text-lg leading-tight break-words whitespace-normal pr-2">
+                  {selectedTurno.expand?.paciente_id ? `${selectedTurno.expand.paciente_id.apellido}, ${selectedTurno.expand.paciente_id.nombre}` : 'Sin paciente'}
+                </h3>
+                {selectedTurno.expand?.paciente_id && (
+                  <div className="text-sm mt-1 text-zinc-700 dark:text-zinc-300 font-medium flex flex-wrap gap-x-3 gap-y-1">
+                    <span>DNI: {selectedTurno.expand.paciente_id.dni}</span>
+                    {selectedTurno.expand.paciente_id.telefono && (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                        {selectedTurno.expand.paciente_id.telefono}
+                      </span>
+                    )}
+                    {selectedTurno.expand.paciente_id.obra_social && (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" /></svg>
+                        {selectedTurno.expand.paciente_id.obra_social}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <span className="text-xs opacity-80 mt-1.5 inline-block font-medium px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 border border-zinc-200/50 dark:border-zinc-700/50">
+                  {selectedTurno.estado ? selectedTurno.estado.charAt(0).toUpperCase() + selectedTurno.estado.slice(1) : 'Sin asignar'}
+                </span>
+              </div>
+              <button onClick={closeTurnoModal} className="p-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors flex-shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <div className="p-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between text-sm text-zinc-600 dark:text-zinc-300">
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                  <span>{new Date(selectedTurno.fecha_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                </div>
+                <div className="flex items-center gap-1.5 font-medium">
+                  {selectedTurno.tipo || 'Consulta'}
+                  {selectedTurno.es_sobreturno && <span className="text-[10px] font-bold uppercase text-orange-600 dark:text-orange-400 bg-orange-100 dark:bg-orange-900/50 px-1.5 py-0.5 rounded ml-1">Sobreturno</span>}
+                </div>
+              </div>
+              
+              <div className="mt-1">
+                <label className="font-semibold block mb-1 text-sm text-zinc-700 dark:text-zinc-200">Motivo:</label>
+                <textarea 
+                  value={editMotivo}
+                  onChange={(e) => setEditMotivo(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none resize-none text-zinc-700 dark:text-zinc-300 transition-colors"
+                  rows={3}
+                  placeholder="Sin motivo especificado..."
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold block mb-2 text-sm text-zinc-700 dark:text-zinc-200">Estado:</label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.preventDefault(); setEditEstado(""); }}
+                    className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                      editEstado === "" || !editEstado
+                        ? `${getStateColorClass("")} shadow-sm ring-2 ring-zinc-500/50 dark:ring-zinc-400/50 scale-105`
+                        : 'bg-white dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600'
+                    }`}
+                  >
+                    Sin asignar
+                  </button>
+                  {ESTADOS.map((estado) => {
+                    const isSelected = editEstado === estado;
+                    const baseColorClass = getStateColorClass(estado);
+                    return (
+                      <button
+                        key={estado}
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); setEditEstado(estado); }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all duration-200 ${
+                          isSelected
+                            ? `${baseColorClass} shadow-sm ring-2 ring-blue-500/50 dark:ring-blue-400/50 scale-105`
+                            : 'bg-white dark:bg-zinc-800/50 border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-600'
+                        }`}
+                      >
+                        {estado}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/30 flex items-center gap-2">
+              <button 
+                onClick={(e) => { e.preventDefault(); closeTurnoModal(); handleDelete(selectedTurno.id); }} 
+                className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-900/20 dark:hover:bg-red-900/40 rounded-lg transition-colors mr-auto"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                Liberar
+              </button>
+              <button 
+                onClick={closeTurnoModal} 
+                className="px-4 py-2 text-sm font-medium text-zinc-600 bg-zinc-100 hover:bg-zinc-200 dark:text-zinc-300 dark:bg-zinc-800 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handleSaveTurnoChanges}
+                disabled={isSavingTurno}
+                className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-colors shadow-sm"
+              >
+                {isSavingTurno ? (
+                  <>
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Guardando...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                    Guardar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

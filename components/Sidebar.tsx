@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
+import { usePathname } from "next/navigation";
 
 export function Sidebar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const pathname = usePathname();
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -32,6 +34,7 @@ export function Sidebar() {
   const menuItems = [
     { name: "Pacientes", href: "/pacientes" },
     { name: "Turnos", href: "/turnos" },
+    { name: "Disponibilidades", href: "/turnos/disponibilidades" },
     { name: "Consultas", href: "/consultas" },
     { name: "Recetas", href: "/recetas" },
   ];
@@ -50,15 +53,22 @@ export function Sidebar() {
         </Link>
       </div>
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => (
-          <Link
-            key={item.name}
-            href={item.href}
-            className="block px-4 py-3 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100 rounded-xl transition-colors font-medium"
-          >
-            {item.name}
-          </Link>
-        ))}
+        {menuItems.map((item) => {
+          const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`);
+          return (
+            <Link
+              key={item.name}
+              href={item.href}
+              className={`block px-4 py-3 rounded-xl transition-colors font-medium ${
+                isActive 
+                  ? 'bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400' 
+                  : 'text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100'
+              }`}
+            >
+              {item.name}
+            </Link>
+          );
+        })}
       </nav>
     </aside>
   );
