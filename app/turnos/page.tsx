@@ -20,6 +20,7 @@ interface Turno {
   paciente_id: string;
   fecha_hora: string;
   motivo: string;
+  observaciones?: string;
   estado?: string;
   consulta_id?: string;
   tipo?: string;
@@ -84,13 +85,30 @@ export default function TurnosPage() {
   const [selectedTurno, setSelectedTurno] = useState<Turno | null>(null);
   const [isTurnoModalOpen, setIsTurnoModalOpen] = useState(false);
   const [editMotivo, setEditMotivo] = useState("");
+  const [editObservaciones, setEditObservaciones] = useState("");
   const [editEstado, setEditEstado] = useState("");
   const [isSavingTurno, setIsSavingTurno] = useState(false);
+
+  // Modal de impresión
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [printDate, setPrintDate] = useState("");
+  const [printFields, setPrintFields] = useState({
+    hora: true,
+    paciente: true,
+    dni: true,
+    telefono: true,
+    obra_social: false,
+    tipo: false,
+    motivo: true,
+    estado: true,
+    observaciones: true
+  });
 
   const handleTurnoClick = (turno: Turno, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
     setSelectedTurno(turno);
     setEditMotivo(turno.motivo || "");
+    setEditObservaciones(turno.observaciones || "");
     setEditEstado(turno.estado || "");
     setIsTurnoModalOpen(true);
   };
@@ -100,19 +118,44 @@ export default function TurnosPage() {
     setSelectedTurno(null);
   };
 
+  const openPrintModal = () => {
+    // Si hay una fecha en el filtro, la usa por defecto, si no, usa la de hoy
+    if (filterDate) {
+      setPrintDate(filterDate);
+    } else {
+      const today = new Date();
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      setPrintDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
+    }
+    setIsPrintModalOpen(true);
+  };
+
+  const handlePrint = () => {
+    if (!printDate) return;
+    const selectedFields = Object.entries(printFields)
+      .filter(([_, isSelected]) => isSelected)
+      .map(([key]) => key)
+      .join(",");
+    
+    // Abrir en nueva pestaña
+    window.open(`/turnos/imprimir?date=${printDate}&fields=${selectedFields}`, '_blank');
+    setIsPrintModalOpen(false);
+  };
+
   const handleSaveTurnoChanges = async () => {
     if (!selectedTurno) return;
     setIsSavingTurno(true);
     try {
       await pb.collection("turnos").update(selectedTurno.id, {
         motivo: editMotivo,
+        observaciones: editObservaciones,
         estado: editEstado === "" ? null : editEstado
       });
       
       // Update local state to reflect changes immediately
       setTurnos(prevTurnos => prevTurnos.map(t => 
         t.id === selectedTurno.id 
-          ? { ...t, motivo: editMotivo, estado: editEstado === "" ? "" : editEstado }
+          ? { ...t, motivo: editMotivo, observaciones: editObservaciones, estado: editEstado === "" ? "" : editEstado }
           : t
       ));
       
@@ -309,6 +352,15 @@ export default function TurnosPage() {
             </div>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={openPrintModal}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium rounded-lg transition-colors shadow-sm"
+              title="Imprimir Turnos"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+              </svg>
+            </button>
             <Link 
               href="/turnos/disponibilidades"
               className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 font-medium rounded-lg transition-colors shadow-sm"
@@ -364,16 +416,50 @@ export default function TurnosPage() {
               className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 text-sm"
             />
           </div>
-          <div className="flex-1 sm:max-w-xs">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
-              {viewMode === 'weekly' ? 'Semana del' : 'Filtrar por Fecha'}
-            </label>
-            <input 
-              type="date" 
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark] text-sm"
-            />
+          <div className="flex-1 sm:max-w-xs flex items-end gap-2">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">
+                {viewMode === 'weekly' ? 'Semana del' : 'Filtrar por Fecha'}
+              </label>
+              <input 
+                type="date" 
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark] text-sm"
+              />
+            </div>
+            {(viewMode === 'weekly' || viewMode === 'daily') && (
+              <div className="flex gap-1 mb-[1px]">
+                <button
+                  onClick={() => {
+                    const current = filterDate ? new Date(filterDate) : new Date();
+                    current.setDate(current.getDate() - (viewMode === 'weekly' ? 7 : 1));
+                    const pad = (n: number) => n.toString().padStart(2, '0');
+                    setFilterDate(`${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`);
+                  }}
+                  className="p-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+                  title={viewMode === 'weekly' ? "Semana anterior" : "Día anterior"}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => {
+                    const current = filterDate ? new Date(filterDate) : new Date();
+                    current.setDate(current.getDate() + (viewMode === 'weekly' ? 7 : 1));
+                    const pad = (n: number) => n.toString().padStart(2, '0');
+                    setFilterDate(`${current.getFullYear()}-${pad(current.getMonth() + 1)}-${pad(current.getDate())}`);
+                  }}
+                  className="p-2 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
+                  title={viewMode === 'weekly' ? "Semana siguiente" : "Día siguiente"}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+            )}
           </div>
           {(filterPatient || filterDate) && (
             <div className="flex items-end">
@@ -939,6 +1025,98 @@ export default function TurnosPage() {
         )}
       </div>
 
+      {/* Modal de Impresión */}
+      {isPrintModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsPrintModalOpen(false)}>
+          <div 
+            className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-md overflow-hidden flex flex-col transform transition-all"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center bg-zinc-50 dark:bg-zinc-800/50">
+              <h3 className="font-bold text-lg text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
+                <svg className="w-5 h-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Imprimir Listado de Turnos
+              </h3>
+              <button 
+                onClick={() => setIsPrintModalOpen(false)}
+                className="text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="p-5 flex-1 overflow-y-auto">
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Fecha a imprimir
+                </label>
+                <input 
+                  type="date" 
+                  value={printDate}
+                  onChange={(e) => setPrintDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark]"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Campos a incluir
+                </label>
+                <div className="grid grid-cols-2 gap-3 bg-zinc-50 dark:bg-zinc-800/30 p-4 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  {Object.entries({
+                    hora: "Hora",
+                    paciente: "Paciente",
+                    dni: "DNI",
+                    telefono: "Teléfono",
+                    obra_social: "Obra Social",
+                    tipo: "Tipo de Turno",
+                    motivo: "Motivo",
+                    estado: "Estado",
+                    observaciones: "Observaciones"
+                  }).map(([key, label]) => (
+                    <label key={key} className="flex items-center gap-2 cursor-pointer group">
+                      <input 
+                        type="checkbox"
+                        checked={printFields[key as keyof typeof printFields]}
+                        onChange={(e) => setPrintFields(prev => ({...prev, [key]: e.target.checked}))}
+                        className="w-4 h-4 text-blue-600 rounded border-zinc-300 dark:border-zinc-600 focus:ring-blue-500 dark:bg-zinc-900 cursor-pointer"
+                        disabled={key === 'paciente'} // El paciente siempre debería estar
+                      />
+                      <span className={`text-sm select-none ${key === 'paciente' ? 'text-zinc-400 dark:text-zinc-500' : 'text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-zinc-100'}`}>
+                        {label} {key === 'paciente' && '(Obligatorio)'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/50 flex justify-end gap-2">
+              <button 
+                onClick={() => setIsPrintModalOpen(false)}
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-lg hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={handlePrint}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                disabled={!printDate}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Generar Impresión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Acciones de Turno */}
       {isTurnoModalOpen && selectedTurno && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={closeTurnoModal}>
@@ -995,8 +1173,19 @@ export default function TurnosPage() {
                   value={editMotivo}
                   onChange={(e) => setEditMotivo(e.target.value)}
                   className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none resize-none text-zinc-700 dark:text-zinc-300 transition-colors"
-                  rows={3}
+                  rows={2}
                   placeholder="Sin motivo especificado..."
+                />
+              </div>
+
+              <div className="mt-1">
+                <label className="font-semibold block mb-1 text-sm text-zinc-700 dark:text-zinc-200">Observaciones:</label>
+                <textarea 
+                  value={editObservaciones}
+                  onChange={(e) => setEditObservaciones(e.target.value)}
+                  className="w-full bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200 dark:border-zinc-700 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 outline-none resize-none text-zinc-700 dark:text-zinc-300 transition-colors"
+                  rows={3}
+                  placeholder="Observaciones adicionales..."
                 />
               </div>
 

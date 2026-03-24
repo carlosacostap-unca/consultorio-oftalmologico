@@ -195,11 +195,11 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         try {
           await pb.collection("turnos").update(turnoId, {
             consulta_id: consultaId,
-            estado: "completado"
+            estado: "Atendido"
           });
-        } catch (turnoError) {
+        } catch (turnoError: any) {
           console.error("Error al actualizar el turno:", turnoError);
-          alert("La consulta se guardó, pero hubo un error al enlazarla con el turno. Verifica que el campo 'consulta_id' exista en la colección 'turnos' de PocketBase.");
+          alert(`La consulta se guardó, pero hubo un error al enlazarla con el turno. Detalle: ${turnoError?.message || 'Error desconocido'}. Verifica que el campo 'consulta_id' exista y sea de tipo relación simple.`);
         }
       }
 

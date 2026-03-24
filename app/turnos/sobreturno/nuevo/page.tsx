@@ -63,6 +63,7 @@ export default function NuevoTurnoPage() {
     hora: "",
     duracion: "15",
     motivo: "",
+    observaciones: "",
     tipo: "Consulta",
     estado: "",
     es_sobreturno: true,
@@ -275,6 +276,7 @@ export default function NuevoTurnoPage() {
         paciente_id: formData.paciente_id,
         fecha_hora: fechaHoraIso,
         motivo: formData.motivo,
+        observaciones: formData.observaciones,
         estado: formData.estado,
         tipo: selectedDisponibilidad?.tipo || formData.tipo || "Consulta",
         duracion: parseInt(formData.duracion) || 15,
@@ -533,6 +535,17 @@ export default function NuevoTurnoPage() {
                       />
                     </div>
                     <div>
+                      <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Email</label>
+                      <input
+                        type="email"
+                        value={isEditingPatient ? editingPatientData.email || "" : selectedPatient.email || "-"}
+                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, email: e.target.value }))}
+                        disabled={!isEditingPatient}
+                        className="w-full px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md disabled:bg-zinc-100 disabled:text-zinc-500 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder={isEditingPatient ? "Sin email" : ""}
+                      />
+                    </div>
+                    <div>
                       <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Obra Social</label>
                       <input
                         type="text"
@@ -629,14 +642,26 @@ export default function NuevoTurnoPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Motivo / Observaciones</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Motivo</label>
               <textarea 
                 name="motivo" 
                 value={formData.motivo} 
                 onChange={handleInputChange} 
-                rows={3}
+                rows={2}
                 className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 resize-none" 
                 placeholder="Ej: Control general, receta lentes..."
+              ></textarea>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Observaciones</label>
+              <textarea 
+                name="observaciones" 
+                value={formData.observaciones} 
+                onChange={handleInputChange} 
+                rows={3}
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 resize-none" 
+                placeholder="Agregar observaciones..."
               ></textarea>
             </div>
             

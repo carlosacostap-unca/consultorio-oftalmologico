@@ -72,7 +72,7 @@ export default function SeedPage() {
             paciente_id: pacienteRecord.id,
             fecha_hora: pastDate.toISOString(),
             motivo: i === 0 ? "Renovación de anteojos por dificultad visual" : "Molestia y ardor ocular",
-            estado: "completado" // Inicialmente completado
+            estado: "Atendido" // Inicialmente Atendido
           });
 
           const consulta = await pb.collection("consultas").create({
@@ -95,7 +95,7 @@ export default function SeedPage() {
           // Enlazar la consulta al turno explícitamente y asegurar el estado
           await pb.collection("turnos").update(pastTurno.id, {
             consulta_id: consulta.id,
-            estado: "completado"
+            estado: "Atendido"
           });
 
           // Crear receta vinculada a la consulta

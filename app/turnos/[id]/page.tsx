@@ -20,6 +20,7 @@ interface Turno {
   paciente_id: string;
   fecha_hora: string;
   motivo: string;
+  observaciones?: string;
   estado?: string;
   consulta_id?: string;
   disponibilidad_id?: string;
@@ -60,6 +61,7 @@ export default function TurnoFormPage() {
     fecha: "",
     hora: "",
     motivo: "",
+    observaciones: "",
     disponibilidad_id: "",
     duracion: "",
     tipo: "",
@@ -99,6 +101,7 @@ export default function TurnoFormPage() {
             fecha: datePart,
             hora: timePart,
             motivo: turno.motivo || "",
+            observaciones: turno.observaciones || "",
             disponibilidad_id: turno.disponibilidad_id || "",
             duracion: turno.duracion ? turno.duracion.toString() : "",
             tipo: turno.tipo || "",
@@ -190,6 +193,7 @@ export default function TurnoFormPage() {
         paciente_id: formData.paciente_id,
         fecha_hora: fechaHoraIso,
         motivo: formData.motivo,
+        observaciones: formData.observaciones,
         disponibilidad_id: formData.disponibilidad_id,
         duracion: formData.duracion ? parseInt(formData.duracion) : null,
         tipo: formData.tipo,
@@ -402,15 +406,28 @@ export default function TurnoFormPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Motivo / Observaciones</label>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Motivo</label>
               <textarea 
                 name="motivo" 
                 value={formData.motivo} 
                 onChange={handleInputChange} 
                 disabled={isViewMode}
-                rows={3}
+                rows={2}
                 className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 resize-none disabled:opacity-70" 
                 placeholder="Ej: Control general, receta lentes..."
+              ></textarea>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Observaciones</label>
+              <textarea 
+                name="observaciones" 
+                value={formData.observaciones} 
+                onChange={handleInputChange} 
+                disabled={isViewMode}
+                rows={3}
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 resize-none disabled:opacity-70" 
+                placeholder="Agregar observaciones..."
               ></textarea>
             </div>
             
