@@ -9,17 +9,20 @@ export default function NuevoPacientePage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [mutuales, setMutuales] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
-    dni: "",
+    tipo_documento: "DNI",
+    numero_documento: "",
     telefono: "",
     email: "",
     fecha_nacimiento: "",
     obra_social: "",
     numero_afiliado: "",
     domicilio: "",
+    numero_ficha: "",
   });
 
   useEffect(() => {
@@ -28,7 +31,21 @@ export default function NuevoPacientePage() {
 
     if (!pb.authStore.isValid) {
       router.push("/");
+      return;
     }
+
+    const loadMutuales = async () => {
+      try {
+        const records = await pb.collection("mutuales").getFullList({
+          sort: "nombre",
+        });
+        setMutuales(records);
+      } catch (error) {
+        console.error("Error al cargar mutuales:", error);
+      }
+    };
+
+    loadMutuales();
   }, [router]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,7 +60,8 @@ export default function NuevoPacientePage() {
       const dataToSave = {
         ...formData,
         nombre: formData.nombre.toUpperCase(),
-        apellido: formData.apellido.toUpperCase()
+        apellido: formData.apellido.toUpperCase(),
+        numero_ficha: formData.numero_ficha.toUpperCase()
       };
       await pb.collection("pacientes").create(dataToSave);
       router.push("/pacientes");
@@ -94,8 +112,24 @@ export default function NuevoPacientePage() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">DNI</label>
-                  <input type="text" name="dni" value={formData.dni} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Tipo de Documento</label>
+                  <select name="tipo_documento" value={formData.tipo_documento} onChange={(e: any) => handleInputChange(e)} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200">
+                    <option value="DNI">DNI</option>
+                    <option value="LC">LC</option>
+                    <option value="LE">LE</option>
+                    <option value="PASAPORTE">Pasaporte</option>
+                    <option value="OTRO">Otro</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Número de Documento *</label>
+                  <input required type="text" name="numero_documento" value={formData.numero_documento} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Número de Ficha</label>
+                  <input type="text" name="numero_ficha" value={formData.numero_ficha} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase" placeholder="Ej: A-123" />
                 </div>
                 
                 <div>
@@ -125,7 +159,20 @@ export default function NuevoPacientePage() {
                 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Obra Social / Prepaga</label>
-                  <input type="text" name="obra_social" value={formData.obra_social} onChange={handleInputChange} placeholder="Ej: OSDE, IOMA, Particular" className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
+                  <select 
+                    name="obra_social" 
+                    value={formData.obra_social} 
+                    onChange={(e: any) => handleInputChange(e)} 
+                    className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+                  >
+                    <option value="">Seleccione una obra social...</option>
+                    <option value="PARTICULAR">PARTICULAR</option>
+                    {mutuales.map(mutual => (
+                      <option key={mutual.id} value={mutual.nombre}>
+                        {mutual.nombre} {mutual.codigo ? `(${mutual.codigo})` : ''}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 
                 <div>

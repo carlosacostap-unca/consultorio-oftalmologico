@@ -15,6 +15,7 @@ interface Paciente {
   numero_afiliado: string;
   fecha_nacimiento: string;
   domicilio?: string;
+  numero_ficha?: string;
 }
 
 export default function NuevaConsultaPage() {
@@ -45,6 +46,7 @@ function NuevaConsultaForm() {
   // Estado inicial del formulario basado en la captura
   const initialFormState = {
     paciente_id: initialPacienteId,
+    numero_ficha: "",
     fecha: new Date().toISOString().split('T')[0],
     motivo_consulta: "",
     
@@ -121,7 +123,12 @@ function NuevaConsultaForm() {
       const p = pacientes.find(p => p.id === formData.paciente_id) || null;
       setSelectedPacienteData(p);
       if (p) {
-        setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni}`);
+        setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
+        
+        // Auto-completar número de ficha de la consulta con el del paciente (si está vacío)
+        if (!formData.numero_ficha && p.numero_ficha) {
+          setFormData(prev => ({ ...prev, numero_ficha: p.numero_ficha || "" }));
+        }
       }
 
       // Cargar antecedentes fijos de la última consulta del paciente
@@ -318,20 +325,22 @@ function NuevaConsultaForm() {
                         .filter(p => 
                           p.apellido.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
                           p.nombre.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
-                          p.dni.includes(patientSearchQuery)
+                          p.dni.includes(patientSearchQuery) ||
+                          (p.numero_ficha && p.numero_ficha.toLowerCase().includes(patientSearchQuery.toLowerCase()))
                         )
+                        .slice(0, 50)
                         .map(p => (
                           <div
                             key={p.id}
                             className="px-3 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm"
                             onClick={() => {
                               setFormData(prev => ({ ...prev, paciente_id: p.id }));
-                              setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni}`);
+                              setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
                               setShowPatientDropdown(false);
                             }}
                           >
                             <div className="font-bold">{p.apellido}, {p.nombre}</div>
-                            <div className="text-xs text-zinc-500">DNI: {p.dni}</div>
+                            <div className="text-xs text-zinc-500">DNI: {p.dni} {p.numero_ficha ? `| Ficha: ${p.numero_ficha}` : ''}</div>
                           </div>
                         ))}
                     </div>
@@ -344,7 +353,17 @@ function NuevaConsultaForm() {
                     <span className="text-xs">Años</span>
                   </div>
                 </div>
-                <div className="col-span-8 md:col-span-5">
+                <div className="col-span-4 md:col-span-2">
+                  <label className="block text-xs font-semibold mb-1">Nº Ficha</label>
+                  <input 
+                    type="text" 
+                    name="numero_ficha"
+                    value={formData.numero_ficha || ""} 
+                    onChange={handleInputChange}
+                    className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-800 font-semibold focus:ring-2 focus:ring-blue-500 outline-none" 
+                  />
+                </div>
+                <div className="col-span-4 md:col-span-3">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={selectedPacienteData?.obra_social || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>

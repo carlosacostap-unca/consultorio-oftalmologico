@@ -15,6 +15,7 @@ interface Paciente {
   numero_afiliado: string;
   fecha_nacimiento: string;
   domicilio?: string;
+  numero_ficha?: string;
 }
 
 interface Consulta {
@@ -23,6 +24,7 @@ interface Consulta {
   fecha: string;
   motivo_consulta: string;
   diagnostico: string;
+  numero_ficha?: string;
   expand?: {
     paciente_id: Paciente;
   };
@@ -35,9 +37,75 @@ export default function ConsultasPage() {
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Estados para los filtros
+  // Estados para paginación y filtros
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [filterPatient, setFilterPatient] = useState("");
+  const [debouncedFilterPatient, setDebouncedFilterPatient] = useState("");
   const [filterDate, setFilterDate] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedFilterPatient(filterPatient);
+      setPage(1); // Resetear a la primera página al buscar
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [filterPatient]);
+
+  useEffect(() => {
+    setPage(1); // Resetear a la primera página al cambiar la fecha
+  }, [filterDate]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      let filterParts = [];
+      if (debouncedFilterPatient) {
+        const searchVal = debouncedFilterPatient.toLowerCase().replace(/"/g, '\\"');
+        
+        const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
+        let patientFilter = "";
+        if (terms.length > 0) {
+          const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}")`);
+          patientFilter = termFilters.join(" && ");
+        } else {
+          patientFilter = `nombre ~ "${searchVal}" || apellido ~ "${searchVal}" || numero_documento ~ "${searchVal}"`;
+        }
+        
+        // Primero buscar los pacientes que coincidan (hasta 50 resultados)
+        const pacientesResult = await pb.collection("pacientes").getList(1, 50, {
+          filter: patientFilter
+        });
+        
+        const pacienteIds = pacientesResult.items.map(p => p.id);
+        
+        if (pacienteIds.length > 0) {
+          const idsFilter = pacienteIds.map(id => `paciente_id = "${id}"`).join(" || ");
+          filterParts.push(`(${idsFilter})`);
+        } else {
+          // Si no se encuentran pacientes, forzar un resultado vacío
+          filterParts.push(`id = "not_found"`);
+        }
+      }
+      if (filterDate) {
+        filterParts.push(`fecha >= "${filterDate} 00:00:00" && fecha <= "${filterDate} 23:59:59"`);
+      }
+      
+      const filterString = filterParts.join(" && ");
+
+      const result = await pb.collection("consultas").getList<Consulta>(page, 20, {
+        sort: "-fecha",
+        expand: "paciente_id",
+        filter: filterString,
+      });
+      setConsultas(result.items);
+      setTotalPages(result.totalPages);
+    } catch (error) {
+      console.error("Error al cargar datos:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -48,67 +116,19 @@ export default function ConsultasPage() {
       return;
     }
 
-    const loadData = async () => {
-      try {
-        const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
-          sort: "-fecha",
-          expand: "paciente_id",
-        });
-        setConsultas(consultasRecords);
-      } catch (error) {
-        console.error("Error al cargar datos:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
     loadData();
-
-    let unsubscribe: () => void;
-    pb.collection("consultas")
-      .subscribe<Consulta>("*", async () => {
-        const records = await pb.collection("consultas").getFullList<Consulta>({
-          sort: "-fecha",
-          expand: "paciente_id",
-        });
-        setConsultas(records);
-      })
-      .then((unsub) => { unsubscribe = unsub; })
-      .catch((err) => console.log("Suscripción fallida a consultas:", err));
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [router]);
+  }, [router, page, debouncedFilterPatient, filterDate]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta consulta?")) {
       try {
         await pb.collection("consultas").delete(id);
+        loadData(); // Recargar después de eliminar
       } catch (error) {
         console.error("Error al eliminar consulta:", error);
       }
     }
   };
-
-  const filteredConsultas = consultas.filter((consulta) => {
-    let matchesPatient = true;
-    let matchesDate = true;
-
-    if (filterPatient) {
-      const patientName = consulta.expand?.paciente_id 
-        ? `${consulta.expand.paciente_id.nombre} ${consulta.expand.paciente_id.apellido}`.toLowerCase()
-        : "";
-      matchesPatient = patientName.includes(filterPatient.toLowerCase());
-    }
-
-    if (filterDate) {
-      const consultaDate = new Date(consulta.fecha).toISOString().split('T')[0];
-      matchesDate = consultaDate === filterDate;
-    }
-
-    return matchesPatient && matchesDate;
-  });
 
   if (!isMounted) return null;
   if (!user) return null;
@@ -185,6 +205,7 @@ export default function ConsultasPage() {
                 <tr>
                   <th className="px-6 py-4 font-medium">Fecha</th>
                   <th className="px-6 py-4 font-medium">Paciente</th>
+                  <th className="px-6 py-4 font-medium">Nº Ficha</th>
                   <th className="px-6 py-4 font-medium">Motivo de Consulta</th>
                   <th className="px-6 py-4 font-medium">Diagnóstico</th>
                   <th className="px-6 py-4 font-medium text-right">Acciones</th>
@@ -193,18 +214,18 @@ export default function ConsultasPage() {
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                    <td colSpan={6} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
                       Cargando consultas...
                     </td>
                   </tr>
-                ) : filteredConsultas.length === 0 ? (
+                ) : consultas.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
-                      {consultas.length === 0 ? "No hay consultas registradas." : "No se encontraron consultas que coincidan con los filtros."}
+                    <td colSpan={6} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                      No se encontraron consultas que coincidan con los filtros.
                     </td>
                   </tr>
                 ) : (
-                  filteredConsultas.map((consulta, index) => {
+                  consultas.map((consulta, index) => {
                     const fecha = new Date(consulta.fecha);
                     return (
                       <tr key={consulta.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
@@ -217,6 +238,9 @@ export default function ConsultasPage() {
                           <div className="font-medium text-zinc-900 dark:text-zinc-100">
                             {consulta.expand?.paciente_id ? `${consulta.expand.paciente_id.apellido}, ${consulta.expand.paciente_id.nombre}` : 'Paciente no encontrado'}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
+                          {consulta.numero_ficha || consulta.expand?.paciente_id?.numero_ficha || '-'}
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300 max-w-xs truncate">
                           {consulta.motivo_consulta || '-'}
@@ -261,6 +285,28 @@ export default function ConsultasPage() {
               </tbody>
             </table>
           </div>
+          {/* Paginación */}
+          {!isLoading && totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/50">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Anterior
+              </button>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                Página <span className="font-medium text-zinc-900 dark:text-zinc-100">{page}</span> de <span className="font-medium text-zinc-900 dark:text-zinc-100">{totalPages}</span>
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

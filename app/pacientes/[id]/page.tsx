@@ -16,10 +16,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [mutuales, setMutuales] = useState<any[]>([]);
+  const [consultas, setConsultas] = useState<any[]>([]);
+  const [isLoadingConsultas, setIsLoadingConsultas] = useState(true);
 
   const [formData, setFormData] = useState({
     nombre: "",
     apellido: "",
+    tipo_documento: "DNI",
+    numero_documento: "",
     dni: "",
     telefono: "",
     email: "",
@@ -27,6 +32,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     obra_social: "",
     numero_afiliado: "",
     domicilio: "",
+    numero_ficha: "",
   });
 
   useEffect(() => {
@@ -38,9 +44,33 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
       return;
     }
 
-    const loadPaciente = async () => {
+    const loadData = async () => {
       try {
+        // Cargar mutuales primero
+        try {
+          const mutualesRecords = await pb.collection("mutuales").getFullList({
+            sort: "nombre",
+          });
+          setMutuales(mutualesRecords);
+        } catch (error) {
+          console.error("Error al cargar mutuales:", error);
+        }
+
+        // Luego cargar paciente
         const record = await pb.collection("pacientes").getOne(pacienteId);
+        
+        // Cargar historial de consultas
+        try {
+          const consultasRecords = await pb.collection("consultas").getFullList({
+            filter: `paciente_id = "${pacienteId}"`,
+            sort: "-fecha",
+          });
+          setConsultas(consultasRecords);
+        } catch (error) {
+          console.error("Error al cargar consultas:", error);
+        } finally {
+          setIsLoadingConsultas(false);
+        }
         
         let fechaNacimiento = "";
         if (record.fecha_nacimiento) {
@@ -54,6 +84,8 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
         setFormData({
           nombre: record.nombre || "",
           apellido: record.apellido || "",
+          tipo_documento: record.tipo_documento || "DNI",
+          numero_documento: record.numero_documento || record.dni || "",
           dni: record.dni || "",
           telefono: record.telefono || "",
           email: record.email || "",
@@ -61,6 +93,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           obra_social: record.obra_social || "",
           numero_afiliado: record.numero_afiliado || "",
           domicilio: record.domicilio || "",
+          numero_ficha: record.numero_ficha || "",
         });
       } catch (error) {
         console.error("Error al cargar paciente:", error);
@@ -71,10 +104,10 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
       }
     };
 
-    loadPaciente();
+    loadData();
   }, [router, pacienteId]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -86,7 +119,8 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
       const dataToSave = {
         ...formData,
         nombre: formData.nombre.toUpperCase(),
-        apellido: formData.apellido.toUpperCase()
+        apellido: formData.apellido.toUpperCase(),
+        numero_ficha: formData.numero_ficha.toUpperCase()
       };
       await pb.collection("pacientes").update(pacienteId, dataToSave);
       router.push("/pacientes");
@@ -146,8 +180,42 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                 </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">DNI</label>
-                    <input type="text" name="dni" value={formData.dni} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70" />
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Tipo de Documento
+                    </label>
+                    <select
+                      name="tipo_documento"
+                      value={formData.tipo_documento || 'DNI'}
+                      onChange={handleInputChange}
+                      disabled={isViewMode}
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70"
+                    >
+                      <option value="DNI">DNI</option>
+                      <option value="LC">LC</option>
+                      <option value="LE">LE</option>
+                      <option value="PASAPORTE">Pasaporte</option>
+                      <option value="OTRO">Otro</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">
+                      Número de Documento *
+                    </label>
+                    <input
+                      type="text"
+                      name="numero_documento"
+                      value={formData.numero_documento || formData.dni || ''} // Fallback para compatibilidad con registros antiguos
+                      onChange={handleInputChange}
+                      disabled={isViewMode}
+                      required
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70"
+                    />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Número de Ficha</label>
+                    <input type="text" name="numero_ficha" value={formData.numero_ficha} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase disabled:opacity-70" placeholder="Ej: A-123" />
                   </div>
                   
                   <div>
@@ -177,7 +245,21 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Obra Social / Prepaga</label>
-                    <input type="text" name="obra_social" value={formData.obra_social} onChange={handleInputChange} disabled={isViewMode} placeholder="Ej: OSDE, IOMA, Particular" className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70" />
+                    <select 
+                      name="obra_social" 
+                      value={formData.obra_social} 
+                      onChange={(e: any) => handleInputChange(e)} 
+                      disabled={isViewMode}
+                      className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70"
+                    >
+                      <option value="">Seleccione una obra social...</option>
+                      <option value="PARTICULAR">PARTICULAR</option>
+                      {mutuales.map(mutual => (
+                        <option key={mutual.id} value={mutual.nombre}>
+                          {mutual.nombre} {mutual.codigo ? `(${mutual.codigo})` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   
                   <div>
@@ -208,6 +290,76 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
             </form>
           )}
         </div>
+
+        {/* Historial de Consultas */}
+        {!isFetching && (
+          <div className="mt-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
+              <h3 className="font-semibold text-lg text-zinc-800 dark:text-zinc-200">Historial de Consultas</h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              {isLoadingConsultas ? (
+                <div className="p-6 text-center text-zinc-500 dark:text-zinc-400">
+                  Cargando historial...
+                </div>
+              ) : consultas.length === 0 ? (
+                <div className="p-6 text-center text-zinc-500 dark:text-zinc-400">
+                  No hay consultas registradas para este paciente.
+                </div>
+              ) : (
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
+                      <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Fecha</th>
+                      <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Motivo</th>
+                      <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Diagnóstico</th>
+                      <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                    {consultas.map((consulta) => {
+                      // Usar try-catch para la fecha por si hay algún formato inválido
+                      let fechaStr = "-";
+                      try {
+                        if (consulta.fecha) {
+                          fechaStr = new Date(consulta.fecha).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+                        }
+                      } catch (e) {}
+
+                      return (
+                        <tr key={consulta.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
+                            {fechaStr}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400 max-w-[200px] truncate" title={consulta.motivo_consulta}>
+                            {consulta.motivo_consulta || "-"}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400 max-w-[200px] truncate" title={consulta.diagnostico}>
+                            {consulta.diagnostico || "-"}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button
+                              type="button"
+                              onClick={() => window.open(`/consultas/${consulta.id}?mode=view`, '_blank')}
+                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                              title="Ver detalles de consulta"
+                            >
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

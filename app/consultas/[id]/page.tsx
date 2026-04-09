@@ -16,6 +16,7 @@ interface Paciente {
   numero_afiliado: string;
   fecha_nacimiento: string;
   domicilio?: string;
+  numero_ficha?: string;
 }
 
 import { use } from "react";
@@ -53,6 +54,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   // Estado inicial del formulario basado en la captura
   const initialFormState = {
     paciente_id: initialPacienteId,
+    numero_ficha: "",
     fecha: new Date().toISOString().split('T')[0],
     motivo_consulta: "",
     
@@ -80,6 +82,10 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [formData, setFormData] = useState(initialFormState);
   const [recetasAsociadas, setRecetasAsociadas] = useState<any[]>([]);
 
+  // Estado para la búsqueda de pacientes
+  const [patientSearchQuery, setPatientSearchQuery] = useState("");
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
   useEffect(() => {
     setIsMounted(true);
     setUser(pb.authStore.record);
@@ -91,12 +97,8 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
     const loadData = async () => {
       try {
-        const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
-          sort: "apellido,nombre",
-        });
-        setPacientes(pacientesRecords);
-
-        // Cargar datos de la consulta existente
+        // Cargar datos de la consulta existente PRIMERO para que la UI se actualice rápido
+        let currentPacienteId = "";
         if (consultaId) {
           const consultaRecord = await pb.collection("consultas").getOne(consultaId);
           
@@ -113,9 +115,11 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             ...prev,
             ...consultaRecord,
             fecha: fechaFormateada,
-            // Asegurar que paciente_id se establezca correctamente si viene de la consulta
             paciente_id: consultaRecord.paciente_id || prev.paciente_id
           }));
+          
+          currentPacienteId = consultaRecord.paciente_id;
+
           // Cargar recetas asociadas
           try {
             const recetasRecords = await pb.collection("recetas").getFullList({
@@ -126,7 +130,26 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           } catch (e) {
             console.log("Error al cargar recetas o no existen aún");
           }
+          
+          // Cargar el paciente específico de esta consulta rápido
+          if (currentPacienteId) {
+             try {
+               const p = await pb.collection("pacientes").getOne<Paciente>(currentPacienteId);
+               setSelectedPacienteData(p);
+               setPacientes([p]); // Temporalmente ponemos solo este paciente para que el select no se rompa
+             } catch(e) {
+               console.error("Error cargando paciente de la consulta", e);
+             }
+          }
         }
+
+        // Luego cargar todos los pacientes para el select (puede tardar por ser 70k+)
+        // NOTA: Para producción con 70k registros esto debería ser un autocompletado con búsqueda en API.
+        const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
+          sort: "apellido,nombre",
+        });
+        setPacientes(pacientesRecords);
+
       } catch (error) {
         console.error("Error al cargar datos:", error);
         alert("Error al cargar los datos de la consulta. Verifica la consola.");
@@ -141,8 +164,17 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     if (formData.paciente_id) {
       const p = pacientes.find(p => p.id === formData.paciente_id) || null;
       setSelectedPacienteData(p);
+      if (p) {
+        setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
+        
+        // Auto-completar número de ficha de la consulta con el del paciente (si está vacío)
+        if (!formData.numero_ficha && p.numero_ficha) {
+          setFormData(prev => ({ ...prev, numero_ficha: p.numero_ficha || "" }));
+        }
+      }
     } else {
       setSelectedPacienteData(null);
+      setPatientSearchQuery("");
     }
   }, [formData.paciente_id, pacientes]);
 
@@ -272,17 +304,50 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white dark:bg-zinc-800 p-3 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm">
-                <div className="col-span-12 md:col-span-5">
+                <div className="col-span-12 md:col-span-5 relative">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
-                  <select 
-                    required name="paciente_id" value={formData.paciente_id} onChange={handleInputChange} disabled={isViewMode} 
+                  <input
+                    type="text"
+                    value={patientSearchQuery}
+                    onChange={(e) => {
+                      setPatientSearchQuery(e.target.value);
+                      setShowPatientDropdown(true);
+                      if (formData.paciente_id) {
+                        setFormData(prev => ({ ...prev, paciente_id: "" }));
+                      }
+                    }}
+                    onFocus={() => setShowPatientDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
+                    disabled={isViewMode}
+                    placeholder="Buscar por Apellido, Nombre o DNI"
                     className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]"
-                  >
-                    <option value="">-- Seleccionar --</option>
-                    {pacientes.map(p => (
-                      <option key={p.id} value={p.id}>{p.apellido}, {p.nombre}</option>
-                    ))}
-                  </select>
+                  />
+                  {showPatientDropdown && !isViewMode && (
+                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-lg max-h-60 overflow-y-auto">
+                      {pacientes
+                        .filter(p => 
+                          p.apellido.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
+                          p.nombre.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
+                          p.dni.includes(patientSearchQuery) ||
+                          (p.numero_ficha && p.numero_ficha.toLowerCase().includes(patientSearchQuery.toLowerCase()))
+                        )
+                        .slice(0, 50)
+                        .map(p => (
+                          <div
+                            key={p.id}
+                            className="px-3 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm"
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, paciente_id: p.id }));
+                              setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
+                              setShowPatientDropdown(false);
+                            }}
+                          >
+                            <div className="font-bold">{p.apellido}, {p.nombre}</div>
+                            <div className="text-xs text-zinc-500">DNI: {p.dni} {p.numero_ficha ? `| Ficha: ${p.numero_ficha}` : ''}</div>
+                          </div>
+                        ))}
+                    </div>
+                  )}
                 </div>
                 <div className="col-span-4 md:col-span-2">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
@@ -291,7 +356,18 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                     <span className="text-xs">Años</span>
                   </div>
                 </div>
-                <div className="col-span-8 md:col-span-5">
+                <div className="col-span-4 md:col-span-2">
+                  <label className="block text-xs font-semibold mb-1">Nº Ficha</label>
+                  <input 
+                    type="text" 
+                    name="numero_ficha"
+                    readOnly={isViewMode}
+                    value={formData.numero_ficha || ""} 
+                    onChange={handleInputChange}
+                    className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isViewMode ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-white dark:bg-zinc-800'}`}
+                  />
+                </div>
+                <div className="col-span-4 md:col-span-3">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={selectedPacienteData?.obra_social || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>

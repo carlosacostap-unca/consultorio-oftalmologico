@@ -33,6 +33,7 @@ export function Sidebar() {
 
   const menuItems = [
     { name: "Pacientes", href: "/pacientes" },
+    { name: "Mutuales", href: "/mutuales" },
     { name: "Turnos", href: "/turnos" },
     { name: "Disponibilidades", href: "/turnos/disponibilidades" },
     { name: "Consultas", href: "/consultas" },

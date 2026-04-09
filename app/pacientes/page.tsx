@@ -11,7 +11,8 @@ interface Patient {
   id: string;
   nombre: string;
   apellido: string;
-  dni: string;
+  tipo_documento?: string;
+  numero_documento: string;
   telefono: string;
   email: string;
   fecha_nacimiento: string;
@@ -19,6 +20,7 @@ interface Patient {
   numero_afiliado: string;
   domicilio: string;
   created: string;
+  numero_ficha?: string;
 }
 
 export default function PacientesPage() {
@@ -28,6 +30,25 @@ export default function PacientesPage() {
   const [pacientes, setPacientes] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [selectedLetter, setSelectedLetter] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+
+  // Debounce para la búsqueda
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+      setPage(1); // Resetear página al buscar
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Resetear página al cambiar la letra
+  useEffect(() => {
+    setPage(1);
+  }, [selectedLetter]);
 
   // Verificar autenticación y cargar datos
   useEffect(() => {
@@ -40,16 +61,34 @@ export default function PacientesPage() {
     }
 
     const loadPacientes = async () => {
+      setIsLoading(true);
       try {
-        // En PocketBase la colección debería llamarse 'pacientes'
-        // Si no existe, esto fallará, debes crearla en el panel de admin de PB
-        const records = await pb.collection("pacientes").getFullList<Patient>({
-          sort: "-created",
+        let filterParts = [];
+        
+        if (selectedLetter) {
+          filterParts.push(`apellido ~ "${selectedLetter}%"`);
+        }
+        
+        if (debouncedSearchQuery) {
+          const searchVal = debouncedSearchQuery.toLowerCase().replace(/"/g, '\\"');
+          const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
+          if (terms.length > 0) {
+            const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}")`);
+            filterParts.push(`(${termFilters.join(" && ")})`);
+          }
+        }
+        
+        const filterString = filterParts.length > 0 ? filterParts.join(" && ") : "";
+
+        const result = await pb.collection("pacientes").getList<Patient>(page, 100, {
+          sort: "apellido,nombre",
+          filter: filterString,
+          requestKey: null,
         });
-        setPacientes(records);
+        setPacientes(result.items);
+        setTotalPages(result.totalPages);
       } catch (error) {
         console.error("Error al cargar pacientes:", error);
-        // Si la colección no existe, no rompemos la app, solo mostramos lista vacía
       } finally {
         setIsLoading(false);
       }
@@ -57,29 +96,9 @@ export default function PacientesPage() {
 
     loadPacientes();
 
-    // Suscribirse a cambios en la colección (tiempo real)
-    let unsubscribe: () => void;
-    pb.collection("pacientes")
-      .subscribe<Patient>("*", (e) => {
-        if (e.action === "create") {
-          setPacientes((prev) => [e.record, ...prev]);
-        } else if (e.action === "update") {
-          setPacientes((prev) =>
-            prev.map((p) => (p.id === e.record.id ? e.record : p))
-          );
-        } else if (e.action === "delete") {
-          setPacientes((prev) => prev.filter((p) => p.id !== e.record.id));
-        }
-      })
-      .then((unsub) => {
-        unsubscribe = unsub;
-      })
-      .catch((err) => console.log("Suscripción fallida (quizás la colección no existe):", err));
-
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, [router]);
+    // NOTA: Se comenta la suscripción en tiempo real ya que con paginación 
+    // y miles de registros, puede causar comportamientos inesperados en la vista.
+  }, [router, selectedLetter, debouncedSearchQuery, page]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar este paciente?")) {
@@ -90,13 +109,6 @@ export default function PacientesPage() {
       }
     }
   };
-
-  const filteredPacientes = pacientes.filter(
-    (p) =>
-      p.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.apellido?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.dni?.includes(searchQuery)
-  );
 
   if (!isMounted) return null; // Evita el error de hidratación
 
@@ -133,6 +145,35 @@ export default function PacientesPage() {
           </Link>
         </div>
 
+        {/* Barra del Alfabeto */}
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 mb-6">
+          <div className="flex flex-wrap gap-2 justify-center">
+            <button
+              onClick={() => setSelectedLetter("")}
+              className={`px-3 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                selectedLetter === ""
+                  ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
+                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              }`}
+            >
+              Todos
+            </button>
+            {alphabet.map((letter) => (
+              <button
+                key={letter}
+                onClick={() => setSelectedLetter(letter)}
+                className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                  selectedLetter === letter
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                }`}
+              >
+                {letter}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Barra de búsqueda y filtros */}
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 mb-6 flex flex-col sm:flex-row gap-4">
           <div className="relative flex-grow">
@@ -143,7 +184,7 @@ export default function PacientesPage() {
             </div>
             <input
               type="text"
-              placeholder="Buscar por nombre, apellido o DNI..."
+              placeholder="Buscar por nombre, apellido, documento o ficha..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 transition-shadow"
@@ -158,7 +199,7 @@ export default function PacientesPage() {
               <thead>
                 <tr className="bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Paciente</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">DNI</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Documento</th>
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Contacto</th>
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Obra Social</th>
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400 text-right">Acciones</th>
@@ -174,14 +215,14 @@ export default function PacientesPage() {
                       </div>
                     </td>
                   </tr>
-                ) : filteredPacientes.length === 0 ? (
+                ) : pacientes.length === 0 ? (
                   <tr>
                     <td colSpan={5} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
                       No se encontraron pacientes.
                     </td>
                   </tr>
                 ) : (
-                  filteredPacientes.map((paciente, index) => (
+                  pacientes.map((paciente, index) => (
                     <tr key={paciente.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                       <td className="px-6 py-4">
                         <div className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -192,7 +233,10 @@ export default function PacientesPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
-                        {paciente.dni}
+                        <div>{paciente.tipo_documento || 'DNI'} {paciente.numero_documento || (paciente as any).dni}</div>
+                        {paciente.numero_ficha && (
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Ficha: {paciente.numero_ficha}</div>
+                        )}
                       </td>
                       <td className="px-6 py-4">
                         <div className="text-zinc-600 dark:text-zinc-300">{paciente.telefono}</div>
@@ -251,6 +295,28 @@ export default function PacientesPage() {
               </tbody>
             </table>
           </div>
+          {/* Paginación */}
+          {!isLoading && totalPages > 1 && (
+            <div className="px-6 py-4 border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-between bg-zinc-50 dark:bg-zinc-950/50">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Anterior
+              </button>
+              <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                Página <span className="font-medium text-zinc-900 dark:text-zinc-100">{page}</span> de <span className="font-medium text-zinc-900 dark:text-zinc-100">{totalPages}</span>
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 rounded-md hover:bg-zinc-50 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Siguiente
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

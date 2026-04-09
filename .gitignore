@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# data imports
+/data/
+import_*_log.txt
+import_log.txt
+test*.js
+test*.mjs
