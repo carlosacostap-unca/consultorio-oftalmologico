@@ -5,27 +5,11 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-
-// Interfaz para el tipo de datos del Paciente
-interface Patient {
-  id: string;
-  nombre: string;
-  apellido: string;
-  tipo_documento?: string;
-  numero_documento: string;
-  telefono: string;
-  email: string;
-  fecha_nacimiento: string;
-  obra_social: string;
-  numero_afiliado: string;
-  domicilio: string;
-  created: string;
-  numero_ficha?: string;
-}
+import type { AppUser, Patient } from "@/lib/types";
 
 export default function PacientesPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [pacientes, setPacientes] = useState<Patient[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -53,7 +37,7 @@ export default function PacientesPage() {
   // Verificar autenticación y cargar datos
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -63,7 +47,7 @@ export default function PacientesPage() {
     const loadPacientes = async () => {
       setIsLoading(true);
       try {
-        let filterParts = [];
+        const filterParts: string[] = [];
         
         if (selectedLetter) {
           filterParts.push(`apellido ~ "${selectedLetter}%"`);
@@ -233,7 +217,7 @@ export default function PacientesPage() {
                         </div>
                       </td>
                       <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
-                        <div>{paciente.tipo_documento || 'DNI'} {paciente.numero_documento || (paciente as any).dni}</div>
+                        <div>{paciente.tipo_documento || 'DNI'} {paciente.numero_documento || paciente.dni}</div>
                         {paciente.numero_ficha && (
                           <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Ficha: {paciente.numero_ficha}</div>
                         )}

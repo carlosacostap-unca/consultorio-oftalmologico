@@ -11,7 +11,6 @@ export function Sidebar() {
   const pathname = usePathname();
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     const init = async () => {
       setIsMounted(true);
       setIsLoggedIn(pb.authStore.isValid);

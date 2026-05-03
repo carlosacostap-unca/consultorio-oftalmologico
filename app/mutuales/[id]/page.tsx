@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useParams } from "next/navigation";
+import type { AppUser, Mutual } from "@/lib/types";
 
 export default function EditarMutualPage() {
   const router = useRouter();
@@ -12,7 +13,7 @@ export default function EditarMutualPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -23,7 +24,7 @@ export default function EditarMutualPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -32,7 +33,7 @@ export default function EditarMutualPage() {
 
     const loadMutual = async () => {
       try {
-        const record = await pb.collection("mutuales").getOne(id);
+        const record = await pb.collection("mutuales").getOne<Mutual>(id);
         setFormData({
           nombre: record.nombre || "",
           codigo: record.codigo || "",

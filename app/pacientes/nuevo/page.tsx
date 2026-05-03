@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
+import type { AppUser, Mutual } from "@/lib/types";
 
 export default function NuevoPacientePage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [mutuales, setMutuales] = useState<any[]>([]);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [mutuales, setMutuales] = useState<Mutual[]>([]);
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -27,7 +28,7 @@ export default function NuevoPacientePage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -36,7 +37,7 @@ export default function NuevoPacientePage() {
 
     const loadMutuales = async () => {
       try {
-        const records = await pb.collection("mutuales").getFullList({
+        const records = await pb.collection("mutuales").getFullList<Mutual>({
           sort: "nombre",
         });
         setMutuales(records);
@@ -48,7 +49,7 @@ export default function NuevoPacientePage() {
     loadMutuales();
   }, [router]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
@@ -113,7 +114,7 @@ export default function NuevoPacientePage() {
                 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Tipo de Documento</label>
-                  <select name="tipo_documento" value={formData.tipo_documento} onChange={(e: any) => handleInputChange(e)} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200">
+                  <select name="tipo_documento" value={formData.tipo_documento} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200">
                     <option value="DNI">DNI</option>
                     <option value="LC">LC</option>
                     <option value="LE">LE</option>
@@ -162,7 +163,7 @@ export default function NuevoPacientePage() {
                   <select 
                     name="obra_social" 
                     value={formData.obra_social} 
-                    onChange={(e: any) => handleInputChange(e)} 
+                    onChange={handleInputChange} 
                     className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
                   >
                     <option value="">Seleccione una obra social...</option>

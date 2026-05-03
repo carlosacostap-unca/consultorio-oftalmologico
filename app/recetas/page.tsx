@@ -5,40 +5,10 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-
-interface Paciente {
-  id: string;
-  nombre: string;
-  apellido: string;
-  dni: string;
-  email: string;
-  obra_social: string;
-  numero_afiliado: string;
-  domicilio?: string;
-}
-
-interface Consulta {
-  id: string;
-  fecha: string;
-  diagnostico: string;
-}
-
-interface Receta {
-  id: string;
-  paciente_id: string;
-  consulta_id: string;
-  fecha: string;
-  medicamentos: string;
-  indicaciones: string;
-  expand?: {
-    paciente_id?: Paciente;
-    consulta_id?: Consulta;
-  };
-}
+import type { Receta } from "@/lib/types";
 
 export default function RecetasPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,7 +19,6 @@ export default function RecetasPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
 
     if (!pb.authStore.isValid) {
       router.push("/");

@@ -3,22 +3,8 @@
 import { useState, useEffect, Suspense } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { formatDate } from "@/lib/utils";
-
-interface Paciente {
-  id: string;
-  nombre: string;
-  apellido: string;
-  dni: string;
-  domicilio?: string;
-}
-
-interface Consulta {
-  id: string;
-  fecha: string;
-  diagnostico: string;
-}
+import type { Consulta, Patient } from "@/lib/types";
 
 export default function NuevaRecetaPage() {
   return (
@@ -32,10 +18,9 @@ function NuevaRecetaForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
-  const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
   
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [pacientes, setPacientes] = useState<Patient[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -52,7 +37,6 @@ function NuevaRecetaForm() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -61,7 +45,7 @@ function NuevaRecetaForm() {
 
     const loadPacientesYConsultas = async () => {
       try {
-        const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
+        const pacientesRecords = await pb.collection("pacientes").getFullList<Patient>({
           sort: "apellido,nombre",
         });
         setPacientes(pacientesRecords);
@@ -98,9 +82,9 @@ function NuevaRecetaForm() {
       });
 
       router.push(initialConsultaId ? `/consultas/${initialConsultaId}` : "/recetas");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error al guardar la receta:", error);
-      alert(error.message || "Error al guardar la receta");
+      alert(error instanceof Error ? error.message : "Error al guardar la receta");
     } finally {
       setIsLoading(false);
     }

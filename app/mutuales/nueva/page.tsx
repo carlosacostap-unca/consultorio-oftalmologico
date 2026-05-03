@@ -3,12 +3,13 @@
 import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
+import type { AppUser } from "@/lib/types";
 
 export default function NuevaMutualPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -19,7 +20,7 @@ export default function NuevaMutualPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
 
     if (!pb.authStore.isValid) {
       router.push("/");

@@ -3,19 +3,20 @@
 import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
+import type { AppUser } from "@/lib/types";
 
 export default function Home() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
     
     // Escuchar cambios en la autenticación
-    const unsubscribe = pb.authStore.onChange((token, record) => {
-      setUser(record);
+    const unsubscribe = pb.authStore.onChange((_token, record) => {
+      setUser(record as AppUser | null);
     }, true);
 
     return () => {

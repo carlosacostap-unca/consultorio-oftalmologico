@@ -6,20 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { use } from "react";
-
-interface Paciente {
-  id: string;
-  nombre: string;
-  apellido: string;
-  dni: string;
-  domicilio?: string;
-}
-
-interface Consulta {
-  id: string;
-  fecha: string;
-  diagnostico: string;
-}
+import type { Consulta, Patient, Receta } from "@/lib/types";
 
 export default function EditarRecetaPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -37,9 +24,8 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
   
   const isViewMode = searchParams.get("mode") === "view";
   
-  const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
-  const [pacientes, setPacientes] = useState<Paciente[]>([]);
+  const [pacientes, setPacientes] = useState<Patient[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
@@ -54,7 +40,6 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -63,13 +48,13 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
 
     const loadData = async () => {
       try {
-        const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
+        const pacientesRecords = await pb.collection("pacientes").getFullList<Patient>({
           sort: "apellido,nombre",
         });
         setPacientes(pacientesRecords);
 
         if (recetaId) {
-          const recetaRecord = await pb.collection("recetas").getOne(recetaId);
+          const recetaRecord = await pb.collection("recetas").getOne<Receta>(recetaId);
           
           let fechaFormateada = new Date().toISOString().split('T')[0];
           try {
@@ -143,9 +128,9 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
       });
 
       router.push("/recetas");
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error al actualizar receta:", error);
-      alert(error.message || "Error al actualizar la receta");
+      alert(error instanceof Error ? error.message : "Error al actualizar la receta");
     } finally {
       setIsLoading(false);
     }

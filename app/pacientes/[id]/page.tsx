@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
+import type { AppUser, Consulta, Mutual, Patient } from "@/lib/types";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -15,9 +16,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
-  const [user, setUser] = useState<any>(null);
-  const [mutuales, setMutuales] = useState<any[]>([]);
-  const [consultas, setConsultas] = useState<any[]>([]);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [mutuales, setMutuales] = useState<Mutual[]>([]);
+  const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoadingConsultas, setIsLoadingConsultas] = useState(true);
 
   const [formData, setFormData] = useState({
@@ -37,7 +38,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -48,7 +49,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
       try {
         // Cargar mutuales primero
         try {
-          const mutualesRecords = await pb.collection("mutuales").getFullList({
+          const mutualesRecords = await pb.collection("mutuales").getFullList<Mutual>({
             sort: "nombre",
           });
           setMutuales(mutualesRecords);
@@ -57,11 +58,11 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
         }
 
         // Luego cargar paciente
-        const record = await pb.collection("pacientes").getOne(pacienteId);
+        const record = await pb.collection("pacientes").getOne<Patient>(pacienteId);
         
         // Cargar historial de consultas
         try {
-          const consultasRecords = await pb.collection("consultas").getFullList({
+          const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
             filter: `paciente_id = "${pacienteId}"`,
             sort: "-fecha",
           });
@@ -248,7 +249,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     <select 
                       name="obra_social" 
                       value={formData.obra_social} 
-                      onChange={(e: any) => handleInputChange(e)} 
+                      onChange={handleInputChange} 
                       disabled={isViewMode}
                       className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70"
                     >
@@ -325,7 +326,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                         if (consulta.fecha) {
                           fechaStr = new Date(consulta.fecha).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
                         }
-                      } catch (e) {}
+                      } catch {}
 
                       return (
                         <tr key={consulta.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">

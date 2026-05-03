@@ -4,19 +4,11 @@ import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-
-interface Mutual {
-  id: string;
-  nombre: string;
-  codigo: string;
-  direccion: string;
-  telefono: string;
-  created: string;
-}
+import type { AppUser, Mutual } from "@/lib/types";
 
 export default function MutualesPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [mutuales, setMutuales] = useState<Mutual[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -24,7 +16,7 @@ export default function MutualesPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
 
     if (!pb.authStore.isValid) {
       router.push("/");
