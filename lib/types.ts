@@ -1,9 +1,11 @@
 import type { RecordModel } from "pocketbase";
+import type { UserRole } from "./permissions";
 
 export interface AppUser extends RecordModel {
   avatar?: string;
   email?: string;
   name?: string;
+  role?: UserRole;
 }
 
 export interface Patient extends RecordModel {
@@ -19,6 +21,10 @@ export interface Patient extends RecordModel {
   numero_afiliado: string;
   domicilio: string;
   numero_ficha?: string;
+  mutual_id?: string;
+  expand?: {
+    mutual_id?: Mutual;
+  };
 }
 
 export interface Mutual extends RecordModel {

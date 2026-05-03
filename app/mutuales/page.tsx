@@ -11,6 +11,7 @@ export default function MutualesPage() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [mutuales, setMutuales] = useState<Mutual[]>([]);
+  const [patientCounts, setPatientCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -23,12 +24,41 @@ export default function MutualesPage() {
       return;
     }
 
+    const loadPatientCounts = async (records: Mutual[]) => {
+      try {
+        const counts: Record<string, number> = {};
+
+        for (let index = 0; index < records.length; index += 10) {
+          const batch = records.slice(index, index + 10);
+          const entries = await Promise.all(
+            batch.map(async (mutual) => {
+              try {
+                const result = await pb.collection("pacientes").getList(1, 1, {
+                  filter: `mutual_id = "${mutual.id}"`,
+                  requestKey: null,
+                });
+                return [mutual.id, result.totalItems] as const;
+              } catch (error) {
+                console.error(`Error al contar pacientes de la mutual ${mutual.nombre}:`, error);
+                return [mutual.id, 0] as const;
+              }
+            })
+          );
+          Object.assign(counts, Object.fromEntries(entries));
+          setPatientCounts({ ...counts });
+        }
+      } catch (error) {
+        console.error("Error al cargar cantidad de pacientes por mutual:", error);
+      }
+    };
+
     const loadMutuales = async () => {
       try {
         const records = await pb.collection("mutuales").getFullList<Mutual>({
           sort: "nombre",
         });
         setMutuales(records);
+        await loadPatientCounts(records);
       } catch (error) {
         console.error("Error al cargar mutuales:", error);
       } finally {
@@ -76,6 +106,10 @@ export default function MutualesPage() {
       m.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const openMutualDetail = (id: string) => {
+    router.push(`/mutuales/${id}?mode=view`);
+  };
 
   if (!isMounted) return null;
   if (!user) return null;
@@ -135,7 +169,7 @@ export default function MutualesPage() {
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Código</th>
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Dirección</th>
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Teléfono</th>
-                  <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400 text-right">Acciones</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400 text-right">Cantidad de Pacientes</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -156,7 +190,18 @@ export default function MutualesPage() {
                   </tr>
                 ) : (
                   filteredMutuales.map((mutual) => (
-                    <tr key={mutual.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                    <tr
+                      key={mutual.id}
+                      tabIndex={0}
+                      onClick={() => openMutualDetail(mutual.id)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openMutualDetail(mutual.id);
+                        }
+                      }}
+                      className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500/40"
+                    >
                       <td className="px-6 py-4">
                         <div className="font-medium text-zinc-900 dark:text-zinc-100 uppercase">
                           {mutual.nombre}
@@ -171,27 +216,10 @@ export default function MutualesPage() {
                       <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
                         {mutual.telefono || "-"}
                       </td>
-                      <td className="px-6 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link
-                            href={`/mutuales/${mutual.id}`}
-                            className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors"
-                            title="Editar mutual"
-                          >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </Link>
-                          <button
-                            onClick={() => handleDelete(mutual.id)}
-                            className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
-                            title="Eliminar mutual"
-                          >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                      <td className="px-6 py-4 text-right text-zinc-600 dark:text-zinc-300">
+                        <span className="inline-flex min-w-12 justify-center rounded-md bg-zinc-100 px-2 py-1 text-sm font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                          {patientCounts[mutual.id] ?? "-"}
+                        </span>
                       </td>
                     </tr>
                   ))
@@ -204,3 +232,4 @@ export default function MutualesPage() {
     </div>
   );
 }
+

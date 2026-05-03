@@ -4,21 +4,41 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import { usePathname } from "next/navigation";
+import type { AppUser } from "@/lib/types";
 
 export function Sidebar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [userRole, setUserRole] = useState<string>("");
   const pathname = usePathname();
 
   useEffect(() => {
+    const loadUserRole = async () => {
+      const record = pb.authStore.record as AppUser | null;
+      if (!pb.authStore.isValid || !record?.id) {
+        setUserRole("");
+        return;
+      }
+
+      try {
+        const user = await pb.collection("users").getOne<AppUser>(record.id, { requestKey: null });
+        setUserRole(user.role || "");
+      } catch (error) {
+        console.error("Error al cargar rol del usuario:", error);
+        setUserRole(record.role || "");
+      }
+    };
+
     const init = async () => {
       setIsMounted(true);
       setIsLoggedIn(pb.authStore.isValid);
+      await loadUserRole();
     };
     init();
 
     const unsubscribe = pb.authStore.onChange(() => {
       setIsLoggedIn(pb.authStore.isValid);
+      loadUserRole();
     });
 
     return () => {
@@ -37,6 +57,7 @@ export function Sidebar() {
     { name: "Disponibilidades", href: "/turnos/disponibilidades" },
     { name: "Consultas", href: "/consultas" },
     { name: "Recetas", href: "/recetas" },
+    ...(userRole === "admin" ? [{ name: "Permisos", href: "/permisos" }] : []),
   ];
 
   return (

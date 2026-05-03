@@ -31,6 +31,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     email: "",
     fecha_nacimiento: "",
     obra_social: "",
+    mutual_id: "",
     numero_afiliado: "",
     domicilio: "",
     numero_ficha: "",
@@ -58,7 +59,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
         }
 
         // Luego cargar paciente
-        const record = await pb.collection("pacientes").getOne<Patient>(pacienteId);
+        const record = await pb.collection("pacientes").getOne<Patient>(pacienteId, {
+          expand: "mutual_id",
+        });
         
         // Cargar historial de consultas
         try {
@@ -92,6 +95,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           email: record.email || "",
           fecha_nacimiento: fechaNacimiento,
           obra_social: record.obra_social || "",
+          mutual_id: record.mutual_id || "",
           numero_afiliado: record.numero_afiliado || "",
           domicilio: record.domicilio || "",
           numero_ficha: record.numero_ficha || "",
@@ -113,14 +117,48 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const validateNumeroFicha = async () => {
+    const numeroFicha = formData.numero_ficha.trim().toUpperCase();
+    if (!numeroFicha) {
+      return true;
+    }
+
+    const params = new URLSearchParams({
+      numero_ficha: numeroFicha,
+      exclude_id: pacienteId,
+    });
+    const response = await fetch(`/api/pacientes/ficha?${params}`);
+
+    if (!response.ok) {
+      throw new Error(await response.text());
+    }
+
+    const data = await response.json();
+    if (data.exists) {
+      const paciente = data.duplicate;
+      alert(`El número de ficha ${numeroFicha} ya está asignado a ${paciente.apellido || ""}, ${paciente.nombre || ""}.`);
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     try {
+      const isNumeroFichaValid = await validateNumeroFicha();
+      if (!isNumeroFichaValid) {
+        setIsLoading(false);
+        return;
+      }
+
+      const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
       const dataToSave = {
         ...formData,
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
+        obra_social: selectedMutual?.nombre || "",
         numero_ficha: formData.numero_ficha.toUpperCase()
       };
       await pb.collection("pacientes").update(pacienteId, dataToSave);
@@ -133,29 +171,65 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     }
   };
 
+  const handleDelete = async () => {
+    if (!window.confirm("¿Estás seguro de que deseas eliminar este paciente?")) {
+      return;
+    }
+
+    try {
+      await pb.collection("pacientes").delete(pacienteId);
+      router.push("/pacientes");
+    } catch (error) {
+      console.error("Error al eliminar paciente:", error);
+      alert("Error al eliminar el paciente.");
+    }
+  };
+
   if (!isMounted) return null;
   if (!user) return null;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center gap-4 mb-8">
-          <button 
-            onClick={() => router.back()}
-            className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-          >
-            <svg className="w-5 h-5 text-zinc-600 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </button>
-          <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              {isViewMode ? "Ver Paciente" : "Editar Paciente"}
-            </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-              {isViewMode ? "Detalles del paciente" : "Modifica los datos del paciente"}
-            </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+            >
+              <svg className="w-5 h-5 text-zinc-600 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+            <div>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                {isViewMode ? "Ver Paciente" : "Editar Paciente"}
+              </h1>
+              <p className="text-zinc-500 dark:text-zinc-400 text-sm">
+                {isViewMode ? "Detalles del paciente" : "Modifica los datos del paciente"}
+              </p>
+            </div>
           </div>
+          {!isFetching && (
+            <div className="flex items-center gap-3 sm:justify-end">
+              {isViewMode && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/pacientes/${pacienteId}`)}
+                  className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-blue-500/30"
+                >
+                  Editar
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="px-4 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 text-red-700 dark:text-red-300 rounded-xl font-medium transition-colors"
+              >
+                Eliminar
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
@@ -247,16 +321,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Obra Social / Prepaga</label>
                     <select 
-                      name="obra_social" 
-                      value={formData.obra_social} 
+                      name="mutual_id" 
+                      value={formData.mutual_id} 
                       onChange={handleInputChange} 
                       disabled={isViewMode}
                       className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70"
                     >
                       <option value="">Seleccione una obra social...</option>
-                      <option value="PARTICULAR">PARTICULAR</option>
                       {mutuales.map(mutual => (
-                        <option key={mutual.id} value={mutual.nombre}>
+                        <option key={mutual.id} value={mutual.id}>
                           {mutual.nombre} {mutual.codigo ? `(${mutual.codigo})` : ''}
                         </option>
                       ))}
@@ -295,8 +368,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
         {/* Historial de Consultas */}
         {!isFetching && (
           <div className="mt-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
-            <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
+            <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="font-semibold text-lg text-zinc-800 dark:text-zinc-200">Historial de Consultas</h3>
+              <button
+                type="button"
+                onClick={() => router.push(`/consultas/nueva?paciente_id=${pacienteId}`)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-blue-500/30"
+              >
+                Nueva consulta
+              </button>
             </div>
             
             <div className="overflow-x-auto">
@@ -315,7 +395,6 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Fecha</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Motivo</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Diagnóstico</th>
-                      <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-right">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -329,7 +408,18 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       } catch {}
 
                       return (
-                        <tr key={consulta.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                        <tr
+                          key={consulta.id}
+                          tabIndex={0}
+                          onClick={() => router.push(`/consultas/${consulta.id}?mode=view`)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              router.push(`/consultas/${consulta.id}?mode=view`);
+                            }
+                          }}
+                          className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500/40"
+                        >
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
                             {fechaStr}
                           </td>
@@ -338,19 +428,6 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                           </td>
                           <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400 max-w-[200px] truncate" title={consulta.diagnostico}>
                             {consulta.diagnostico || "-"}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button
-                              type="button"
-                              onClick={() => window.open(`/consultas/${consulta.id}?mode=view`, '_blank')}
-                              className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 inline-flex items-center justify-center p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                              title="Ver detalles de consulta"
-                            >
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                            </button>
                           </td>
                         </tr>
                       );

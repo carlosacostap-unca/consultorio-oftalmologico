@@ -5,18 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-
-interface Paciente {
-  id: string;
-  nombre: string;
-  apellido: string;
-  dni: string;
-  obra_social: string;
-  numero_afiliado: string;
-  fecha_nacimiento: string;
-  domicilio?: string;
-  numero_ficha?: string;
-}
+import type { AppUser, Patient } from "@/lib/types";
 
 interface Consulta {
   id: string;
@@ -26,13 +15,13 @@ interface Consulta {
   diagnostico: string;
   numero_ficha?: string;
   expand?: {
-    paciente_id: Paciente;
+    paciente_id: Patient;
   };
 }
 
 export default function ConsultasPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -43,6 +32,8 @@ export default function ConsultasPage() {
   const [filterPatient, setFilterPatient] = useState("");
   const [debouncedFilterPatient, setDebouncedFilterPatient] = useState("");
   const [filterDate, setFilterDate] = useState("");
+  const [selectedLetter, setSelectedLetter] = useState("");
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -56,25 +47,35 @@ export default function ConsultasPage() {
     setPage(1); // Resetear a la primera página al cambiar la fecha
   }, [filterDate]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [selectedLetter]);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
-      let filterParts = [];
-      if (debouncedFilterPatient) {
-        const searchVal = debouncedFilterPatient.toLowerCase().replace(/"/g, '\\"');
-        
-        const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
-        let patientFilter = "";
-        if (terms.length > 0) {
-          const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}")`);
-          patientFilter = termFilters.join(" && ");
-        } else {
-          patientFilter = `nombre ~ "${searchVal}" || apellido ~ "${searchVal}" || numero_documento ~ "${searchVal}"`;
+      const filterParts: string[] = [];
+      if (selectedLetter || debouncedFilterPatient) {
+        const patientFilterParts: string[] = [];
+
+        if (selectedLetter) {
+          patientFilterParts.push(`apellido ~ "${selectedLetter}%"`);
         }
-        
-        // Primero buscar los pacientes que coincidan (hasta 50 resultados)
-        const pacientesResult = await pb.collection("pacientes").getList(1, 50, {
-          filter: patientFilter
+
+        if (debouncedFilterPatient) {
+          const searchVal = debouncedFilterPatient.toLowerCase().replace(/"/g, '\\"');
+          const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
+          if (terms.length > 0) {
+            const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || numero_ficha ~ "${term}")`);
+            patientFilterParts.push(`(${termFilters.join(" && ")})`);
+          }
+        }
+
+        // Primero buscar los pacientes que coincidan
+        const pacientesResult = await pb.collection("pacientes").getList<Patient>(1, 100, {
+          sort: "apellido,nombre",
+          filter: patientFilterParts.join(" && "),
+          requestKey: null,
         });
         
         const pacienteIds = pacientesResult.items.map(p => p.id);
@@ -109,7 +110,7 @@ export default function ConsultasPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    setUser(pb.authStore.record as AppUser | null);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -117,7 +118,7 @@ export default function ConsultasPage() {
     }
 
     loadData();
-  }, [router, page, debouncedFilterPatient, filterDate]);
+  }, [router, page, selectedLetter, debouncedFilterPatient, filterDate]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta consulta?")) {
@@ -164,16 +165,49 @@ export default function ConsultasPage() {
           </Link>
         </div>
 
-        {/* Barra de Filtros */}
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm mb-6 flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Filtrar por Paciente</label>
-            <input 
-              type="text" 
-              placeholder="Nombre o apellido..." 
+        {/* Barra del Alfabeto */}
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 mb-6">
+          <div className="flex flex-wrap gap-2 justify-center">
+            <button
+              onClick={() => setSelectedLetter("")}
+              className={`px-3 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                selectedLetter === ""
+                  ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
+                  : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+              }`}
+            >
+              Todos
+            </button>
+            {alphabet.map((letter) => (
+              <button
+                key={letter}
+                onClick={() => setSelectedLetter(letter)}
+                className={`w-8 h-8 flex items-center justify-center rounded-lg text-sm font-medium transition-colors ${
+                  selectedLetter === letter
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-500/30"
+                    : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-700"
+                }`}
+              >
+                {letter}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Barra de búsqueda y filtros */}
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 mb-6 flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-grow">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="w-5 h-5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Buscar por nombre, apellido, documento o ficha..."
               value={filterPatient}
               onChange={(e) => setFilterPatient(e.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 text-sm"
+              className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 transition-shadow"
             />
           </div>
           <div className="flex-1 sm:max-w-xs">
@@ -185,10 +219,10 @@ export default function ConsultasPage() {
               className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark] text-sm"
             />
           </div>
-          {(filterPatient || filterDate) && (
+          {(filterPatient || filterDate || selectedLetter) && (
             <div className="flex items-end">
               <button 
-                onClick={() => { setFilterPatient(''); setFilterDate(''); }}
+                onClick={() => { setFilterPatient(''); setFilterDate(''); setSelectedLetter(''); }}
                 className="px-4 py-2 text-sm text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-lg transition-colors"
               >
                 Limpiar Filtros

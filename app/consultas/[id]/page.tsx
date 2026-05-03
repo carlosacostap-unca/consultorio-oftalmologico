@@ -11,12 +11,24 @@ interface Paciente {
   id: string;
   nombre: string;
   apellido: string;
-  dni: string;
+  dni?: string;
+  numero_documento?: string;
   obra_social: string;
+  mutual_id?: string;
   numero_afiliado: string;
   fecha_nacimiento: string;
   domicilio?: string;
   numero_ficha?: string;
+  expand?: {
+    mutual_id?: {
+      nombre: string;
+    };
+  };
+}
+
+interface ConsultaNavigationItem {
+  id: string;
+  fecha?: string;
 }
 
 import { use } from "react";
@@ -81,10 +93,22 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   const [formData, setFormData] = useState(initialFormState);
   const [recetasAsociadas, setRecetasAsociadas] = useState<any[]>([]);
+  const [consultaAnterior, setConsultaAnterior] = useState<ConsultaNavigationItem | null>(null);
+  const [consultaPosterior, setConsultaPosterior] = useState<ConsultaNavigationItem | null>(null);
+  const [consultaEditLimitDays, setConsultaEditLimitDays] = useState(7);
 
   // Estado para la búsqueda de pacientes
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+
+  const getPacienteDocumento = (paciente: Paciente) => paciente.numero_documento || paciente.dni || "";
+  const formatPacienteLabel = (paciente: Paciente) => {
+    const documento = getPacienteDocumento(paciente);
+    return `${paciente.apellido}, ${paciente.nombre}${documento ? ` - DNI: ${documento}` : ""}${paciente.numero_ficha ? ` - Ficha: ${paciente.numero_ficha}` : ""}`;
+  };
+  const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
+  const canEditConsulta = isConsultaEditable(formData.fecha, consultaEditLimitDays);
+  const isReadOnly = isViewMode || !canEditConsulta;
 
   useEffect(() => {
     setIsMounted(true);
@@ -97,6 +121,17 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
     const loadData = async () => {
       try {
+        fetch("/api/configuracion", {
+          headers: { Authorization: `Bearer ${pb.authStore.token}` },
+        })
+          .then((response) => (response.ok ? response.json() : null))
+          .then((settings) => {
+            if (settings?.consultaEditLimitDays !== undefined) {
+              setConsultaEditLimitDays(settings.consultaEditLimitDays);
+            }
+          })
+          .catch((error) => console.error("Error al cargar configuracion:", error));
+
         // Cargar datos de la consulta existente PRIMERO para que la UI se actualice rápido
         let currentPacienteId = "";
         if (consultaId) {
@@ -120,6 +155,23 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           
           currentPacienteId = consultaRecord.paciente_id;
 
+          if (currentPacienteId) {
+            const consultasPaciente = await pb.collection("consultas").getFullList<ConsultaNavigationItem>({
+              filter: `paciente_id = "${currentPacienteId}"`,
+              sort: "fecha,created",
+            });
+            const currentIndex = consultasPaciente.findIndex((consulta) => consulta.id === consultaId);
+            setConsultaAnterior(currentIndex > 0 ? consultasPaciente[currentIndex - 1] : null);
+            setConsultaPosterior(
+              currentIndex >= 0 && currentIndex < consultasPaciente.length - 1
+                ? consultasPaciente[currentIndex + 1]
+                : null
+            );
+          } else {
+            setConsultaAnterior(null);
+            setConsultaPosterior(null);
+          }
+
           // Cargar recetas asociadas
           try {
             const recetasRecords = await pb.collection("recetas").getFullList({
@@ -134,7 +186,9 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           // Cargar el paciente específico de esta consulta rápido
           if (currentPacienteId) {
              try {
-               const p = await pb.collection("pacientes").getOne<Paciente>(currentPacienteId);
+               const p = await pb.collection("pacientes").getOne<Paciente>(currentPacienteId, {
+                 expand: "mutual_id",
+               });
                setSelectedPacienteData(p);
                setPacientes([p]); // Temporalmente ponemos solo este paciente para que el select no se rompa
              } catch(e) {
@@ -147,6 +201,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         // NOTA: Para producción con 70k registros esto debería ser un autocompletado con búsqueda en API.
         const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
           sort: "apellido,nombre",
+          expand: "mutual_id",
         });
         setPacientes(pacientesRecords);
 
@@ -165,7 +220,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       const p = pacientes.find(p => p.id === formData.paciente_id) || null;
       setSelectedPacienteData(p);
       if (p) {
-        setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
+        setPatientSearchQuery(formatPacienteLabel(p));
         
         // Auto-completar número de ficha de la consulta con el del paciente (si está vacío)
         if (!formData.numero_ficha && p.numero_ficha) {
@@ -212,6 +267,11 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canEditConsulta) {
+      alert(`Solo se pueden editar consultas de los ultimos ${consultaEditLimitDays} dias.`);
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Aseguramos formato ISO para la fecha
@@ -220,7 +280,19 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         fecha: new Date(formData.fecha).toISOString(),
       };
       
-      await pb.collection("consultas").update(consultaId, dataToSave);
+      const response = await fetch(`/api/consultas/${consultaId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pb.authStore.token}`,
+        },
+        body: JSON.stringify(dataToSave),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "No se pudo actualizar la consulta");
+      }
       
       // Si venimos desde un turno, lo actualizamos para enlazarlo y marcarlo completado
       if (turnoId) {
@@ -257,6 +329,37 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     return edad;
   };
 
+  const goToConsulta = (id: string) => {
+    router.push(`/consultas/${id}${isViewMode ? "?mode=view" : ""}`);
+  };
+
+  const goToPatientDetail = () => {
+    const pacienteId = selectedPacienteData?.id || formData.paciente_id;
+    if (pacienteId) {
+      router.push(`/pacientes/${pacienteId}?mode=view`);
+      return;
+    }
+
+    router.back();
+  };
+
+  function isConsultaEditable(fecha: string | undefined, limitDays: number) {
+    if (!fecha) return true;
+
+    const consultaDate = new Date(fecha);
+    if (Number.isNaN(consultaDate.getTime())) return false;
+
+    const today = startOfDay(new Date());
+    const minDate = new Date(today);
+    minDate.setDate(today.getDate() - limitDays);
+
+    return consultaDate >= minDate;
+  }
+
+  function startOfDay(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  }
+
   if (!isMounted) return null;
   if (!user) return null;
 
@@ -265,9 +368,10 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       <div className="max-w-5xl mx-auto">
         
         {/* Cabecera */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="flex flex-col gap-4 mb-8 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-center gap-4">
         <button 
-          onClick={() => router.back()}
+            onClick={goToPatientDetail}
           className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
         >
           <svg className="w-5 h-5 text-zinc-600 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -276,13 +380,38 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         </button>
         <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              {isViewMode ? "Ver Consulta Médica" : "Editar Consulta Médica"}
+              {isReadOnly ? "Ver Consulta Medica" : "Editar Consulta Medica"}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-              {isViewMode ? "Detalles de la consulta y examen" : "Modifica los datos de la consulta y el examen"}
+              {isReadOnly ? "Detalles de la consulta y examen" : "Modifica los datos de la consulta y el examen"}
             </p>
           </div>
         </div>
+        <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+          <button
+            type="button"
+            onClick={() => consultaAnterior && goToConsulta(consultaAnterior.id)}
+            disabled={!consultaAnterior}
+            className="px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Consulta anterior
+          </button>
+          <button
+            type="button"
+            onClick={() => consultaPosterior && goToConsulta(consultaPosterior.id)}
+            disabled={!consultaPosterior}
+            className="px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Consulta posterior
+          </button>
+        </div>
+      </div>
+
+        {!isViewMode && !canEditConsulta && (
+          <div className="mb-6 rounded-xl border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+            Esta consulta ya no se puede editar porque excede el plazo configurado de {consultaEditLimitDays} dias.
+          </div>
+        )}
 
         {/* Contenedor del Formulario (Diseño estilo Legacy) */}
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
@@ -318,17 +447,17 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                     }}
                     onFocus={() => setShowPatientDropdown(true)}
                     onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
-                    disabled={isViewMode}
+                    disabled={isReadOnly}
                     placeholder="Buscar por Apellido, Nombre o DNI"
                     className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]"
                   />
-                  {showPatientDropdown && !isViewMode && (
+                  {showPatientDropdown && !isReadOnly && (
                     <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-lg max-h-60 overflow-y-auto">
                       {pacientes
                         .filter(p => 
                           p.apellido.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
                           p.nombre.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
-                          p.dni.includes(patientSearchQuery) ||
+                          getPacienteDocumento(p).includes(patientSearchQuery) ||
                           (p.numero_ficha && p.numero_ficha.toLowerCase().includes(patientSearchQuery.toLowerCase()))
                         )
                         .slice(0, 50)
@@ -338,12 +467,12 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                             className="px-3 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm"
                             onClick={() => {
                               setFormData(prev => ({ ...prev, paciente_id: p.id }));
-                              setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
+                              setPatientSearchQuery(formatPacienteLabel(p));
                               setShowPatientDropdown(false);
                             }}
                           >
                             <div className="font-bold">{p.apellido}, {p.nombre}</div>
-                            <div className="text-xs text-zinc-500">DNI: {p.dni} {p.numero_ficha ? `| Ficha: ${p.numero_ficha}` : ''}</div>
+                            <div className="text-xs text-zinc-500">DNI: {getPacienteDocumento(p) || "-"} {p.numero_ficha ? `| Ficha: ${p.numero_ficha}` : ''}</div>
                           </div>
                         ))}
                     </div>
@@ -361,15 +490,15 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                   <input 
                     type="text" 
                     name="numero_ficha"
-                    readOnly={isViewMode}
+                    readOnly={isReadOnly}
                     value={formData.numero_ficha || ""} 
                     onChange={handleInputChange}
-                    className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isViewMode ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-white dark:bg-zinc-800'}`}
+                    className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isReadOnly ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-white dark:bg-zinc-800'}`}
                   />
                 </div>
                 <div className="col-span-4 md:col-span-3">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
-                  <input type="text" readOnly value={selectedPacienteData?.obra_social || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                  <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
               </div>
             </div>
@@ -387,12 +516,12 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="flex items-center border-2 border-zinc-400 dark:border-zinc-600 p-1 bg-zinc-100 dark:bg-zinc-900 shadow-inner">
                     <label className="font-bold mr-2 ml-1 text-sm tracking-wide">FECHA:</label>
-                    <input required type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} disabled={isViewMode} className="px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 font-bold text-center focus:outline-none dark:[color-scheme:dark]" />
+                    <input required type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} disabled={isReadOnly} className="px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 font-bold text-center focus:outline-none dark:[color-scheme:dark]" />
                   </div>
                   
                   <div className="flex-grow flex items-center gap-2">
                     <label className="font-bold text-sm whitespace-nowrap">MOTIVO DE CONSULTA:</label>
-                    <input type="text" name="motivo_consulta" value={formData.motivo_consulta} onChange={handleInputChange} disabled={isViewMode} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                    <input type="text" name="motivo_consulta" value={formData.motivo_consulta} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
                   </div>
                 </div>
 
@@ -401,14 +530,14 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-sm">AGUDEZA VISUAL S/C: OJO DERECHO:</span>
                     <div className="flex items-center gap-1">
-                      <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} disabled={isViewMode} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
+                      <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                       <span>/10</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-sm">OJO IZQUIERDO:</span>
                     <div className="flex items-center gap-1">
-                      <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} disabled={isViewMode} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
+                      <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                       <span>/10</span>
                     </div>
                   </div>
@@ -416,14 +545,14 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-sm">C/C: OJO DERECHO:</span>
                     <div className="flex items-center gap-1">
-                      <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} disabled={isViewMode} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
+                      <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                       <span>/10</span>
                     </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-sm">OJO IZQUIERDO:</span>
                     <div className="flex items-center gap-1">
-                      <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} disabled={isViewMode} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
+                      <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                       <span>/10</span>
                     </div>
                   </div>
@@ -442,21 +571,21 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                     </div>
                     <div className="grid grid-cols-4 gap-2 mb-2 items-center">
                       <div className="text-right font-bold text-xs pr-2">OJO DERECHO:</div>
-                      <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                     </div>
                     <div className="grid grid-cols-4 gap-2 items-center">
                       <div className="text-right font-bold text-xs pr-2">OJO IZQUIERDO:</div>
-                      <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                     </div>
                     
                     {/* ADD */}
                     <div className="mt-3 flex justify-end items-center gap-2">
                       <label className="font-bold text-sm text-[#2d8f8f] dark:text-emerald-500">ADD:</label>
-                      <input type="text" name="add_value" value={formData.add_value} onChange={handleInputChange} disabled={isViewMode} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
+                      <input type="text" name="add_value" value={formData.add_value} onChange={handleInputChange} disabled={isReadOnly} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
                     </div>
                   </div>
                   
@@ -471,15 +600,15 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                     </div>
                     <div className="grid grid-cols-4 gap-2 mb-2 items-center">
                       <div className="text-right font-bold text-xs pr-2">OJO DERECHO:</div>
-                      <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                     </div>
                     <div className="grid grid-cols-4 gap-2 items-center">
                       <div className="text-right font-bold text-xs pr-2">OJO IZQUIERDO:</div>
-                      <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} onChange={handleInputChange} disabled={isViewMode} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
+                      <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} onChange={handleInputChange} disabled={isReadOnly} className="w-full border border-zinc-400 px-1 py-1 text-center" />
                     </div>
                   </div>
                 </div>
@@ -490,59 +619,59 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                     <span className="font-bold text-sm min-w-[150px]">PRESION OCULAR:</span>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-xs">OJO DERECHO:</span>
-                      <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} disabled={isViewMode} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
+                      <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} disabled={isReadOnly} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
                     </div>
                     <div className="flex items-center gap-2 ml-4">
                       <span className="font-semibold text-xs">OJO IZQUIERDO:</span>
-                      <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} disabled={isViewMode} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
+                      <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} disabled={isReadOnly} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
                     </div>
                   </div>
 
                   <div className="flex gap-2 items-start">
                     <label className="font-bold text-sm min-w-[150px] pt-1">BIOMICROSCOPIA:</label>
-                    <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} disabled={isViewMode} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                    <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
 
                   <div className="flex gap-2 items-start">
                     <label className="font-bold text-sm min-w-[150px] pt-1">FONDO DE OJO:</label>
-                    <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} disabled={isViewMode} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                    <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
                   
                   <div className="flex gap-2 items-start">
                     <label className="font-bold text-sm min-w-[150px] pt-1">DIAGNOSTICO:</label>
-                    <input type="text" name="diagnostico" value={formData.diagnostico} onChange={handleInputChange} disabled={isViewMode} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                    <input type="text" name="diagnostico" value={formData.diagnostico} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
                   
                   <div className="flex gap-2 items-start">
                     <label className="font-bold text-sm min-w-[150px] pt-1">TRATAMIENTO:</label>
-                    <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} disabled={isViewMode} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                    <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
                 </div>
 
                 {/* Antecedentes (Checkboxes) */}
                 <div className="mt-4 p-3 border-2 border-zinc-300 dark:border-zinc-600 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex flex-wrap justify-center gap-6 shadow-inner">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_alergico" checked={formData.ant_alergico} onChange={handleInputChange} disabled={isViewMode} className="w-4 h-4 text-[#2d8f8f]" />
+                    <input type="checkbox" name="ant_alergico" checked={formData.ant_alergico} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
                     <span className="font-semibold text-sm">Alérgico</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_asmatico" checked={formData.ant_asmatico} onChange={handleInputChange} disabled={isViewMode} className="w-4 h-4 text-[#2d8f8f]" />
+                    <input type="checkbox" name="ant_asmatico" checked={formData.ant_asmatico} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
                     <span className="font-semibold text-sm">Asmático</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_reuma" checked={formData.ant_reuma} onChange={handleInputChange} disabled={isViewMode} className="w-4 h-4 text-[#2d8f8f]" />
+                    <input type="checkbox" name="ant_reuma" checked={formData.ant_reuma} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
                     <span className="font-semibold text-sm">Reuma</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_gota" checked={formData.ant_gota} onChange={handleInputChange} disabled={isViewMode} className="w-4 h-4 text-[#2d8f8f]" />
+                    <input type="checkbox" name="ant_gota" checked={formData.ant_gota} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
                     <span className="font-semibold text-sm">Gota</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_herpes" checked={formData.ant_herpes} onChange={handleInputChange} disabled={isViewMode} className="w-4 h-4 text-[#2d8f8f]" />
+                    <input type="checkbox" name="ant_herpes" checked={formData.ant_herpes} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
                     <span className="font-semibold text-sm">Herpes</span>
                   </label>
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" name="ant_diabetes" checked={formData.ant_diabetes} onChange={handleInputChange} disabled={isViewMode} className="w-4 h-4 text-[#2d8f8f]" />
+                    <input type="checkbox" name="ant_diabetes" checked={formData.ant_diabetes} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
                     <span className="font-semibold text-sm">Diabetes</span>
                   </label>
                 </div>
@@ -608,9 +737,9 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                 onClick={() => router.back()}
                 className="px-6 py-2 border border-zinc-400 dark:border-zinc-600 rounded-lg font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
               >
-                {isViewMode ? "Volver" : "Cancelar"}
+                {isReadOnly ? "Volver" : "Cancelar"}
               </button>
-              {!isViewMode && (
+              {!isReadOnly && (
                 <button 
                   type="submit" 
                   disabled={isLoading}
@@ -641,3 +770,5 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     </div>
   );
 }
+
+

@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { pb } from "@/lib/pocketbase";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
@@ -10,12 +9,19 @@ interface Paciente {
   id: string;
   nombre: string;
   apellido: string;
-  dni: string;
+  dni?: string;
+  numero_documento?: string;
   obra_social: string;
+  mutual_id?: string;
   numero_afiliado: string;
   fecha_nacimiento: string;
   domicilio?: string;
   numero_ficha?: string;
+  expand?: {
+    mutual_id?: {
+      nombre: string;
+    };
+  };
 }
 
 export default function NuevaConsultaPage() {
@@ -35,6 +41,7 @@ function NuevaConsultaForm() {
   const [isMounted, setIsMounted] = useState(false);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingSelectedPatient, setIsLoadingSelectedPatient] = useState(Boolean(searchParams.get('paciente_id')));
   
   // Para auto-completar datos del paciente seleccionado
   const [selectedPacienteData, setSelectedPacienteData] = useState<Paciente | null>(null);
@@ -77,7 +84,25 @@ function NuevaConsultaForm() {
 
   // Estado para la búsqueda de pacientes
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
+  const [debouncedPatientSearchQuery, setDebouncedPatientSearchQuery] = useState("");
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  const [isSearchingPatients, setIsSearchingPatients] = useState(false);
+
+  const getPacienteDocumento = (paciente: Paciente) => paciente.numero_documento || paciente.dni || "";
+
+  const formatPacienteLabel = (paciente: Paciente) => {
+    const documento = getPacienteDocumento(paciente);
+    return `${paciente.apellido}, ${paciente.nombre}${documento ? ` - DNI: ${documento}` : ""}${paciente.numero_ficha ? ` - Ficha: ${paciente.numero_ficha}` : ""}`;
+  };
+
+  const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedPatientSearchQuery(patientSearchQuery);
+    }, 500);
+    return () => clearTimeout(handler);
+  }, [patientSearchQuery]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -90,10 +115,26 @@ function NuevaConsultaForm() {
 
     const loadData = async () => {
       try {
-        const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
-          sort: "apellido,nombre",
-        });
-        setPacientes(pacientesRecords);
+        if (initialPacienteId) {
+          setIsLoadingSelectedPatient(true);
+          try {
+            const paciente = await pb.collection("pacientes").getOne<Paciente>(initialPacienteId, {
+              expand: "mutual_id",
+            });
+            setSelectedPacienteData(paciente);
+            setPatientSearchQuery(formatPacienteLabel(paciente));
+            setPacientes((prev) => [paciente, ...prev.filter((p) => p.id !== paciente.id)]);
+            setFormData((prev) => ({
+              ...prev,
+              paciente_id: paciente.id,
+              numero_ficha: prev.numero_ficha || paciente.numero_ficha || "",
+            }));
+          } catch (pacienteError) {
+            console.error("Error al cargar el paciente seleccionado:", pacienteError);
+          } finally {
+            setIsLoadingSelectedPatient(false);
+          }
+        }
 
         if (turnoId) {
           try {
@@ -104,6 +145,14 @@ function NuevaConsultaForm() {
                 motivo_consulta: turno.motivo || "",
                 paciente_id: turno.paciente_id || prev.paciente_id
               }));
+              if (turno.paciente_id && turno.paciente_id !== initialPacienteId) {
+                const pacienteTurno = await pb.collection("pacientes").getOne<Paciente>(turno.paciente_id, {
+                  expand: "mutual_id",
+                });
+                setSelectedPacienteData(pacienteTurno);
+                setPatientSearchQuery(formatPacienteLabel(pacienteTurno));
+                setPacientes((prev) => [pacienteTurno, ...prev.filter((p) => p.id !== pacienteTurno.id)]);
+              }
             }
           } catch (turnoError) {
             console.error("Error al cargar turno:", turnoError);
@@ -117,13 +166,48 @@ function NuevaConsultaForm() {
     loadData();
   }, [router]);
 
+  useEffect(() => {
+    if (!isMounted || !pb.authStore.isValid || formData.paciente_id) {
+      return;
+    }
+
+    const loadPatientSearchResults = async () => {
+      setIsSearchingPatients(true);
+      try {
+        const filterParts: string[] = [];
+        const searchVal = debouncedPatientSearchQuery.toLowerCase().replace(/"/g, '\\"');
+        const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
+
+        if (terms.length > 0) {
+          const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || numero_ficha ~ "${term}")`);
+          filterParts.push(`(${termFilters.join(" && ")})`);
+        }
+
+        const result = await pb.collection("pacientes").getList<Paciente>(1, 50, {
+          sort: "apellido,nombre",
+          filter: filterParts.join(" && "),
+          expand: "mutual_id",
+          requestKey: null,
+        });
+
+        setPacientes(result.items);
+      } catch (error) {
+        console.error("Error al buscar pacientes:", error);
+      } finally {
+        setIsSearchingPatients(false);
+      }
+    };
+
+    loadPatientSearchResults();
+  }, [isMounted, formData.paciente_id, debouncedPatientSearchQuery]);
+
   // Actualizar cabecera de paciente cuando se selecciona uno
   useEffect(() => {
     if (formData.paciente_id) {
       const p = pacientes.find(p => p.id === formData.paciente_id) || null;
       setSelectedPacienteData(p);
       if (p) {
-        setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
+        setPatientSearchQuery(formatPacienteLabel(p));
         
         // Auto-completar número de ficha de la consulta con el del paciente (si está vacío)
         if (!formData.numero_ficha && p.numero_ficha) {
@@ -156,7 +240,6 @@ function NuevaConsultaForm() {
       loadAntecedentes();
     } else {
       setSelectedPacienteData(null);
-      setPatientSearchQuery("");
     }
   }, [formData.paciente_id, pacientes]);
 
@@ -219,8 +302,7 @@ function NuevaConsultaForm() {
         }
       }
 
-      // Redirigir a la lista de consultas al guardar
-      router.push("/consultas");
+      router.push(initialPacienteId ? `/pacientes/${initialPacienteId}?mode=view` : "/consultas");
     } catch (error) {
       console.error("Error al crear consulta:", error);
       alert("Error al guardar. Verifica que la colección 'consultas' exista con los campos correspondientes.");
@@ -302,54 +384,75 @@ function NuevaConsultaForm() {
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white dark:bg-zinc-800 p-3 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm">
-                <div className="col-span-12 md:col-span-5 relative">
+                <div className="col-span-12 md:col-span-5">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
-                  <input
-                    type="text"
-                    value={patientSearchQuery}
-                    onChange={(e) => {
-                      setPatientSearchQuery(e.target.value);
-                      setShowPatientDropdown(true);
-                      if (formData.paciente_id) {
-                        setFormData(prev => ({ ...prev, paciente_id: "" }));
-                      }
-                    }}
-                    onFocus={() => setShowPatientDropdown(true)}
-                    onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
-                    placeholder="Buscar por Apellido, Nombre o DNI"
-                    className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]"
-                  />
-                  {showPatientDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-lg max-h-60 overflow-y-auto">
-                      {pacientes
-                        .filter(p => 
-                          p.apellido.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
-                          p.nombre.toLowerCase().includes(patientSearchQuery.toLowerCase()) || 
-                          p.dni.includes(patientSearchQuery) ||
-                          (p.numero_ficha && p.numero_ficha.toLowerCase().includes(patientSearchQuery.toLowerCase()))
-                        )
-                        .slice(0, 50)
-                        .map(p => (
-                          <div
-                            key={p.id}
-                            className="px-3 py-2 cursor-pointer hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm"
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, paciente_id: p.id }));
-                              setPatientSearchQuery(`${p.apellido}, ${p.nombre} - DNI: ${p.dni} ${p.numero_ficha ? `- Ficha: ${p.numero_ficha}` : ''}`);
-                              setShowPatientDropdown(false);
-                            }}
-                          >
-                            <div className="font-bold">{p.apellido}, {p.nombre}</div>
-                            <div className="text-xs text-zinc-500">DNI: {p.dni} {p.numero_ficha ? `| Ficha: ${p.numero_ficha}` : ''}</div>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={patientSearchQuery}
+                      onChange={(e) => {
+                        setPatientSearchQuery(e.target.value);
+                        setShowPatientDropdown(true);
+                        if (formData.paciente_id) {
+                          setFormData(prev => ({ ...prev, paciente_id: "" }));
+                        }
+                      }}
+                      onFocus={() => setShowPatientDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
+                      placeholder={isLoadingSelectedPatient ? "Cargando datos del paciente..." : "Buscar por nombre, apellido, documento o ficha..."}
+                      className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-50 dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f] ${isLoadingSelectedPatient ? "animate-pulse" : ""}`}
+                    />
+                    {showPatientDropdown && (
+                      <div className="absolute z-10 w-full mt-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 shadow-lg max-h-72 overflow-y-auto">
+                        {isSearchingPatients ? (
+                          <div className="px-3 py-3 text-sm text-zinc-500 dark:text-zinc-400 flex items-center gap-2">
+                            <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
+                            Buscando pacientes...
                           </div>
-                        ))}
-                    </div>
-                  )}
+                        ) : pacientes.length === 0 ? (
+                          <div className="px-3 py-3 text-sm text-zinc-500 dark:text-zinc-400">
+                            No se encontraron pacientes.
+                          </div>
+                        ) : (
+                          pacientes.map(p => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onMouseDown={(event) => event.preventDefault()}
+                              className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm"
+                              onClick={() => {
+                                setFormData(prev => ({ ...prev, paciente_id: p.id }));
+                                setPatientSearchQuery(formatPacienteLabel(p));
+                                setShowPatientDropdown(false);
+                              }}
+                            >
+                              <div className="font-bold">{p.apellido}, {p.nombre}</div>
+                              <div className="text-xs text-zinc-500">DNI: {getPacienteDocumento(p) || "-"} {p.numero_ficha ? `| Ficha: ${p.numero_ficha}` : ''}</div>
+                            </button>
+                          ))
+                        )}
+                        <button
+                          type="button"
+                          onMouseDown={(event) => event.preventDefault()}
+                          onClick={() => router.push("/pacientes/nuevo")}
+                          className="w-full border-t border-zinc-200 px-3 py-2 text-left text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-zinc-700 dark:text-blue-300 dark:hover:bg-blue-500/10"
+                        >
+                          Registrar paciente nuevo
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+                {isLoadingSelectedPatient && (
+                  <div className="col-span-12 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                    <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
+                    Cargando datos del paciente seleccionado...
+                  </div>
+                )}
                 <div className="col-span-4 md:col-span-2">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
                   <div className="flex items-center gap-1">
-                    <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center" />
+                    <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                     <span className="text-xs">Años</span>
                   </div>
                 </div>
@@ -360,16 +463,16 @@ function NuevaConsultaForm() {
                     name="numero_ficha"
                     value={formData.numero_ficha || ""} 
                     onChange={handleInputChange}
-                    className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-800 font-semibold focus:ring-2 focus:ring-blue-500 outline-none" 
+                    className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-800 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isLoadingSelectedPatient ? "animate-pulse" : ""}`}
                   />
                 </div>
                 <div className="col-span-4 md:col-span-3">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
-                  <input type="text" readOnly value={selectedPacienteData?.obra_social || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                  <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
                 <div className="col-span-12">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
-                  <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                  <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
               </div>
             </div>
