@@ -17,6 +17,16 @@ interface Paciente {
   fecha_nacimiento: string;
   domicilio?: string;
   numero_ficha?: string;
+  ant_diabetes?: boolean;
+  ant_glaucoma?: boolean;
+  ant_maculopatia?: boolean;
+  ant_asmatico?: boolean;
+  ant_hipertension?: boolean;
+  ant_alergico?: boolean;
+  ant_reuma?: boolean;
+  ant_gota?: boolean;
+  ant_herpes?: boolean;
+  ant_otra?: string;
   expand?: {
     mutual_id?: {
       nombre: string;
@@ -96,6 +106,29 @@ function NuevaConsultaForm() {
   };
 
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
+  const getAntecedentesFromPaciente = (paciente: Paciente) => ({
+    ant_diabetes: paciente.ant_diabetes || false,
+    ant_glaucoma: paciente.ant_glaucoma || false,
+    ant_maculopatia: paciente.ant_maculopatia || false,
+    ant_asmatico: paciente.ant_asmatico || false,
+    ant_hipertension: paciente.ant_hipertension || false,
+    ant_alergico: paciente.ant_alergico || false,
+    ant_reuma: paciente.ant_reuma || false,
+    ant_gota: paciente.ant_gota || false,
+    ant_herpes: paciente.ant_herpes || false,
+    ant_otra: paciente.ant_otra || "",
+  });
+  const hasAntecedentes = (antecedentes: ReturnType<typeof getAntecedentesFromPaciente>) =>
+    antecedentes.ant_diabetes ||
+    antecedentes.ant_glaucoma ||
+    antecedentes.ant_maculopatia ||
+    antecedentes.ant_asmatico ||
+    antecedentes.ant_hipertension ||
+    antecedentes.ant_alergico ||
+    antecedentes.ant_reuma ||
+    antecedentes.ant_gota ||
+    antecedentes.ant_herpes ||
+    antecedentes.ant_otra.trim() !== "";
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -208,15 +241,21 @@ function NuevaConsultaForm() {
       setSelectedPacienteData(p);
       if (p) {
         setPatientSearchQuery(formatPacienteLabel(p));
-        
-        // Auto-completar número de ficha de la consulta con el del paciente (si está vacío)
-        if (!formData.numero_ficha && p.numero_ficha) {
-          setFormData(prev => ({ ...prev, numero_ficha: p.numero_ficha || "" }));
-        }
+
+        const antecedentesPaciente = getAntecedentesFromPaciente(p);
+        setFormData(prev => ({
+          ...prev,
+          numero_ficha: prev.numero_ficha || p.numero_ficha || "",
+          ...antecedentesPaciente,
+        }));
       }
 
-      // Cargar antecedentes fijos de la última consulta del paciente
+      // Cargar antecedentes fijos de la ultima consulta solo como respaldo.
       const loadAntecedentes = async () => {
+        if (p && hasAntecedentes(getAntecedentesFromPaciente(p))) {
+          return;
+        }
+
         try {
           const lastConsulta = await pb.collection("consultas").getFirstListItem(`paciente_id="${formData.paciente_id}"`, {
             sort: "-created",
@@ -230,6 +269,9 @@ function NuevaConsultaForm() {
               ant_asmatico: lastConsulta.ant_asmatico || false,
               ant_hipertension: lastConsulta.ant_hipertension || false,
               ant_alergico: lastConsulta.ant_alergico || false,
+              ant_reuma: lastConsulta.ant_reuma || false,
+              ant_gota: lastConsulta.ant_gota || false,
+              ant_herpes: lastConsulta.ant_herpes || false,
               ant_otra: lastConsulta.ant_otra || "",
             }));
           }
@@ -346,7 +388,7 @@ function NuevaConsultaForm() {
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1500px] mx-auto">
         
         {/* Cabecera */}
       <div className="flex items-center gap-4 mb-8">
@@ -508,6 +550,18 @@ function NuevaConsultaForm() {
                   <input type="checkbox" name="ant_alergico" checked={formData.ant_alergico} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
                   <span className="font-semibold text-sm">ALERGIA</span>
                 </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_reuma" checked={formData.ant_reuma} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">REUMA</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_gota" checked={formData.ant_gota} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">GOTA</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="ant_herpes" checked={formData.ant_herpes} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
+                  <span className="font-semibold text-sm">HERPES</span>
+                </label>
                 <div className="flex items-center gap-2 flex-grow">
                   <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
                   <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
@@ -537,21 +591,21 @@ function NuevaConsultaForm() {
                 </div>
 
                 {/* Columnas: Izquierda (Visión) | Derecha (Anteojos) */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,0.8fr)_minmax(620px,1.2fr)] gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700">
                   {/* Columna Izquierda */}
-                  <div className="space-y-4 xl:col-span-2">
-                    <div className="font-bold mb-2 underline decoration-zinc-400">VISIÓN:</div>
+                  <div className="space-y-4">
+                    <div className="font-bold mb-2 underline decoration-zinc-400">AV:</div>
                     {/* Agudeza Visual */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm">AGUDEZA VISUAL S/C: OJO DERECHO:</span>
+                        <span className="font-bold text-sm">AV S/C OD:</span>
                         <div className="flex items-center gap-1">
                           <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                           <span>/10</span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm">OJO IZQUIERDO:</span>
+                        <span className="font-bold text-sm">AV S/C OI:</span>
                         <div className="flex items-center gap-1">
                           <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                           <span>/10</span>
@@ -559,14 +613,14 @@ function NuevaConsultaForm() {
                       </div>
                       
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm">C/C: OJO DERECHO:</span>
+                        <span className="font-bold text-sm">AV C/C OD:</span>
                         <div className="flex items-center gap-1">
                           <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                           <span>/10</span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-sm">OJO IZQUIERDO:</span>
+                        <span className="font-bold text-sm">AV C/C OI:</span>
                         <div className="flex items-center gap-1">
                           <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
                           <span>/10</span>
@@ -577,31 +631,12 @@ function NuevaConsultaForm() {
                     <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-800/50 p-2 border border-zinc-300 dark:border-zinc-700">
                       <span className="font-bold text-sm min-w-[150px]">PRESION OCULAR:</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-semibold text-xs">OJO DERECHO:</span>
+                        <span className="font-semibold text-xs">OD:</span>
                         <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
                       </div>
                       <div className="flex items-center gap-2 ml-4">
-                        <span className="font-semibold text-xs">OJO IZQUIERDO:</span>
+                        <span className="font-semibold text-xs">OI:</span>
                         <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
-                      </div>
-                    </div>
-                    {/* Textos Finales en columna izquierda */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
-                      <div className="flex gap-2 items-start">
-                        <label className="font-bold text-sm min-w-[150px] pt-1">BIOMICROSCOPIA:</label>
-                        <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} className="w-full px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
-                      </div>
-                      <div className="flex gap-2 items-start">
-                        <label className="font-bold text-sm min-w-[150px] pt-1">FONDO DE OJO:</label>
-                        <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} className="w-full px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
-                      </div>
-                      <div className="flex gap-2 items-start">
-                        <label className="font-bold text-sm min-w-[150px] pt-1">DIAGNOSTICO:</label>
-                        <input type="text" name="diagnostico" value={formData.diagnostico} onChange={handleInputChange} className="w-full px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
-                      </div>
-                      <div className="flex gap-2 items-start">
-                        <label className="font-bold text-sm min-w-[150px] pt-1">TRATAMIENTO:</label>
-                        <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} className="w-full px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                       </div>
                     </div>
                   </div>
@@ -612,40 +647,40 @@ function NuevaConsultaForm() {
                     <div className="p-3 border-b lg:border-b-0 lg:border-r border-zinc-300 dark:border-zinc-700">
                       <div className="font-bold mb-2 underline decoration-zinc-400">ANTEOJOS - LEJOS:</div>
                       <div className="grid grid-cols-[130px,1fr,1fr,1fr] gap-2 mb-2 items-center">
-                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OJO DERECHO:</div>
+                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OD:</div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold whitespace-nowrap">ESFERA</span>
-                          <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <span className="text-xs font-semibold whitespace-nowrap">ESF.</span>
+                          <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">CIL.</span>
-                          <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">GRADO</span>
-                          <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} maxLength={3} onChange={handleInputChange} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                       </div>
                       <div className="grid grid-cols-[130px,1fr,1fr,1fr] gap-2 items-center">
-                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OJO IZQUIERDO:</div>
+                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OI:</div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold whitespace-nowrap">ESFERA</span>
-                          <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <span className="text-xs font-semibold whitespace-nowrap">ESF.</span>
+                          <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">CIL.</span>
-                          <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">GRADO</span>
-                          <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                       </div>
                       
                       {/* ADD */}
                       <div className="mt-3 flex justify-end items-center gap-2">
                         <label className="font-bold text-sm text-[#2d8f8f] dark:text-emerald-500">ADD:</label>
-                        <input type="text" name="add_value" value={formData.add_value} onChange={handleInputChange} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
+                        <input type="text" name="add_value" value={formData.add_value} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
                       </div>
                     </div>
                     
@@ -653,40 +688,57 @@ function NuevaConsultaForm() {
                     <div className="p-3">
                       <div className="font-bold mb-2 underline decoration-zinc-400">ANTEOJOS - CERCA:</div>
                       <div className="grid grid-cols-[130px,1fr,1fr,1fr] gap-2 mb-2 items-center">
-                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OJO DERECHO:</div>
+                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OD:</div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold whitespace-nowrap">ESFERA</span>
-                          <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <span className="text-xs font-semibold whitespace-nowrap">ESF.</span>
+                          <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">CIL.</span>
-                          <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">GRADO</span>
-                          <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} maxLength={3} onChange={handleInputChange} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                       </div>
                       <div className="grid grid-cols-[130px,1fr,1fr,1fr] gap-2 items-center">
-                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OJO IZQUIERDO:</div>
+                        <div className="text-right font-bold text-xs pr-2 whitespace-nowrap">OI:</div>
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold whitespace-nowrap">ESFERA</span>
-                          <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <span className="text-xs font-semibold whitespace-nowrap">ESF.</span>
+                          <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">CIL.</span>
-                          <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={6} onChange={handleInputChange} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-xs font-semibold whitespace-nowrap">GRADO</span>
-                          <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} onChange={handleInputChange} className="w-full min-w-0 border border-zinc-400 px-1 py-1 text-center" />
+                          <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} maxLength={3} onChange={handleInputChange} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Textos Finales eliminados (reubicados en columna izquierda para reducir scroll) */}
+                <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-700">
+                  <div className="flex gap-2 items-start">
+                    <label className="font-bold text-sm min-w-[150px] pt-1">BIOMICROSCOPIA:</label>
+                    <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                  </div>
+                  <div className="flex gap-2 items-start">
+                    <label className="font-bold text-sm min-w-[150px] pt-1">FONDO DE OJO:</label>
+                    <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                  </div>
+                  <div className="flex gap-2 items-start">
+                    <label className="font-bold text-sm min-w-[150px] pt-1">DIAGNOSTICO:</label>
+                    <input type="text" name="diagnostico" value={formData.diagnostico} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                  </div>
+                  <div className="flex gap-2 items-start">
+                    <label className="font-bold text-sm min-w-[150px] pt-1">TRATAMIENTO:</label>
+                    <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                  </div>
+                </div>
               </div>
             </div>
 
