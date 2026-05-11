@@ -699,6 +699,7 @@ test.describe("roles y otorgamiento de turnos", () => {
     const motivo = `Playwright medico consulta ${Date.now()}`;
     const slot = "09:45";
     let createdConsultaId = "";
+    let createdRecetaId = "";
     await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, slot);
 
     try {
@@ -761,7 +762,25 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByText("Resumen clinico")).toBeVisible();
       await expect(page.getByRole("link", { name: "Crear receta" }).first()).toBeVisible();
       await expect(page.getByRole("link", { name: "Imprimir anteojos" }).first()).toBeVisible();
+
+      await page.getByRole("link", { name: "Crear receta" }).first().click();
+      await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?consulta_id=${createdConsultaId}`));
+      await expect(page.getByText("Contexto de receta")).toBeVisible();
+      await expect(page.getByText("Receta de anteojos")).toBeVisible();
+      await page.locator("textarea").first().fill("Receta Playwright desde consulta");
+      await page.locator("textarea").nth(1).fill("Usar segun indicacion medica.");
+      await page.getByRole("button", { name: "Guardar Receta" }).click();
+      await expect(page.getByText("Receta guardada correctamente")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Ver receta" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Volver a consulta" })).toBeVisible();
+      const recetaHref = await page.getByRole("link", { name: "Ver receta" }).getAttribute("href");
+      createdRecetaId = recetaHref?.match(/\/recetas\/([^?]+)/)?.[1] || "";
     } finally {
+      if (createdRecetaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${createdRecetaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
       if (createdConsultaId) {
         await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
           headers: { Authorization: `Bearer ${adminToken}` },
