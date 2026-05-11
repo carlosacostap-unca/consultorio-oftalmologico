@@ -7,6 +7,9 @@ const PB_URL = pocketBaseUrl({ ...process.env, ...env }) || requiredEnv("POCKETB
 assertTestingPocketBaseUrl(PB_URL, { requireTest: hasFlag("--require-test-pocketbase") || process.env.REQUIRE_TEST_POCKETBASE === "true" });
 console.log("Autenticando contra PocketBase...");
 const token = await adminToken();
+if (hasFlag("--require-test-pocketbase") || process.env.REQUIRE_TEST_POCKETBASE === "true") {
+  await cleanupPlaywrightArtifacts();
+}
 console.log("Buscando medico demo...");
 
 const DEMO_DATE = env.DEMO_AGENDA_DATE || process.env.DEMO_AGENDA_DATE || "2026-05-15";
@@ -86,6 +89,25 @@ async function upsertPaciente(data) {
     method: "POST",
     body: JSON.stringify(data),
   });
+}
+
+async function cleanupPlaywrightArtifacts() {
+  console.log("Limpiando turnos Playwright de testing...");
+  const turnos = await listRecords("turnos", 'motivo ~ "Playwright"');
+
+  for (const turno of turnos) {
+    const eventos = await listRecords("turno_eventos", `turno_id = "${turno.id}"`).catch(() => []);
+    for (const evento of eventos) {
+      await pb(`/api/collections/turno_eventos/records/${encodeURIComponent(evento.id)}`, { method: "DELETE" });
+    }
+    await pb(`/api/collections/turnos/records/${encodeURIComponent(turno.id)}`, { method: "DELETE" });
+  }
+}
+
+async function listRecords(collection, filter) {
+  const params = new URLSearchParams({ page: "1", perPage: "200", filter });
+  const result = await pb(`/api/collections/${encodeURIComponent(collection)}/records?${params}`);
+  return result.items || [];
 }
 
 async function upsertDisponibilidad(data) {

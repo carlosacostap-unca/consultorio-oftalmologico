@@ -14,6 +14,7 @@
     "openspec:list": "openspec list",
     "openspec:validate": "openspec validate --all",
     "schema:test": "node scripts/bootstrap_pocketbase_test_schema.mjs --source-env .env.local --target-env .env.test.local --require-test-pocketbase --include-users",
+    "schema:turno-eventos": "node scripts/ensure_turno_eventos.mjs",
     "seed:test:usuarios": "node scripts/seed_usuarios_prueba.mjs --env .env.test.local --require-test-pocketbase",
     "seed:test:agenda": "node scripts/seed_agenda_prueba.mjs --env .env.test.local --require-test-pocketbase",
     "seed:test": "npm run seed:test:usuarios && npm run seed:test:agenda",

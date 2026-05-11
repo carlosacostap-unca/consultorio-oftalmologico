@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
 import { resolveActiveRole } from "@/lib/active-role";
+import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
 
 interface Paciente {
@@ -329,7 +330,7 @@ export default function NuevoTurnoPage() {
     try {
       const fechaHoraIso = new Date(`${formData.fecha}T${formData.hora}`).toISOString();
       
-      await pb.collection("turnos").create({
+      const record = await pb.collection("turnos").create({
         medico_id: selectedDisponibilidad?.medico_id || formData.medico_id,
         paciente_id: formData.paciente_id,
         fecha_hora: fechaHoraIso,
@@ -341,6 +342,24 @@ export default function NuevoTurnoPage() {
         disponibilidad_id: formData.disponibilidad_id || null,
         es_sobreturno: formData.es_sobreturno,
         sobreturno_tipo: formData.es_sobreturno ? formData.sobreturno_tipo : "",
+      });
+
+      const selectedPatient = pacientes.find((patient) => patient.id === formData.paciente_id);
+      await createTurnoEvento({
+        turno_id: record.id,
+        actor: user,
+        tipo: "created",
+        titulo: "Sobreturno creado",
+        detalle: `${selectedPatient ? `${selectedPatient.apellido}, ${selectedPatient.nombre}` : "Paciente"} · ${doctorLabel(medicos.find((medico) => medico.id === formData.medico_id))} · ${formData.fecha} ${formData.hora}`,
+        estado_nuevo: formData.estado,
+        fecha_hora_nueva: fechaHoraIso,
+        metadata: {
+          paciente_id: formData.paciente_id,
+          medico_id: selectedDisponibilidad?.medico_id || formData.medico_id,
+          disponibilidad_id: formData.disponibilidad_id || "",
+          motivo: formData.motivo,
+          sobreturno_tipo: formData.sobreturno_tipo,
+        },
       });
       
       router.push("/turnos");

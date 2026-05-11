@@ -4,6 +4,7 @@ import { useMemo, useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
 import { resolveActiveRole } from "@/lib/active-role";
+import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
 
 interface Paciente {
@@ -534,8 +535,9 @@ export default function NuevoTurnoPage() {
     setIsLoading(true);
     try {
       const fechaHoraIso = new Date(`${formData.fecha}T${formData.hora}`).toISOString();
+      const selectedPatient = pacientes.find((patient) => patient.id === formData.paciente_id) || null;
 
-      await pb.collection("turnos").create({
+      const record = await pb.collection("turnos").create({
         paciente_id: formData.paciente_id,
         medico_id: selectedDisponibilidad?.medico_id || formData.medico_id,
         fecha_hora: fechaHoraIso,
@@ -547,6 +549,22 @@ export default function NuevoTurnoPage() {
         disponibilidad_id: formData.disponibilidad_id || null,
         es_sobreturno: formData.es_sobreturno,
         sobreturno_tipo: formData.es_sobreturno ? formData.sobreturno_tipo : "",
+      });
+
+      await createTurnoEvento({
+        turno_id: record.id,
+        actor: user,
+        tipo: "created",
+        titulo: formData.es_sobreturno ? "Sobreturno creado" : "Turno creado",
+        detalle: `${selectedPatient ? `${selectedPatient.apellido}, ${selectedPatient.nombre}` : "Paciente"} · ${doctorLabel(selectedDoctor)} · ${formData.fecha} ${formData.hora}`,
+        estado_nuevo: formData.estado,
+        fecha_hora_nueva: fechaHoraIso,
+        metadata: {
+          paciente_id: formData.paciente_id,
+          medico_id: selectedDisponibilidad?.medico_id || formData.medico_id,
+          disponibilidad_id: formData.disponibilidad_id || "",
+          motivo: formData.motivo,
+        },
       });
 
       const returnParams = new URLSearchParams();

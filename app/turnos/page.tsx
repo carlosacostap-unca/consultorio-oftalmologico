@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ACTIVE_ROLE_CHANGED_EVENT, resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
+import { createTurnoEvento, type TurnoEvento } from "@/lib/turno-eventos";
 import { formatDate } from "@/lib/utils";
 
 interface Paciente {
@@ -75,9 +76,17 @@ interface AppUser {
 }
 
 type ViewMode = "list" | "weekly" | "daily" | "availability" | "waiting-room";
-type AppointmentModalTab = "datos" | "reprogramar" | "cancelacion";
+type AppointmentModalTab = "datos" | "reprogramar" | "cancelacion" | "historial";
 type DailyOperationFilter = "all" | "waiting" | "inConsultation" | "attended" | "absent" | "overbooking" | "late";
 type WaitingRoomGroupKey = "upcoming" | "waiting" | "inConsultation" | "attended" | "absent" | "canceled";
+
+interface PendingStatusChange {
+  turnoId: string;
+  nuevoEstado: string;
+  motivo: string;
+  isSaving: boolean;
+  error: string;
+}
 
 interface QuickAppointmentState {
   disponibilidad: Disponibilidad;
@@ -211,6 +220,10 @@ export default function TurnosPage() {
     isSaving: false,
   });
   const [isSavingTurno, setIsSavingTurno] = useState(false);
+  const [appointmentEvents, setAppointmentEvents] = useState<TurnoEvento[]>([]);
+  const [isLoadingAppointmentEvents, setIsLoadingAppointmentEvents] = useState(false);
+  const [appointmentEventError, setAppointmentEventError] = useState("");
+  const [pendingStatusChange, setPendingStatusChange] = useState<PendingStatusChange | null>(null);
 
   // Gestion de disponibilidades
   const [showAvailabilityForm, setShowAvailabilityForm] = useState(false);
@@ -272,6 +285,7 @@ export default function TurnosPage() {
       isSaving: false,
     });
     setIsTurnoModalOpen(true);
+    loadTurnoEventos(turno.id);
   };
 
   const handleViewModeChange = (mode: ViewMode) => {
@@ -317,6 +331,8 @@ export default function TurnosPage() {
     setSelectedTurno(null);
     setAppointmentModalTab("datos");
     setCancelReason("");
+    setAppointmentEvents([]);
+    setAppointmentEventError("");
     resetReschedule();
   };
 
@@ -336,6 +352,15 @@ export default function TurnosPage() {
   };
 
   const shortTime = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const eventDateTime = (value: string) => new Date(value).toLocaleString([], {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const eventDateLabel = (value?: string) => value ? `${formatDate(new Date(value))} ${shortTime(new Date(value))}` : "";
+  const isSensitiveStatus = (estado: string) => estado === "Ausente" || estado === "Cancelado";
 
   const escapePocketBaseFilter = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
@@ -372,6 +397,59 @@ export default function TurnosPage() {
       setPrintDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
     }
     setIsPrintModalOpen(true);
+  };
+
+  const loadTurnoEventos = async (turnoId: string) => {
+    setIsLoadingAppointmentEvents(true);
+    setAppointmentEventError("");
+    try {
+      const records = await pb.collection("turno_eventos").getFullList<TurnoEvento>({
+        filter: `turno_id = "${escapePocketBaseFilter(turnoId)}"`,
+        sort: "-created",
+        requestKey: null,
+      });
+      setAppointmentEvents(records);
+    } catch (error) {
+      console.error("Error al cargar historial del turno:", error);
+      setAppointmentEvents([]);
+      setAppointmentEventError("No se pudo cargar el historial operativo.");
+    } finally {
+      setIsLoadingAppointmentEvents(false);
+    }
+  };
+
+  const appendTurnoEvento = async (input: Parameters<typeof createTurnoEvento>[0]) => {
+    const event = await createTurnoEvento({ ...input, actor: user });
+    if (event && selectedTurno?.id === input.turno_id) {
+      setAppointmentEvents((prev) => [event, ...prev]);
+    }
+    return event;
+  };
+
+  const completeStatusChange = async (id: string, nuevoEstado: string, motivo = "") => {
+    const previousTurno = turnos.find((turno) => turno.id === id) || selectedTurno;
+    const previousEstado = previousTurno?.estado || "";
+
+    await pb.collection("turnos").update(id, { estado: nuevoEstado === "" ? null : nuevoEstado });
+    setTurnos(prevTurnos => prevTurnos.map(t =>
+      t.id === id
+        ? { ...t, estado: nuevoEstado === "" ? "" : nuevoEstado }
+        : t
+    ));
+    if (selectedTurno?.id === id) {
+      setSelectedTurno((prev) => prev ? { ...prev, estado: nuevoEstado === "" ? "" : nuevoEstado } : prev);
+      setEditEstado(nuevoEstado === "" ? "" : nuevoEstado);
+    }
+
+    const tipo = nuevoEstado === "Cancelado" ? "canceled" : "status_changed";
+    await appendTurnoEvento({
+      turno_id: id,
+      tipo,
+      titulo: nuevoEstado === "Cancelado" ? "Turno cancelado" : "Cambio de estado",
+      detalle: motivo || `${previousEstado || "Sin estado"} -> ${nuevoEstado || "Sin estado"}`,
+      estado_anterior: previousEstado,
+      estado_nuevo: nuevoEstado,
+    });
   };
 
   const handlePrint = () => {
@@ -564,13 +642,36 @@ export default function TurnosPage() {
 
       const selectedPatient = selectedQuickPatient || quickAppointment.patientResults.find((patient) => patient.id === quickAppointment.paciente_id);
       const doctor = medicos.find((medico) => medico.id === medicoId) || disponibilidad.expand?.medico_id;
-      setTurnos((prev) => [...prev, {
+      await appendTurnoEvento({
+        turno_id: record.id,
+        tipo: "created",
+        titulo: quickAppointment.mode === "overbooking" ? "Sobreturno creado" : "Turno creado",
+        detalle: `${patientLabel(selectedPatient)} · ${doctorLabel(doctor)} · ${formatDate(start)} ${shortTime(start)}`,
+        estado_nuevo: "En espera",
+        fecha_hora_nueva: start,
+        metadata: {
+          paciente_id: quickAppointment.paciente_id,
+          medico_id: medicoId,
+          disponibilidad_id: disponibilidad.id,
+          motivo: quickAppointment.motivo.trim(),
+          modo: quickAppointment.mode,
+        },
+      });
+      const recordWithExpand = {
         ...record,
         expand: {
           paciente_id: selectedPatient as Paciente,
           medico_id: doctor,
         },
-      }].sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime()));
+      };
+      setTurnos((prev) => {
+        const exists = prev.some((turno) => turno.id === record.id);
+        const next = exists
+          ? prev.map((turno) => turno.id === record.id ? { ...turno, ...recordWithExpand } : turno)
+          : [...prev, recordWithExpand];
+
+        return next.sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
+      });
       setQuickAppointmentSuccess({
         patientLabel: patientLabel(selectedPatient),
         doctorLabel: doctorLabel(doctor),
@@ -588,20 +689,51 @@ export default function TurnosPage() {
 
   const handleSaveTurnoChanges = async () => {
     if (!selectedTurno) return;
+    const nextEstado = editEstado === "" ? "" : editEstado;
+    const previousEstado = selectedTurno.estado || "";
+    let sensitiveReason = "";
+
+    if (nextEstado !== previousEstado && isSensitiveStatus(nextEstado)) {
+      sensitiveReason = window.prompt(`Indica el motivo para marcar el turno como ${nextEstado}:`)?.trim() || "";
+      if (!sensitiveReason) {
+        alert("Indica el motivo para continuar.");
+        return;
+      }
+    }
+
+    const changedFields = [
+      editMotivo !== (selectedTurno.motivo || "") ? "motivo" : "",
+      editObservaciones !== (selectedTurno.observaciones || "") ? "observaciones" : "",
+      nextEstado !== previousEstado ? "estado" : "",
+    ].filter(Boolean);
+
     setIsSavingTurno(true);
     try {
       await pb.collection("turnos").update(selectedTurno.id, {
         motivo: editMotivo,
         observaciones: editObservaciones,
-        estado: editEstado === "" ? null : editEstado
+        estado: nextEstado === "" ? null : nextEstado
       });
 
       // Update local state to reflect changes immediately
       setTurnos(prevTurnos => prevTurnos.map(t =>
         t.id === selectedTurno.id
-          ? { ...t, motivo: editMotivo, observaciones: editObservaciones, estado: editEstado === "" ? "" : editEstado }
+          ? { ...t, motivo: editMotivo, observaciones: editObservaciones, estado: nextEstado }
           : t
       ));
+      setSelectedTurno((prev) => prev ? { ...prev, motivo: editMotivo, observaciones: editObservaciones, estado: nextEstado } : prev);
+
+      if (changedFields.length > 0) {
+        await appendTurnoEvento({
+          turno_id: selectedTurno.id,
+          tipo: nextEstado === "Cancelado" ? "canceled" : nextEstado !== previousEstado ? "status_changed" : "updated",
+          titulo: nextEstado !== previousEstado ? "Cambio de estado" : "Datos del turno actualizados",
+          detalle: sensitiveReason || `Campos modificados: ${changedFields.join(", ")}`,
+          estado_anterior: previousEstado,
+          estado_nuevo: nextEstado,
+          metadata: { campos: changedFields },
+        });
+      }
 
       closeTurnoModal();
     } catch (error) {
@@ -641,6 +773,14 @@ export default function TurnosPage() {
       setEditEstado("Cancelado");
       setEditObservaciones(nextObservaciones);
       setCancelReason("");
+      await appendTurnoEvento({
+        turno_id: selectedTurno.id,
+        tipo: "canceled",
+        titulo: "Turno cancelado",
+        detalle: reason,
+        estado_anterior: selectedTurno.estado || "",
+        estado_nuevo: "Cancelado",
+      });
       closeTurnoModal();
     } catch (error) {
       console.error("Error al cancelar turno:", error);
@@ -698,6 +838,21 @@ export default function TurnosPage() {
           : turno
       ).sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime()));
 
+      await appendTurnoEvento({
+        turno_id: selectedTurno.id,
+        tipo: "rescheduled",
+        titulo: "Turno reprogramado",
+        detalle: `De ${previousLabel} a ${nextLabel}`,
+        estado_anterior: selectedTurno.estado || "",
+        estado_nuevo: selectedTurno.estado === "Cancelado" ? "En espera" : selectedTurno.estado,
+        fecha_hora_anterior: previousDate,
+        fecha_hora_nueva: nextDate,
+        metadata: {
+          medico_anterior: selectedTurno.medico_id || "",
+          medico_nuevo: disponibilidad.medico_id || "",
+          disponibilidad_id: disponibilidad.id,
+        },
+      });
       closeTurnoModal();
     } catch (error) {
       console.error("Error al reprogramar turno:", error);
@@ -963,15 +1118,39 @@ export default function TurnosPage() {
   }, [router]);
 
   const handleEstadoChange = async (id: string, nuevoEstado: string) => {
+    if (isSensitiveStatus(nuevoEstado)) {
+      setPendingStatusChange({
+        turnoId: id,
+        nuevoEstado,
+        motivo: "",
+        isSaving: false,
+        error: "",
+      });
+      return;
+    }
+
     try {
-      await pb.collection("turnos").update(id, { estado: nuevoEstado === "" ? null : nuevoEstado });
-      setTurnos(prevTurnos => prevTurnos.map(t =>
-        t.id === id
-          ? { ...t, estado: nuevoEstado === "" ? "" : nuevoEstado }
-          : t
-      ));
+      await completeStatusChange(id, nuevoEstado);
     } catch (error) {
       console.error("Error al actualizar estado:", error);
+    }
+  };
+
+  const confirmPendingStatusChange = async () => {
+    if (!pendingStatusChange) return;
+    const motivo = pendingStatusChange.motivo.trim();
+    if (!motivo) {
+      setPendingStatusChange((prev) => prev ? { ...prev, error: "Indica el motivo para continuar." } : prev);
+      return;
+    }
+
+    setPendingStatusChange((prev) => prev ? { ...prev, isSaving: true, error: "" } : prev);
+    try {
+      await completeStatusChange(pendingStatusChange.turnoId, pendingStatusChange.nuevoEstado, motivo);
+      setPendingStatusChange(null);
+    } catch (error) {
+      console.error("Error al actualizar estado sensible:", error);
+      setPendingStatusChange((prev) => prev ? { ...prev, isSaving: false, error: "No se pudo actualizar el estado." } : prev);
     }
   };
 
@@ -3089,7 +3268,7 @@ export default function TurnosPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800/70">
+              <div className="grid grid-cols-4 gap-1 rounded-lg bg-zinc-100 p-1 dark:bg-zinc-800/70">
                 <button
                   type="button"
                   onClick={() => setAppointmentModalTab("datos")}
@@ -3125,6 +3304,20 @@ export default function TurnosPage() {
                   }`}
                 >
                   Cancelacion
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAppointmentModalTab("historial");
+                    loadTurnoEventos(selectedTurno.id);
+                  }}
+                  className={`rounded-md px-2 py-2 text-xs font-semibold transition-colors ${
+                    appointmentModalTab === "historial"
+                      ? "bg-white text-blue-700 shadow-sm dark:bg-zinc-950 dark:text-blue-300"
+                      : "text-zinc-600 hover:bg-white/60 dark:text-zinc-300 dark:hover:bg-zinc-900/70"
+                  }`}
+                >
+                  Historial
                 </button>
               </div>
 
@@ -3310,6 +3503,61 @@ export default function TurnosPage() {
                   Cancelar turno
                 </button>
               </div>
+
+              <div className={appointmentModalTab === "historial" ? "rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/50" : "hidden"}>
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="font-semibold text-sm text-zinc-900 dark:text-zinc-100">Historial operativo</div>
+                    <div className="text-xs text-zinc-500 dark:text-zinc-400">Eventos registrados para este turno.</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => loadTurnoEventos(selectedTurno.id)}
+                    className="rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  >
+                    Actualizar
+                  </button>
+                </div>
+
+                {isLoadingAppointmentEvents ? (
+                  <div className="py-6 text-center text-sm text-zinc-500 dark:text-zinc-400">Cargando historial...</div>
+                ) : appointmentEventError ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">
+                    {appointmentEventError}
+                  </div>
+                ) : appointmentEvents.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-zinc-300 px-3 py-6 text-center text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    Todavia no hay historial operativo para este turno.
+                  </div>
+                ) : (
+                  <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                    {appointmentEvents.map((event) => (
+                      <div key={event.id} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{event.titulo}</div>
+                          <div className="text-xs text-zinc-500 dark:text-zinc-400">{eventDateTime(event.created)}</div>
+                        </div>
+                        <div className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                          {event.actor_nombre || "Usuario no identificado"}
+                        </div>
+                        {event.detalle && (
+                          <div className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">{event.detalle}</div>
+                        )}
+                        {(event.estado_anterior || event.estado_nuevo || event.fecha_hora_anterior || event.fecha_hora_nueva) && (
+                          <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                            {(event.estado_anterior || event.estado_nuevo) && (
+                              <span>Estado: {event.estado_anterior || "Sin estado"} {"->"} {event.estado_nuevo || "Sin estado"}</span>
+                            )}
+                            {(event.fecha_hora_anterior || event.fecha_hora_nueva) && (
+                              <span>Horario: {eventDateLabel(event.fecha_hora_anterior)} {"->"} {eventDateLabel(event.fecha_hora_nueva)}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/30 flex items-center gap-2">
@@ -3342,6 +3590,53 @@ export default function TurnosPage() {
                     Guardar
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {pendingStatusChange && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setPendingStatusChange(null)}>
+          <div
+            className="w-full max-w-md rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="border-b border-zinc-200 p-4 dark:border-zinc-800">
+              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100">Motivo requerido</h3>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                Indica el motivo para marcar el turno como {pendingStatusChange.nuevoEstado}.
+              </p>
+            </div>
+            <div className="p-4">
+              {pendingStatusChange.error && (
+                <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                  {pendingStatusChange.error}
+                </div>
+              )}
+              <textarea
+                value={pendingStatusChange.motivo}
+                onChange={(event) => setPendingStatusChange((prev) => prev ? { ...prev, motivo: event.target.value, error: "" } : prev)}
+                className="w-full rounded-lg border border-zinc-300 bg-white p-2.5 text-sm text-zinc-900 outline-none transition-colors focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                rows={3}
+                placeholder={pendingStatusChange.nuevoEstado === "Ausente" ? "Ej: El paciente no asistio..." : "Ej: El paciente solicito cancelar..."}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/30">
+              <button
+                type="button"
+                onClick={() => setPendingStatusChange(null)}
+                className="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmPendingStatusChange}
+                disabled={pendingStatusChange.isSaving || !pendingStatusChange.motivo.trim()}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {pendingStatusChange.isSaving ? "Guardando..." : "Guardar estado"}
               </button>
             </div>
           </div>

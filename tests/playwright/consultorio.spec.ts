@@ -244,6 +244,60 @@ test.describe("roles y otorgamiento de turnos", () => {
       .locator("xpath=ancestor::div[contains(@class,'grid')][1]");
     await row.getByRole("button", { name: "Atendido" }).click();
     await expect(row.getByRole("combobox", { name: "Cambiar estado" })).toHaveValue("Atendido");
+    await expect
+      .poll(() => findDemoAppointmentEvents(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "status_changed"), {
+        timeout: 10_000,
+      })
+      .toHaveLength(1);
+
+    await page.getByRole("button", { name: `Gestionar turno ${motivo}` }).click();
+    await page.getByRole("button", { name: "Historial" }).click();
+    await expect(page.getByText("Cambio de estado")).toBeVisible();
+    await expect(page.getByText("En espera -> Atendido", { exact: true }).first()).toBeVisible();
+
+    await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT);
+  });
+
+  test("secretaria debe indicar motivo para marcar ausente", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, QUICK_SLOT);
+
+    await login(page, "secretaria.demo@consultorio.local");
+    await page.goto("/turnos");
+    await page.getByRole("button", { name: "Agenda Diaria" }).click();
+    await page.locator('main input[type="date"]').fill(DEMO_DATE);
+    await page.getByRole("button", { name: /09:00.*Libre/ }).click();
+    await page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER).fill(DEMO_PATIENT_DOCUMENT);
+    await page.getByText(/Libre Demo, Paciente/).click();
+
+    const motivo = `Playwright ausente ${Date.now()}`;
+    await page.getByPlaceholder("Ej: Control general").fill(motivo);
+    await page.getByRole("button", { name: "Guardar turno" }).click();
+    await expect(page.getByRole("button", { name: `Gestionar turno ${motivo}` })).toBeVisible();
+
+    const row = page
+      .getByRole("button", { name: `Gestionar turno ${motivo}` })
+      .locator("xpath=ancestor::div[contains(@class,'grid')][1]");
+    await row.getByRole("button", { name: "Ausente", exact: true }).click();
+
+    await expect(page.getByRole("heading", { name: "Motivo requerido" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Guardar estado" })).toBeDisabled();
+    await page.getByPlaceholder("Ej: El paciente no asistio...").fill("No asistio a la prueba automatizada");
+    await page.getByRole("button", { name: "Guardar estado" }).click();
+
+    await expect(row.getByRole("combobox", { name: "Cambiar estado" })).toHaveValue("Ausente");
+    await expect
+      .poll(() => findDemoAppointmentEvents(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "status_changed"), {
+        timeout: 10_000,
+      })
+      .toHaveLength(1);
+
+    await page.getByRole("button", { name: `Gestionar turno ${motivo}` }).click();
+    await page.getByRole("button", { name: "Historial" }).click();
+    await expect(page.getByText("No asistio a la prueba automatizada")).toBeVisible();
 
     await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT);
   });
@@ -518,6 +572,29 @@ async function findDemoAppointment(
   return result.items[0] || null;
 }
 
+async function findDemoAppointmentEvents(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  medicoId: string,
+  motivo: string,
+  slot = DEMO_SLOT,
+  tipo?: string
+) {
+  const appointment = await findDemoAppointment(request, env, token, medicoId, motivo, slot);
+  if (!appointment) return [];
+
+  const typeFilter = tipo ? ` && tipo = "${tipo}"` : "";
+  const result = await pbList(
+    request,
+    env,
+    token,
+    "turno_eventos",
+    `turno_id = "${appointment.id}"${typeFilter}`
+  );
+  return result.items;
+}
+
 async function createDemoAppointment(
   request: APIRequestContext,
   env: Record<string, string>,
@@ -569,6 +646,13 @@ async function cleanupDemoAppointment(
   const result = await pbList(request, env, token, "turnos", filter);
 
   for (const item of result.items) {
+    const events = await pbList(request, env, token, "turno_eventos", `turno_id = "${item.id}"`);
+    for (const event of events.items) {
+      await request.delete(`${pocketBaseUrl(env)}/api/collections/turno_eventos/records/${event.id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+
     await request.delete(`${pocketBaseUrl(env)}/api/collections/turnos/records/${item.id}`, {
       headers: { Authorization: `Bearer ${token}` },
     });

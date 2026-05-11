@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { resolveActiveRole } from "@/lib/active-role";
+import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
 
 interface Paciente {
@@ -75,6 +76,7 @@ export default function TurnoFormPage() {
   const [disponibilidades, setDisponibilidades] = useState<Disponibilidad[]>([]);
   const [isLoadingDisponibilidades, setIsLoadingDisponibilidades] = useState(false);
   const [selectedDisponibilidad, setSelectedDisponibilidad] = useState<Disponibilidad | null>(null);
+  const [originalTurno, setOriginalTurno] = useState<Turno | null>(null);
 
   const [formData, setFormData] = useState({
     medico_id: "",
@@ -129,6 +131,7 @@ export default function TurnoFormPage() {
 
         if (turnoId) {
           const turno = await pb.collection("turnos").getOne<Turno>(turnoId);
+          setOriginalTurno(turno);
 
           const d = new Date(turno.fecha_hora);
           const pad = (n: number) => n.toString().padStart(2, '0');
@@ -240,8 +243,9 @@ export default function TurnoFormPage() {
     try {
       const fechaHoraIso = new Date(`${formData.fecha}T${formData.hora}`).toISOString();
 
+      const nextMedicoId = selectedDisponibilidad?.medico_id || formData.medico_id;
       await pb.collection("turnos").update(turnoId, {
-        medico_id: selectedDisponibilidad?.medico_id || formData.medico_id,
+        medico_id: nextMedicoId,
         paciente_id: formData.paciente_id,
         fecha_hora: fechaHoraIso,
         motivo: formData.motivo,
@@ -253,6 +257,30 @@ export default function TurnoFormPage() {
         es_sobreturno: formData.es_sobreturno,
         sobreturno_tipo: formData.es_sobreturno ? formData.sobreturno_tipo : "",
       });
+
+      const previousDate = originalTurno?.fecha_hora ? new Date(originalTurno.fecha_hora) : null;
+      const changedFields = [
+        originalTurno?.motivo !== formData.motivo ? "motivo" : "",
+        (originalTurno?.observaciones || "") !== formData.observaciones ? "observaciones" : "",
+        (originalTurno?.estado || "") !== formData.estado ? "estado" : "",
+        originalTurno?.fecha_hora !== fechaHoraIso ? "fecha/hora" : "",
+        (originalTurno?.medico_id || "") !== nextMedicoId ? "medico" : "",
+      ].filter(Boolean);
+
+      if (changedFields.length > 0) {
+        await createTurnoEvento({
+          turno_id: turnoId,
+          actor: user,
+          tipo: originalTurno?.fecha_hora !== fechaHoraIso ? "rescheduled" : (originalTurno?.estado || "") !== formData.estado ? "status_changed" : "updated",
+          titulo: originalTurno?.fecha_hora !== fechaHoraIso ? "Turno reprogramado" : (originalTurno?.estado || "") !== formData.estado ? "Cambio de estado" : "Datos del turno actualizados",
+          detalle: `Campos modificados: ${changedFields.join(", ")}`,
+          estado_anterior: originalTurno?.estado || "",
+          estado_nuevo: formData.estado,
+          fecha_hora_anterior: previousDate || undefined,
+          fecha_hora_nueva: fechaHoraIso,
+          metadata: { campos: changedFields },
+        });
+      }
 
       router.push("/turnos");
     } catch (error) {
