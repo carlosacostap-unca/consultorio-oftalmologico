@@ -37,6 +37,15 @@ interface Paciente {
   };
 }
 
+interface TurnoContext {
+  id: string;
+  fecha_hora?: string;
+  motivo?: string;
+  estado?: string;
+  tipo?: string;
+  paciente_id?: string;
+}
+
 export default function NuevaConsultaPage() {
   return (
     <Suspense fallback={<div>Cargando...</div>}>
@@ -58,6 +67,7 @@ function NuevaConsultaForm() {
   
   // Para auto-completar datos del paciente seleccionado
   const [selectedPacienteData, setSelectedPacienteData] = useState<Paciente | null>(null);
+  const [selectedTurnoData, setSelectedTurnoData] = useState<TurnoContext | null>(null);
 
   // Extraer parámetros de la URL
   const initialPacienteId = searchParams.get('paciente_id') || "";
@@ -174,8 +184,9 @@ function NuevaConsultaForm() {
 
         if (turnoId) {
           try {
-            const turno = await pb.collection("turnos").getOne(turnoId);
+            const turno = await pb.collection("turnos").getOne<TurnoContext>(turnoId);
             if (turno) {
+              setSelectedTurnoData(turno);
               setFormData(prev => ({ 
                 ...prev, 
                 motivo_consulta: turno.motivo || "",
@@ -386,6 +397,44 @@ function NuevaConsultaForm() {
     return edad;
   };
 
+  const pacienteNombre = selectedPacienteData
+    ? `${selectedPacienteData.apellido}, ${selectedPacienteData.nombre}`
+    : formData.paciente_id
+      ? "Paciente seleccionado"
+      : "Sin paciente seleccionado";
+
+  const patientSummaryItems = selectedPacienteData
+    ? [
+        selectedPacienteData.numero_ficha ? `Ficha ${selectedPacienteData.numero_ficha}` : "",
+        getPacienteDocumento(selectedPacienteData) ? `DNI ${getPacienteDocumento(selectedPacienteData)}` : "",
+        selectedPacienteData.fecha_nacimiento ? `${calcularEdad(selectedPacienteData.fecha_nacimiento)} anos` : "",
+        getPacienteObraSocial(selectedPacienteData),
+      ].filter(Boolean)
+    : [];
+
+  const activeAntecedentes = [
+    formData.ant_diabetes ? "Diabetes" : "",
+    formData.ant_glaucoma ? "Glaucoma" : "",
+    formData.ant_maculopatia ? "Maculopatia" : "",
+    formData.ant_asmatico ? "Asma" : "",
+    formData.ant_hipertension ? "Hipertension" : "",
+    formData.ant_alergico ? "Alergia" : "",
+    formData.ant_reuma ? "Reuma" : "",
+    formData.ant_gota ? "Gota" : "",
+    formData.ant_herpes ? "Herpes" : "",
+    formData.ant_otra?.trim() || "",
+  ].filter(Boolean);
+
+  const turnoDateLabel = selectedTurnoData?.fecha_hora
+    ? new Date(selectedTurnoData.fecha_hora).toLocaleString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "";
+
   if (!isMounted) return null;
   if (!user) return null;
 
@@ -405,26 +454,77 @@ function NuevaConsultaForm() {
         </button>
         <div>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Nueva Consulta</h1>
-            <p className="text-zinc-500 dark:text-zinc-400">Registrar atención médica</p>
+            <p className="text-zinc-500 dark:text-zinc-400">Registrar atencion medica</p>
           </div>
         </div>
 
-        {/* Contenedor del Formulario (Diseño estilo Legacy) */}
+        {/* Contenedor del Formulario */}
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
           {/* Header del Formulario */}
           <div className="bg-[#2d8f8f] dark:bg-emerald-800 text-white p-3 border-b-4 border-[#1f6b6b] dark:border-emerald-950 shadow-inner">
             <h2 className="text-2xl font-bold italic tracking-wide text-center w-full shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
-              Datos Médicos del Paciente
+              Historia clinica de atencion
             </h2>
           </div>
           
           <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
-            
+            <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+              <section className="rounded-xl border border-zinc-300 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Resumen del paciente</p>
+                    <h3 className="mt-1 text-xl font-bold text-zinc-900 dark:text-zinc-100">{pacienteNombre}</h3>
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                      {patientSummaryItems.length > 0 ? patientSummaryItems.map((item) => (
+                        <span key={item} className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium dark:bg-zinc-900">
+                          {item}
+                        </span>
+                      )) : (
+                        <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium dark:bg-zinc-900">Busca o selecciona un paciente</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">Domicilio</div>
+                    <div className="mt-1">{selectedPacienteData?.domicilio || "Sin domicilio cargado"}</div>
+                  </div>
+                </div>
+              </section>
+
+              <aside className="rounded-xl border border-zinc-300 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Atencion actual</p>
+                {selectedTurnoData ? (
+                  <div className="mt-2 space-y-2 text-sm">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">Consulta desde turno</div>
+                    <div className="text-zinc-600 dark:text-zinc-300">{turnoDateLabel || "Sin fecha de turno"}</div>
+                    <div className="flex flex-wrap gap-2 text-xs">
+                      {selectedTurnoData.tipo && <span className="rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{selectedTurnoData.tipo}</span>}
+                      {selectedTurnoData.estado && <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{selectedTurnoData.estado}</span>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Consulta manual sin turno asociado.</div>
+                )}
+                <div className="mt-4 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Antecedentes activos</div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
+                      <span key={item} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                        {item}
+                      </span>
+                    )) : (
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos.</span>
+                    )}
+                  </div>
+                </div>
+              </aside>
+            </div>
+
             {/* Sección: DATOS DEL PACIENTE */}
             <div className="mb-6">
               <div className="flex items-center mb-2">
-                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Datos del Paciente</h3>
+                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Carga inicial del paciente</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
               
@@ -575,7 +675,7 @@ function NuevaConsultaForm() {
             {/* Sección: DATOS MEDICOS */}
             <div className="mb-4">
               <div className="flex items-center mb-2">
-                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Datos Médicos</h3>
+                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Examen y cierre clinico</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
 

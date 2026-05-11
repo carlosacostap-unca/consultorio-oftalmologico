@@ -721,6 +721,9 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       await expect(page).toHaveURL(/\/consultas\/nueva/);
       await expect(page).toHaveURL(new RegExp(`turno_id=${turno.id}`));
+      await expect(page.getByText("Resumen del paciente")).toBeVisible();
+      await expect(page.getByText("Consulta desde turno")).toBeVisible();
+      await expect(page.getByText("Examen y cierre clinico")).toBeVisible();
       await expect
         .poll(() => findDemoAppointment(request, env, adminToken, medicoId, motivo, slot, "En consulta"), {
           timeout: 10_000,
