@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
 import type { Consulta, Patient } from "@/lib/types";
-import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import { appendActivePatientFilter } from "@/lib/patient-merge";
 
 interface SavedPrescription {
   id: string;
@@ -34,6 +34,10 @@ function NuevaRecetaForm() {
   const [selectedPacienteData, setSelectedPacienteData] = useState<Patient | null>(null);
   const [selectedConsultaData, setSelectedConsultaData] = useState<Consulta | null>(null);
   const [savedPrescription, setSavedPrescription] = useState<SavedPrescription | null>(null);
+  const [patientSearchQuery, setPatientSearchQuery] = useState("");
+  const [debouncedPatientSearchQuery, setDebouncedPatientSearchQuery] = useState("");
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
+  const [isSearchingPatients, setIsSearchingPatients] = useState(false);
   
   const initialConsultaId = searchParams.get('consulta_id') || "";
   const initialPacienteId = searchParams.get('paciente_id') || "";
@@ -56,6 +60,32 @@ function NuevaRecetaForm() {
     const normalized = String(value ?? "").trim();
     return normalized || "-";
   };
+  const formatPatientOption = (patient: Patient) => {
+    const document = patientDocument(patient);
+    return `${patient.apellido}, ${patient.nombre}${document ? ` - DNI: ${document}` : ""}${patient.numero_ficha ? ` - Ficha: ${patient.numero_ficha}` : ""}`;
+  };
+  const upsertPatient = (patient: Patient) => {
+    setPacientes((prev) => [patient, ...prev.filter((item) => item.id !== patient.id)]);
+  };
+  const buildPatientFilter = (query: string) => {
+    const searchVal = query.toLowerCase().replace(/"/g, '\\"');
+    const terms = searchVal.split(/\s+/).filter((term) => term.length > 0);
+
+    if (terms.length === 0) {
+      return appendActivePatientFilter("");
+    }
+
+    const termFilters = terms.map((term) => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || dni ~ "${term}" || numero_ficha ~ "${term}")`);
+    return appendActivePatientFilter(termFilters.join(" && "));
+  };
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedPatientSearchQuery(patientSearchQuery);
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [patientSearchQuery]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -65,65 +95,82 @@ function NuevaRecetaForm() {
       return;
     }
 
-    const loadPacientesYConsultas = async () => {
+    const loadInitialContext = async () => {
       try {
-        const pacientesRecords = await pb.collection("pacientes").getFullList<Patient>({
-          sort: "apellido,nombre",
-          filter: ACTIVE_PATIENT_FILTER,
-        });
-        setPacientes(pacientesRecords);
-
-        // Si tenemos un paciente_id, cargar sus consultas
         if (formData.paciente_id) {
-          const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
-            filter: `paciente_id = "${formData.paciente_id}"`,
-            sort: "-fecha",
-          });
-          setConsultas(consultasRecords);
-
-          const selectedPatient = pacientesRecords.find((paciente) => paciente.id === formData.paciente_id) || null;
-          if (selectedPatient) {
-            setSelectedPacienteData(selectedPatient);
-          } else {
-            try {
-              const paciente = await pb.collection("pacientes").getOne<Patient>(formData.paciente_id);
-              setSelectedPacienteData(paciente);
-            } catch (patientError) {
-              console.error("Error al cargar paciente de la receta:", patientError);
-              setSelectedPacienteData(null);
-            }
-          }
-
-          const selectedConsulta = consultasRecords.find((consulta) => consulta.id === formData.consulta_id) || null;
-          if (selectedConsulta) {
-            setSelectedConsultaData(selectedConsulta);
-          } else if (formData.consulta_id) {
-            try {
-              const consulta = await pb.collection("consultas").getOne<Consulta>(formData.consulta_id);
-              setSelectedConsultaData(consulta);
-            } catch (consultaError) {
-              console.error("Error al cargar consulta de la receta:", consultaError);
-              setSelectedConsultaData(null);
-            }
-          } else {
-            setSelectedConsultaData(null);
-          }
-        } else {
-          setConsultas([]);
-          setSelectedPacienteData(null);
-          setSelectedConsultaData(null);
+          const paciente = await pb.collection("pacientes").getOne<Patient>(formData.paciente_id);
+          setSelectedPacienteData(paciente);
+          setPatientSearchQuery(formatPatientOption(paciente));
+          upsertPatient(paciente);
         }
       } catch (error) {
-        console.error("Error al cargar datos:", error);
+        console.error("Error al cargar paciente de la receta:", error);
       }
     };
 
-    loadPacientesYConsultas();
-  }, [router, formData.paciente_id, formData.consulta_id]);
+    loadInitialContext();
+  }, [router]);
+
+  useEffect(() => {
+    if (!isMounted || !pb.authStore.isValid) {
+      return;
+    }
+
+    const loadConsultas = async () => {
+      if (!formData.paciente_id) {
+        setConsultas([]);
+        setSelectedConsultaData(null);
+        return;
+      }
+
+      try {
+        const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
+          filter: `paciente_id = "${formData.paciente_id}"`,
+          sort: "-fecha",
+        });
+        setConsultas(consultasRecords);
+        setSelectedConsultaData(consultasRecords.find((consulta) => consulta.id === formData.consulta_id) || null);
+      } catch (error) {
+        console.error("Error al cargar consultas del paciente:", error);
+        setConsultas([]);
+        setSelectedConsultaData(null);
+      }
+    };
+
+    loadConsultas();
+  }, [isMounted, formData.paciente_id, formData.consulta_id]);
+
+  useEffect(() => {
+    if (!isMounted || !pb.authStore.isValid || formData.paciente_id) {
+      return;
+    }
+
+    const loadPatientResults = async () => {
+      setIsSearchingPatients(true);
+      try {
+        const result = await pb.collection("pacientes").getList<Patient>(1, 20, {
+          sort: "apellido,nombre",
+          filter: buildPatientFilter(debouncedPatientSearchQuery),
+          requestKey: null,
+        });
+        setPacientes(result.items);
+      } catch (error) {
+        console.error("Error al buscar pacientes:", error);
+      } finally {
+        setIsSearchingPatients(false);
+      }
+    };
+
+    loadPatientResults();
+  }, [isMounted, formData.paciente_id, debouncedPatientSearchQuery]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (savedPrescription) return;
+    if (!formData.paciente_id) {
+      alert("Selecciona un paciente de la lista.");
+      return;
+    }
 
     setIsLoading(true);
 
@@ -252,22 +299,54 @@ function NuevaRecetaForm() {
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                     Paciente *
                   </label>
-                  <select
-                    required
-                    value={formData.paciente_id}
-                    onChange={(e) => {
-                      setFormData({ ...formData, paciente_id: e.target.value, consulta_id: "" });
-                      setSavedPrescription(null);
-                    }}
-                    className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"
-                  >
-                    <option value="">Seleccione un paciente</option>
-                    {pacientes.map((paciente) => (
-                      <option key={paciente.id} value={paciente.id}>
-                        {paciente.apellido}, {paciente.nombre} - DNI: {paciente.dni}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <input
+                      required
+                      type="text"
+                      value={patientSearchQuery}
+                      onChange={(e) => {
+                        setPatientSearchQuery(e.target.value);
+                        setShowPatientDropdown(true);
+                        if (formData.paciente_id) {
+                          setFormData({ ...formData, paciente_id: "", consulta_id: "" });
+                          setSelectedPacienteData(null);
+                          setSavedPrescription(null);
+                        }
+                      }}
+                      onFocus={() => setShowPatientDropdown(true)}
+                      onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
+                      placeholder="Buscar por apellido, nombre, documento o ficha"
+                      className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"
+                    />
+                    {showPatientDropdown && !formData.paciente_id && (
+                      <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-lg dark:border-zinc-800 dark:bg-zinc-900">
+                        {isSearchingPatients ? (
+                          <div className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">Buscando pacientes...</div>
+                        ) : pacientes.length > 0 ? pacientes.map((paciente) => (
+                          <button
+                            key={paciente.id}
+                            type="button"
+                            onMouseDown={(event) => event.preventDefault()}
+                            onClick={() => {
+                              setFormData({ ...formData, paciente_id: paciente.id, consulta_id: "" });
+                              setSelectedPacienteData(paciente);
+                              setPatientSearchQuery(formatPatientOption(paciente));
+                              setShowPatientDropdown(false);
+                              setSavedPrescription(null);
+                            }}
+                            className="block w-full px-4 py-3 text-left text-sm hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                          >
+                            <span className="block font-semibold text-zinc-900 dark:text-zinc-100">{paciente.apellido}, {paciente.nombre}</span>
+                            <span className="block text-xs text-zinc-500 dark:text-zinc-400">
+                              {patientDocument(paciente) ? `DNI ${patientDocument(paciente)}` : "Sin documento"}{paciente.numero_ficha ? ` - Ficha ${paciente.numero_ficha}` : ""}
+                            </span>
+                          </button>
+                        )) : (
+                          <div className="px-4 py-3 text-sm text-zinc-500 dark:text-zinc-400">No hay pacientes para mostrar.</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div>

@@ -689,6 +689,19 @@ test.describe("roles y otorgamiento de turnos", () => {
     await expect(doctorSelect.locator("option:checked")).toHaveText("Medico Demo");
   });
 
+  test("medico busca paciente al crear receta libre", async ({ page }) => {
+    await login(page, "medico.demo@consultorio.local");
+
+    await page.goto("/recetas/nueva");
+    const patientSearch = page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER);
+    await patientSearch.fill(DEMO_PATIENT_DOCUMENT);
+    await page.getByText(/Libre Demo, Paciente/).click();
+
+    await expect(patientSearch).toHaveValue(/Libre Demo, Paciente/);
+    await expect(page.getByText("Contexto de receta")).toBeVisible();
+    await expect(page.getByText("Sin consulta vinculada")).toBeVisible();
+  });
+
   test("medico inicia consulta desde su jornada diaria", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);

@@ -1,23 +1,4 @@
-# Prescriptions Specification
-
-## Purpose
-Define la gestion de recetas medicas y recetas de anteojos vinculadas opcionalmente a consultas.
-## Requirements
-### Requirement: Listado de recetas
-El sistema SHALL listar recetas con paciente y consulta expandidos, filtros de paciente y fecha, y actualizacion en tiempo real.
-
-#### Scenario: Cargar recetas
-- **WHEN** el usuario abre `/recetas`
-- **THEN** el sistema consulta `recetas` ordenadas por fecha descendente
-- **AND** expande `paciente_id` y `consulta_id`
-
-#### Scenario: Filtrar recetas
-- **WHEN** el usuario ingresa paciente o fecha
-- **THEN** el sistema filtra recetas visibles por nombre/apellido de paciente y por dia de receta
-
-#### Scenario: Cambios en recetas
-- **WHEN** PocketBase emite cambios en `recetas`
-- **THEN** el sistema recarga el listado manteniendo fecha descendente
+## MODIFIED Requirements
 
 ### Requirement: Crear receta
 El sistema SHALL permitir crear recetas para un paciente, con consulta asociada opcional, preservando el contexto clinico cuando la receta nace desde una consulta y sin cargar todo el padron de pacientes.
@@ -64,31 +45,3 @@ El sistema SHALL permitir ver o editar una receta existente sin cargar todo el p
 #### Scenario: Consultas del paciente
 - **WHEN** cambia el paciente seleccionado
 - **THEN** el sistema recarga las consultas de ese paciente ordenadas por fecha descendente
-
-### Requirement: Impresion de anteojos desde receta
-El sistema SHALL ofrecer acceso a la impresion de anteojos cuando una receta esta vinculada a una consulta.
-
-#### Scenario: Consulta relacionada seleccionada
-- **WHEN** el formulario tiene `consulta_id`
-- **THEN** el sistema muestra una accion para abrir `/consultas/[consulta_id]/imprimir-anteojos`
-
-### Requirement: Eliminar receta
-El sistema SHALL permitir eliminar recetas desde el listado previa confirmacion.
-
-#### Scenario: Confirmar eliminacion
-- **WHEN** el usuario confirma eliminar una receta
-- **THEN** el sistema elimina el registro de `recetas`
-
-### Requirement: Recetas reasignadas por fusion de pacientes
-El sistema SHALL conservar las recetas al fusionar pacientes duplicados.
-
-#### Scenario: Fusion reasigna recetas
-- **WHEN** un paciente duplicado se fusiona con un paciente principal
-- **THEN** el sistema actualiza las recetas del duplicado para apuntar al paciente principal
-- **AND** las recetas siguen accesibles desde el paciente principal
-
-#### Scenario: Receta vinculada a consulta reasignada
-- **WHEN** una receta esta vinculada a una consulta tambien reasignada
-- **THEN** el sistema conserva la relacion con la consulta
-- **AND** actualiza el paciente de la receta al paciente principal
-
