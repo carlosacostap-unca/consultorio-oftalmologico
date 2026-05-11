@@ -23,8 +23,15 @@ export interface Patient extends RecordModel {
   domicilio: string;
   numero_ficha?: string;
   mutual_id?: string;
+  estado_registro?: string;
+  fusionado_en_paciente_id?: string;
+  fusionado_at?: string;
+  fusionado_por?: string;
+  fusion_motivo?: string;
   expand?: {
     mutual_id?: Mutual;
+    fusionado_en_paciente_id?: Patient;
+    fusionado_por?: AppUser;
   };
 }
 

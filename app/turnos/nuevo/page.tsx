@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { resolveActiveRole } from "@/lib/active-role";
 import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
+import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 
 interface Paciente {
   id: string;
@@ -19,6 +20,8 @@ interface Paciente {
   obra_social?: string;
   numero_afiliado?: string;
   domicilio?: string;
+  estado_registro?: string;
+  fusionado_en_paciente_id?: string;
 }
 
 interface Disponibilidad {
@@ -269,6 +272,7 @@ export default function NuevoTurnoPage() {
         const [pacientesResult, medicosResponse] = await Promise.all([
           pb.collection("pacientes").getList<Paciente>(1, 200, {
             sort: "apellido,nombre",
+            filter: ACTIVE_PATIENT_FILTER,
           }),
           fetch("/api/medicos", {
             headers: { Authorization: `Bearer ${pb.authStore.token}` },
@@ -299,7 +303,7 @@ export default function NuevoTurnoPage() {
       try {
         const safeTerm = escapePocketBaseFilter(term);
         const result = await pb.collection("pacientes").getList<Paciente>(1, 20, {
-          filter: `nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}"`,
+          filter: `${ACTIVE_PATIENT_FILTER} && (nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}")`,
           sort: "apellido,nombre",
           requestKey: null,
         });

@@ -1,4 +1,5 @@
 import { normalizePocketBaseUrl } from "@/lib/pocketbase-url";
+import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 
 const PB_URL = normalizePocketBaseUrl(process.env.POCKETBASE_URL || process.env.NEXT_PUBLIC_POCKETBASE_URL || "");
 const PER_PAGE = 5000;
@@ -39,6 +40,7 @@ async function getNextFichaNumber() {
     perPage: "200",
     sort: "-created",
     fields: "numero_ficha",
+    filter: ACTIVE_PATIENT_FILTER,
   });
   const recentData = await pb(`/api/collections/pacientes/records?${recentParams}`);
   const recentMax = maxFichaValue(recentData.items || []);
@@ -56,6 +58,7 @@ async function getNextFichaNumber() {
       page: String(page),
       perPage: String(PER_PAGE),
       fields: "numero_ficha",
+      filter: ACTIVE_PATIENT_FILTER,
     });
 
     const data = await pb(`/api/collections/pacientes/records?${params}`);
@@ -79,7 +82,7 @@ function maxFichaValue(items: Array<{ numero_ficha?: unknown }>) {
 }
 
 async function findDuplicateFicha(numeroFicha: string, excludeId: string) {
-  const filterParts = [`numero_ficha = "${escapeFilterValue(numeroFicha)}"`];
+  const filterParts = [ACTIVE_PATIENT_FILTER, `numero_ficha = "${escapeFilterValue(numeroFicha)}"`];
 
   if (excludeId) {
     filterParts.push(`id != "${escapeFilterValue(excludeId)}"`);

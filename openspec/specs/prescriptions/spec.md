@@ -2,9 +2,7 @@
 
 ## Purpose
 Define la gestion de recetas medicas y recetas de anteojos vinculadas opcionalmente a consultas.
-
 ## Requirements
-
 ### Requirement: Listado de recetas
 El sistema SHALL listar recetas con paciente y consulta expandidos, filtros de paciente y fecha, y actualizacion en tiempo real.
 
@@ -67,3 +65,17 @@ El sistema SHALL permitir eliminar recetas desde el listado previa confirmacion.
 #### Scenario: Confirmar eliminacion
 - **WHEN** el usuario confirma eliminar una receta
 - **THEN** el sistema elimina el registro de `recetas`
+
+### Requirement: Recetas reasignadas por fusion de pacientes
+El sistema SHALL conservar las recetas al fusionar pacientes duplicados.
+
+#### Scenario: Fusion reasigna recetas
+- **WHEN** un paciente duplicado se fusiona con un paciente principal
+- **THEN** el sistema actualiza las recetas del duplicado para apuntar al paciente principal
+- **AND** las recetas siguen accesibles desde el paciente principal
+
+#### Scenario: Receta vinculada a consulta reasignada
+- **WHEN** una receta esta vinculada a una consulta tambien reasignada
+- **THEN** el sistema conserva la relacion con la consulta
+- **AND** actualiza el paciente de la receta al paciente principal
+

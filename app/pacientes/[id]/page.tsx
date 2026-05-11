@@ -5,6 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import type { AppUser, Consulta, Mutual, Patient } from "@/lib/types";
+import { isMergedPatient, patientDisplayName } from "@/lib/patient-merge";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -20,6 +21,8 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [mutuales, setMutuales] = useState<Mutual[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoadingConsultas, setIsLoadingConsultas] = useState(true);
+  const [paciente, setPaciente] = useState<Patient | null>(null);
+  const isMerged = isMergedPatient(paciente);
 
   const [formData, setFormData] = useState({
     nombre: "",
@@ -60,8 +63,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
 
         // Luego cargar paciente
         const record = await pb.collection("pacientes").getOne<Patient>(pacienteId, {
-          expand: "mutual_id",
+          expand: "mutual_id,fusionado_en_paciente_id",
         });
+        setPaciente(record);
         
         // Cargar historial de consultas
         try {
@@ -145,6 +149,10 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isMerged) {
+      alert("Este paciente fue fusionado. Edita el paciente principal.");
+      return;
+    }
     setIsLoading(true);
     try {
       const isNumeroFichaValid = await validateNumeroFicha();
@@ -212,7 +220,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           </div>
           {!isFetching && (
             <div className="flex items-center gap-3 sm:justify-end">
-              {isViewMode && (
+              {isViewMode && !isMerged && (
                 <button
                   type="button"
                   onClick={() => router.push(`/pacientes/${pacienteId}`)}
@@ -221,16 +229,36 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   Editar
                 </button>
               )}
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="px-4 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 text-red-700 dark:text-red-300 rounded-xl font-medium transition-colors"
-              >
-                Eliminar
-              </button>
+              {!isMerged && (
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  className="px-4 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 text-red-700 dark:text-red-300 rounded-xl font-medium transition-colors"
+                >
+                  Eliminar
+                </button>
+              )}
             </div>
           )}
         </div>
+
+        {isMerged && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-100">
+            <div className="font-semibold">Paciente fusionado</div>
+            <p className="mt-1 text-sm">
+              Este registro fue archivado como duplicado y sus turnos, consultas y recetas fueron reasignados.
+            </p>
+            {paciente?.expand?.fusionado_en_paciente_id && (
+              <button
+                type="button"
+                onClick={() => router.push(`/pacientes/${paciente.expand?.fusionado_en_paciente_id?.id}?mode=view`)}
+                className="mt-3 rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+              >
+                Abrir paciente principal: {patientDisplayName(paciente.expand.fusionado_en_paciente_id)}
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
           {isFetching ? (
@@ -246,12 +274,12 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   
                   <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Apellido *</label>
-                  <input required type="text" name="apellido" value={formData.apellido} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase disabled:opacity-70" />
+                <input required type="text" name="apellido" value={formData.apellido} onChange={handleInputChange} disabled={isViewMode || isMerged} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase disabled:opacity-70" />
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Nombre *</label>
-                  <input required type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase disabled:opacity-70" />
+                  <input required type="text" name="nombre" value={formData.nombre} onChange={handleInputChange} disabled={isViewMode || isMerged} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 uppercase disabled:opacity-70" />
                 </div>
                   
                   <div>
@@ -351,7 +379,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                 >
                   {isViewMode ? "Volver" : "Cancelar"}
                 </button>
-                {!isViewMode && (
+                {!isViewMode && !isMerged && (
                   <button 
                     type="submit"
                     disabled={isLoading}
@@ -370,13 +398,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           <div className="mt-8 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
             <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <h3 className="font-semibold text-lg text-zinc-800 dark:text-zinc-200">Historial de Consultas</h3>
-              <button
-                type="button"
-                onClick={() => router.push(`/consultas/nueva?paciente_id=${pacienteId}`)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-blue-500/30"
-              >
-                Nueva consulta
-              </button>
+              {!isMerged && (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/consultas/nueva?paciente_id=${pacienteId}`)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-blue-500/30"
+                >
+                  Nueva consulta
+                </button>
+              )}
             </div>
             
             <div className="overflow-x-auto">

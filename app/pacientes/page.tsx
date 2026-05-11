@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Patient } from "@/lib/types";
+import { appendActivePatientFilter } from "@/lib/patient-merge";
 
 export default function PacientesPage() {
   const router = useRouter();
@@ -62,7 +63,7 @@ export default function PacientesPage() {
           }
         }
         
-        const filterString = filterParts.length > 0 ? filterParts.join(" && ") : "";
+        const filterString = appendActivePatientFilter(filterParts.length > 0 ? filterParts.join(" && ") : "");
 
         const result = await pb.collection("pacientes").getList<Patient>(page, 100, {
           sort: "apellido,nombre",

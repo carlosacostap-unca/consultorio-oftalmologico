@@ -7,6 +7,7 @@ import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { use } from "react";
 import type { Consulta, Patient, Receta } from "@/lib/types";
+import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 
 export default function EditarRecetaPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -50,6 +51,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
       try {
         const pacientesRecords = await pb.collection("pacientes").getFullList<Patient>({
           sort: "apellido,nombre",
+          filter: ACTIVE_PATIENT_FILTER,
         });
         setPacientes(pacientesRecords);
 

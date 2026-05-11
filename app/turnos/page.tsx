@@ -8,6 +8,7 @@ import { ACTIVE_ROLE_CHANGED_EVENT, resolveActiveRole } from "@/lib/active-role"
 import type { UserRole } from "@/lib/permissions";
 import { createTurnoEvento, type TurnoEvento } from "@/lib/turno-eventos";
 import { formatDate } from "@/lib/utils";
+import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 
 interface Paciente {
   id: string;
@@ -22,6 +23,8 @@ interface Paciente {
   numero_afiliado?: string;
   domicilio?: string;
   numero_ficha?: string;
+  estado_registro?: string;
+  fusionado_en_paciente_id?: string;
 }
 
 interface PatientDuplicateCandidate extends Paciente {
@@ -515,7 +518,7 @@ export default function TurnosPage() {
     }
 
     if (clauses.length === 0) return "";
-    const baseFilter = clauses.map((clause) => `(${clause})`).join(" || ");
+    const baseFilter = `(${ACTIVE_PATIENT_FILTER}) && (${clauses.map((clause) => `(${clause})`).join(" || ")})`;
     return excludePatientId
       ? `(${baseFilter}) && id != "${escapePocketBaseFilter(excludePatientId)}"`
       : baseFilter;
@@ -933,7 +936,7 @@ export default function TurnosPage() {
       if (dni) {
         const safeDni = escapePocketBaseFilter(dni);
         const existing = await pb.collection("pacientes").getList<Paciente>(1, 1, {
-          filter: `numero_documento = "${safeDni}"`,
+          filter: `${ACTIVE_PATIENT_FILTER} && numero_documento = "${safeDni}"`,
           requestKey: null,
         });
 
@@ -1354,7 +1357,7 @@ export default function TurnosPage() {
       try {
         const safeTerm = escapePocketBaseFilter(term);
         const result = await pb.collection("pacientes").getList<Paciente>(1, 12, {
-          filter: `nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}"`,
+          filter: `${ACTIVE_PATIENT_FILTER} && (nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}")`,
           sort: "apellido,nombre",
           requestKey: null,
         });

@@ -2,9 +2,7 @@
 
 ## Purpose
 Define la carga, consulta, edicion, navegacion e impresion de datos clinicos oftalmologicos.
-
 ## Requirements
-
 ### Requirement: Listado de consultas
 El sistema SHALL listar consultas con filtros por paciente, letra inicial y fecha.
 
@@ -106,3 +104,17 @@ El sistema SHALL generar una hoja imprimible de refraccion de lejos y cerca desd
 - **WHEN** el usuario abre `/consultas/[id]/imprimir-anteojos`
 - **THEN** el sistema carga la consulta con paciente expandido
 - **AND** muestra tablas de LEJOS y CERCA para OD y OI con esferico, cilindrico y eje
+
+### Requirement: Consultas reasignadas por fusion de pacientes
+El sistema SHALL conservar las consultas clinicas al fusionar pacientes duplicados.
+
+#### Scenario: Fusion reasigna consultas
+- **WHEN** un paciente duplicado se fusiona con un paciente principal
+- **THEN** el sistema actualiza las consultas del duplicado para apuntar al paciente principal
+- **AND** el historial clinico del paciente principal incluye esas consultas
+
+#### Scenario: Consultas dejan de apuntar al duplicado
+- **WHEN** la fusion finaliza correctamente
+- **THEN** no quedan consultas activas asociadas al paciente duplicado
+- **AND** el paciente duplicado conserva trazabilidad hacia el paciente principal
+

@@ -40,6 +40,22 @@ const pacienteOcupado = await upsertPaciente({
   email: "paciente.ocupado.demo@consultorio.local",
 });
 
+const pacienteDuplicadoPrincipal = await upsertPaciente({
+  nombre: "Paciente",
+  apellido: "Duplicado Principal Demo",
+  numero_documento: "99000901",
+  telefono: "2604999000",
+  email: "duplicado.principal.demo@consultorio.local",
+});
+
+const pacienteDuplicadoSecundario = await upsertPaciente({
+  nombre: "Paciente",
+  apellido: "Duplicado Secundario Demo",
+  numero_documento: "99000902",
+  telefono: "2604999000",
+  email: "duplicado.secundario.demo@consultorio.local",
+});
+
 const disponibilidad = await upsertDisponibilidad({
   medico_id: medico.id,
   fecha_hora_inicio: localIso(DEMO_DATE, "09:00"),
@@ -74,6 +90,7 @@ console.log(`- Segundo medico: ${medicoDos.email}`);
 console.log(`- Disponibilidad segundo medico: 10:00 - 11:00`);
 console.log(`- Horario ocupado: 09:15 (${pacienteOcupado.apellido}, ${pacienteOcupado.nombre})`);
 console.log(`- Paciente libre para pruebas: ${pacienteLibre.apellido}, ${pacienteLibre.nombre} DNI ${pacienteLibre.numero_documento}`);
+console.log(`- Pacientes duplicados demo: ${pacienteDuplicadoPrincipal.numero_documento} y ${pacienteDuplicadoSecundario.numero_documento}`);
 
 async function upsertPaciente(data) {
   console.log(`Preparando paciente demo ${data.numero_documento}...`);

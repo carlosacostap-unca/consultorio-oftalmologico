@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { formatDate } from "@/lib/utils";
+import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 
 interface Paciente {
   id: string;
@@ -19,6 +20,8 @@ interface Paciente {
   fecha_nacimiento: string;
   domicilio?: string;
   numero_ficha?: string;
+  estado_registro?: string;
+  fusionado_en_paciente_id?: string;
   expand?: {
     mutual_id?: {
       nombre: string;
@@ -206,6 +209,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         // NOTA: Para producción con 70k registros esto debería ser un autocompletado con búsqueda en API.
         const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
           sort: "apellido,nombre",
+          filter: ACTIVE_PATIENT_FILTER,
           expand: "mutual_id",
         });
         setPacientes(pacientesRecords);

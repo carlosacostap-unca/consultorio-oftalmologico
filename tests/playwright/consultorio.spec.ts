@@ -555,6 +555,91 @@ test.describe("roles y otorgamiento de turnos", () => {
     expect(secretaryResponse.status()).toBe(403);
   });
 
+  test("admin fusiona pacientes duplicados desde la pantalla administrativa", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const suffix = Date.now().toString().slice(-6);
+    const primaryDocument = `971${suffix}`;
+    const duplicateDocument = `972${suffix}`;
+    const created: { turnos: string[]; consultas: string[]; recetas: string[]; pacientes: string[] } = {
+      turnos: [],
+      consultas: [],
+      recetas: [],
+      pacientes: [],
+    };
+
+    try {
+      const primary = await createDemoPatient(request, env, adminToken, {
+        nombre: "Principal",
+        apellido: "Fusion Playwright",
+        numero_documento: primaryDocument,
+        telefono: `260${suffix}`,
+        email: `principal.${suffix}@consultorio.local`,
+      });
+      const duplicate = await createDemoPatient(request, env, adminToken, {
+        nombre: "Duplicado",
+        apellido: "Fusion Playwright",
+        numero_documento: duplicateDocument,
+        telefono: `260${suffix}`,
+        email: `duplicado.${suffix}@consultorio.local`,
+      });
+      created.pacientes.push(primary.id as string, duplicate.id as string);
+
+      const turno = await createRawDemoAppointment(request, env, adminToken, medicoId, duplicate.id as string, `Playwright fusion turno ${suffix}`);
+      const consulta = await createDemoConsultation(request, env, adminToken, duplicate.id as string, `Playwright fusion consulta ${suffix}`);
+      const receta = await createDemoPrescription(request, env, adminToken, duplicate.id as string, consulta.id as string, `Playwright fusion receta ${suffix}`);
+      created.turnos.push(turno.id as string);
+      created.consultas.push(consulta.id as string);
+      created.recetas.push(receta.id as string);
+
+      const secretariaToken = await getUserToken(request, env, "secretaria.demo@consultorio.local");
+      const forbidden = await request.post("/api/pacientes/duplicados", {
+        headers: { Authorization: `Bearer ${secretariaToken}`, [ACTIVE_ROLE_HEADER]: "secretaria" },
+        data: {
+          primaryPatientId: primary.id,
+          duplicatePatientId: duplicate.id,
+          confirmation: "FUSIONAR",
+        },
+      });
+      expect(forbidden.status()).toBe(403);
+
+      await login(page, "admin.demo@consultorio.local");
+      await page.goto("/pacientes/duplicados");
+      await expect(page.getByRole("heading", { name: "Duplicados de pacientes" })).toBeVisible();
+
+      await page.getByLabel("Buscar paciente").fill(primaryDocument);
+      await page.getByText("Fusion Playwright, Principal").locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]").getByRole("button", { name: "Principal" }).click();
+      await page.getByLabel("Buscar paciente").fill(duplicateDocument);
+      await page.getByText("Fusion Playwright, Duplicado").locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]").getByRole("button", { name: "Duplicado" }).click();
+
+      await expect(page.getByText("Paciente principal")).toBeVisible();
+      await expect(page.getByText("Paciente duplicado")).toBeVisible();
+      await page.getByLabel("Motivo").fill("Prueba Playwright de fusion");
+      await page.getByLabel("Confirmacion").fill("FUSIONAR");
+      await page.getByRole("button", { name: "Fusionar pacientes" }).click();
+
+      await expect(page.getByText("Pacientes fusionados correctamente")).toBeVisible();
+      await expect(page.getByText("Reasignados: 1 turnos, 1 consultas, 1 recetas.")).toBeVisible();
+
+      const [updatedTurno, updatedConsulta, updatedReceta, updatedDuplicate] = await Promise.all([
+        pbGet(request, env, adminToken, "turnos", turno.id as string),
+        pbGet(request, env, adminToken, "consultas", consulta.id as string),
+        pbGet(request, env, adminToken, "recetas", receta.id as string),
+        pbGet(request, env, adminToken, "pacientes", duplicate.id as string),
+      ]);
+
+      expect(updatedTurno.paciente_id).toBe(primary.id);
+      expect(updatedConsulta.paciente_id).toBe(primary.id);
+      expect(updatedReceta.paciente_id).toBe(primary.id);
+      expect(updatedDuplicate.estado_registro).toBe("fusionado");
+      expect(updatedDuplicate.fusionado_en_paciente_id).toBe(primary.id);
+    } finally {
+      await cleanupCreatedRecords(request, env, adminToken, created);
+    }
+  });
+
   test("secretaria otorga un turno regular desde disponibilidad demo", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
@@ -699,6 +784,20 @@ async function findDemoAppointmentEvents(
   return result.items;
 }
 
+async function createDemoPatient(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  data: Record<string, string>
+) {
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/pacientes/records`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data,
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<Record<string, string>>;
+}
+
 async function createDemoAppointment(
   request: APIRequestContext,
   env: Record<string, string>,
@@ -737,6 +836,75 @@ async function createDemoAppointment(
   return response.json();
 }
 
+async function createRawDemoAppointment(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  medicoId: string,
+  patientId: string,
+  motivo: string
+) {
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/turnos/records`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      paciente_id: patientId,
+      medico_id: medicoId,
+      fecha_hora: new Date(`${DEMO_DATE}T11:30:00`).toISOString(),
+      motivo,
+      observaciones: "",
+      estado: "En espera",
+      tipo: "Consulta",
+      duracion: 15,
+      es_sobreturno: false,
+      sobreturno_tipo: "",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<Record<string, string>>;
+}
+
+async function createDemoConsultation(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  patientId: string,
+  motivo: string
+) {
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/consultas/records`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      paciente_id: patientId,
+      fecha: new Date(`${DEMO_DATE}T12:00:00`).toISOString(),
+      motivo_consulta: motivo,
+      diagnostico: "Control de fusion Playwright",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<Record<string, string>>;
+}
+
+async function createDemoPrescription(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  patientId: string,
+  consultationId: string,
+  medicamentos: string
+) {
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/recetas/records`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      paciente_id: patientId,
+      consulta_id: consultationId,
+      fecha: new Date(`${DEMO_DATE}T12:00:00`).toISOString(),
+      medicamentos,
+      indicaciones: "Uso de prueba",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<Record<string, string>>;
+}
+
 async function cleanupDemoAppointment(
   request: APIRequestContext,
   env: Record<string, string>,
@@ -764,6 +932,34 @@ async function cleanupDemoAppointment(
   }
 }
 
+async function cleanupCreatedRecords(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  created: { turnos: string[]; consultas: string[]; recetas: string[]; pacientes: string[] }
+) {
+  for (const id of created.recetas) {
+    await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+  for (const id of created.turnos) {
+    await request.delete(`${pocketBaseUrl(env)}/api/collections/turnos/records/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+  for (const id of created.consultas) {
+    await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+  for (const id of created.pacientes) {
+    await request.delete(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
+}
+
 async function cleanupDemoPatient(
   request: APIRequestContext,
   env: Record<string, string>,
@@ -777,6 +973,20 @@ async function cleanupDemoPatient(
       headers: { Authorization: `Bearer ${token}` },
     });
   }
+}
+
+async function pbGet(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  collection: string,
+  id: string
+) {
+  const response = await request.get(`${pocketBaseUrl(env)}/api/collections/${collection}/records/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<Record<string, string>>;
 }
 
 async function updateDemoPatient(

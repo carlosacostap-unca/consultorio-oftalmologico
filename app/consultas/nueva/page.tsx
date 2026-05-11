@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { appendActivePatientFilter } from "@/lib/patient-merge";
 
 interface Paciente {
   id: string;
@@ -27,6 +28,8 @@ interface Paciente {
   ant_gota?: boolean;
   ant_herpes?: boolean;
   ant_otra?: string;
+  estado_registro?: string;
+  fusionado_en_paciente_id?: string;
   expand?: {
     mutual_id?: {
       nombre: string;
@@ -218,7 +221,7 @@ function NuevaConsultaForm() {
 
         const result = await pb.collection("pacientes").getList<Paciente>(1, 50, {
           sort: "apellido,nombre",
-          filter: filterParts.join(" && "),
+          filter: appendActivePatientFilter(filterParts.join(" && ")),
           expand: "mutual_id",
           requestKey: null,
         });

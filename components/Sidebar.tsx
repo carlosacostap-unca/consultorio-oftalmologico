@@ -110,6 +110,7 @@ export function Sidebar() {
     { name: "Usuarios", href: "/usuarios" },
     { name: "Permisos", href: "/permisos" },
     { name: "Edicion de consultas", href: "/edicion-consultas" },
+    { name: "Duplicados", href: "/pacientes/duplicados" },
   ];
 
   const changeActiveRole = (role: UserRole) => {

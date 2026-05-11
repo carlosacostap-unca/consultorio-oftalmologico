@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Patient } from "@/lib/types";
+import { appendActivePatientFilter } from "@/lib/patient-merge";
 
 interface Consulta {
   id: string;
@@ -74,7 +75,7 @@ export default function ConsultasPage() {
         // Primero buscar los pacientes que coincidan
         const pacientesResult = await pb.collection("pacientes").getList<Patient>(1, 100, {
           sort: "apellido,nombre",
-          filter: patientFilterParts.join(" && "),
+          filter: appendActivePatientFilter(patientFilterParts.join(" && ")),
           requestKey: null,
         });
         

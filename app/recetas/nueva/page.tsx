@@ -5,6 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { Consulta, Patient } from "@/lib/types";
+import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 
 export default function NuevaRecetaPage() {
   return (
@@ -47,6 +48,7 @@ function NuevaRecetaForm() {
       try {
         const pacientesRecords = await pb.collection("pacientes").getFullList<Patient>({
           sort: "apellido,nombre",
+          filter: ACTIVE_PATIENT_FILTER,
         });
         setPacientes(pacientesRecords);
 
