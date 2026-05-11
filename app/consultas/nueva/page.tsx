@@ -693,6 +693,115 @@ function NuevaConsultaForm() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.75fr)_minmax(620px,1.25fr)]">
+                  <div className="space-y-4">
+                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Agudeza visual</h4>
+                          <p className="text-xs text-zinc-500 dark:text-zinc-400">Sin correccion y con correccion por ojo.</p>
+                        </div>
+                        <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">/10</span>
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">OD</div>
+                          <label className="mb-2 grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
+                            AV S/C
+                            <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          </label>
+                          <label className="grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
+                            AV C/C
+                            <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          </label>
+                        </div>
+                        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                          <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">OI</div>
+                          <label className="mb-2 grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
+                            AV S/C
+                            <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          </label>
+                          <label className="grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
+                            AV C/C
+                            <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          </label>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Presion ocular</h4>
+                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
+                          OD
+                          <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <span className="text-xs text-zinc-500">mmHg</span>
+                        </label>
+                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
+                          OI
+                          <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <span className="text-xs text-zinc-500">mmHg</span>
+                        </label>
+                      </div>
+                    </section>
+                  </div>
+
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Refraccion</h4>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Lejos y cerca con ESF, CIL y EJE para OD/OI.</p>
+                      </div>
+                      <label className="flex items-center gap-2 rounded-lg border border-[#2d8f8f]/40 bg-white px-3 py-2 text-sm font-bold text-[#2d8f8f] dark:bg-zinc-950 dark:text-emerald-400">
+                        ADD
+                        <input type="text" name="add_value" value={formData.add_value} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-20 rounded border-2 border-[#2d8f8f] px-2 py-1 text-center font-bold text-zinc-900 dark:border-emerald-500 dark:bg-zinc-900 dark:text-zinc-100" />
+                      </label>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                      <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                        <div className="mb-3 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de lejos</div>
+                        <div className="grid grid-cols-[44px_repeat(3,minmax(0,1fr))] gap-2 text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
+                          <span></span><span>ESF</span><span>CIL</span><span>EJE</span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-[44px_repeat(3,minmax(0,1fr))] items-center gap-2">
+                          <span className="text-sm font-bold">OD</span>
+                          <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={6} onChange={handleInputChange} placeholder="-0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                        </div>
+                        <div className="mt-2 grid grid-cols-[44px_repeat(3,minmax(0,1fr))] items-center gap-2">
+                          <span className="text-sm font-bold">OI</span>
+                          <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={6} onChange={handleInputChange} placeholder="-0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                        </div>
+                      </div>
+
+                      <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                        <div className="mb-3 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de cerca</div>
+                        <div className="grid grid-cols-[44px_repeat(3,minmax(0,1fr))] gap-2 text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
+                          <span></span><span>ESF</span><span>CIL</span><span>EJE</span>
+                        </div>
+                        <div className="mt-2 grid grid-cols-[44px_repeat(3,minmax(0,1fr))] items-center gap-2">
+                          <span className="text-sm font-bold">OD</span>
+                          <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={6} onChange={handleInputChange} placeholder="-0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                        </div>
+                        <div className="mt-2 grid grid-cols-[44px_repeat(3,minmax(0,1fr))] items-center gap-2">
+                          <span className="text-sm font-bold">OI</span>
+                          <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={6} onChange={handleInputChange} placeholder="-0.00" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                </div>
+
+                {false && (
+                  <>
                 {/* Columnas: Izquierda (Visión) | Derecha (Anteojos) */}
                 <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,0.8fr)_minmax(620px,1.2fr)] gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700">
                   {/* Columna Izquierda */}
@@ -823,6 +932,9 @@ function NuevaConsultaForm() {
                     </div>
                   </div>
                 </div>
+
+                  </>
+                )}
 
                 <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-700">
                   <div className="flex gap-2 items-start">

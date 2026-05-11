@@ -724,6 +724,10 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByText("Resumen del paciente")).toBeVisible();
       await expect(page.getByText("Consulta desde turno")).toBeVisible();
       await expect(page.getByText("Examen y cierre clinico")).toBeVisible();
+      await expect(page.getByText("Agudeza visual")).toBeVisible();
+      await expect(page.getByText("Presion ocular")).toBeVisible();
+      await expect(page.getByText("Refraccion de lejos")).toBeVisible();
+      await expect(page.getByText("Refraccion de cerca")).toBeVisible();
       await expect
         .poll(() => findDemoAppointment(request, env, adminToken, medicoId, motivo, slot, "En consulta"), {
           timeout: 10_000,
