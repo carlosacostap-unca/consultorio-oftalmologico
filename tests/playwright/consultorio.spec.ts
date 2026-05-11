@@ -93,15 +93,20 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByRole("button", { name: /09:00.*Libre/ }).click();
 
     await expect(page.getByRole("heading", { name: "Alta rapida de turno" })).toBeVisible();
+    await expect(page.getByLabel("Resumen del turno")).toContainText("Medico Demo");
+    await expect(page.getByLabel("Resumen del turno")).toContainText("09:00");
+    await expect(page.getByText("Turno regular")).toBeVisible();
     await page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER).fill(DEMO_PATIENT_DOCUMENT);
     await page.getByText(/Libre Demo, Paciente/).click();
+    await expect(page.getByText("Paciente seleccionado")).toBeVisible();
 
     const motivo = `Playwright rapido ${Date.now()}`;
     await page.getByPlaceholder("Ej: Control general").fill(motivo);
     await page.getByRole("button", { name: "Guardar turno" }).click();
 
     await expect(page.getByRole("heading", { name: "Alta rapida de turno" })).toBeHidden();
-    await expect(page.getByText(motivo)).toBeVisible();
+    await expect(page.getByText("Turno creado")).toBeVisible();
+    await expect(page.getByRole("button", { name: `Gestionar turno ${motivo}` })).toBeVisible();
     await expect(await findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT)).toBeTruthy();
 
     await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT);
@@ -122,6 +127,8 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.locator('main input[type="date"]').fill(DEMO_DATE);
     await page.getByRole("button", { name: /09:00.*Libre/ }).click();
 
+    await page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER).fill(document);
+    await expect(page.getByText("No encontramos pacientes para esa busqueda.")).toBeVisible();
     await page.getByRole("button", { name: "+ Nuevo" }).click();
     await page.getByPlaceholder("Apellido", { exact: true }).fill("Alta Rapida");
     await page.getByPlaceholder("Nombre", { exact: true }).fill("Paciente");
@@ -131,6 +138,7 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByRole("button", { name: "Crear y seleccionar" }).click();
 
     await expect(page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER)).toHaveValue(/Alta Rapida, Paciente/);
+    await expect(page.getByText("Paciente seleccionado")).toBeVisible();
     const motivo = `Playwright paciente rapido ${Date.now()}`;
     await page.getByPlaceholder("Ej: Control general").fill(motivo);
     await page.getByRole("button", { name: "Guardar turno" }).click();
@@ -158,6 +166,7 @@ test.describe("roles y otorgamiento de turnos", () => {
 
     await page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER).fill(OCCUPIED_PATIENT_DOCUMENT);
     await page.getByText(/Ocupado Demo, Paciente/).click();
+    await expect(page.getByText("Advertencias del paciente")).toBeVisible();
     await expect(page.getByText("Este paciente tiene proximos turnos activos.")).toBeVisible();
     await expect(page.getByText("Hay un turno activo con este mismo medico.")).toBeVisible();
 
@@ -168,6 +177,7 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByRole("button", { name: "Guardar turno" }).click();
 
     await expect(page.getByRole("heading", { name: "Alta rapida de turno" })).toBeHidden();
+    await expect(page.getByText("Turno creado")).toBeVisible();
     await expect.poll(
       () => findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT),
       { timeout: 10_000 }
@@ -193,7 +203,7 @@ test.describe("roles y otorgamiento de turnos", () => {
     const motivo = `Playwright estado rapido ${Date.now()}`;
     await page.getByPlaceholder("Ej: Control general").fill(motivo);
     await page.getByRole("button", { name: "Guardar turno" }).click();
-    await expect(page.getByText(motivo)).toBeVisible();
+    await expect(page.getByRole("button", { name: `Gestionar turno ${motivo}` })).toBeVisible();
 
     const row = page
       .getByRole("button", { name: `Gestionar turno ${motivo}` })
@@ -223,7 +233,7 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByPlaceholder("Ej: Control general").fill(motivo);
     await page.getByRole("button", { name: "Guardar turno" }).click();
 
-    await expect(page.getByText(motivo)).toBeVisible();
+    await expect(page.getByRole("button", { name: `Gestionar turno ${motivo}` })).toBeVisible();
     await page.getByRole("button", { name: `Gestionar turno ${motivo}` }).click();
     await page.getByRole("button", { name: "Cancelacion" }).click();
     await page.getByPlaceholder("Ej: El paciente solicito cancelar...").fill("Prueba automatizada de cancelacion");
@@ -286,16 +296,20 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByRole("button", { name: /09:15.*Ocupado/ }).click();
 
     await expect(page.getByRole("heading", { name: "Alta rapida de sobreturno" })).toBeVisible();
+    await expect(page.getByLabel("Resumen del turno")).toContainText("09:15");
     await expect(page.getByText("Sobreturno sobre horario ocupado")).toBeVisible();
+    await expect(page.getByText("Se guardara como sobreturno y quedara asociado a esta disponibilidad.")).toBeVisible();
     await page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER).fill(DEMO_PATIENT_DOCUMENT);
     await page.getByText(/Libre Demo, Paciente/).click();
+    await expect(page.getByText("Paciente seleccionado")).toBeVisible();
 
     const motivo = `Playwright sobreturno ${Date.now()}`;
     await page.getByPlaceholder("Ej: Control general").fill(motivo);
     await page.getByRole("button", { name: "Guardar sobreturno" }).click();
 
     await expect(page.getByRole("heading", { name: "Alta rapida de sobreturno" })).toBeHidden();
-    await expect(page.getByText(motivo)).toBeVisible();
+    await expect(page.getByText("Turno creado")).toBeVisible();
+    await expect(page.getByRole("button", { name: `Gestionar turno ${motivo}` })).toBeVisible();
     await expect(await findDemoAppointment(request, env, adminToken, medicoId, motivo, OVERBOOKING_SLOT)).toBeTruthy();
 
     await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, OVERBOOKING_SLOT);

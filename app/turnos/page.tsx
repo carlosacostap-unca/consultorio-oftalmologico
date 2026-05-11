@@ -95,6 +95,15 @@ interface QuickAppointmentState {
   isSearching: boolean;
 }
 
+interface QuickAppointmentSuccess {
+  patientLabel: string;
+  doctorLabel: string;
+  dateLabel: string;
+  timeLabel: string;
+  modeLabel: string;
+  motivo: string;
+}
+
 interface AvailabilitySlot {
   start: Date;
   end: Date;
@@ -233,6 +242,7 @@ export default function TurnosPage() {
   const [quickPatientDayAppointments, setQuickPatientDayAppointments] = useState<Turno[]>([]);
   const [isLoadingQuickPatientAppointments, setIsLoadingQuickPatientAppointments] = useState(false);
   const [quickWarningsAcknowledged, setQuickWarningsAcknowledged] = useState(false);
+  const [quickAppointmentSuccess, setQuickAppointmentSuccess] = useState<QuickAppointmentSuccess | null>(null);
 
   const handleTurnoClick = (turno: Turno, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -315,6 +325,8 @@ export default function TurnosPage() {
     ].filter(Boolean);
   };
 
+  const shortTime = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
   const escapePocketBaseFilter = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
   const addMinutes = (date: Date, minutes: number) => {
@@ -370,6 +382,7 @@ export default function TurnosPage() {
     mode: QuickAppointmentState["mode"] = "regular",
     referenceAppointment?: Turno
   ) => {
+    setQuickAppointmentSuccess(null);
     setQuickAppointment({
       disponibilidad,
       fechaHora,
@@ -405,6 +418,14 @@ export default function TurnosPage() {
   };
 
   const selectedQuickPatient = quickAppointment?.patientResults.find((patient) => patient.id === quickAppointment.paciente_id) || null;
+  const quickPatientSearchTerm = quickAppointment?.pacienteSearch.trim() || "";
+  const quickShowNoPatientResults = Boolean(
+    quickAppointment &&
+    quickPatientSearchTerm.length >= 2 &&
+    !quickAppointment.paciente_id &&
+    !quickAppointment.isSearching &&
+    quickAppointment.patientResults.length === 0
+  );
   const quickActivePatientAppointments = quickPatientDayAppointments.filter(isActiveAppointment);
   const quickSameDoctorActiveAppointments = quickAppointment
     ? quickActivePatientAppointments.filter((turno) => turno.medico_id === quickAppointment.disponibilidad.medico_id)
@@ -540,6 +561,14 @@ export default function TurnosPage() {
           medico_id: doctor,
         },
       }].sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime()));
+      setQuickAppointmentSuccess({
+        patientLabel: patientLabel(selectedPatient),
+        doctorLabel: doctorLabel(doctor),
+        dateLabel: formatDate(start),
+        timeLabel: shortTime(start),
+        modeLabel: quickAppointment.mode === "overbooking" ? "Sobreturno" : "Turno",
+        motivo: quickAppointment.motivo.trim(),
+      });
       setQuickAppointment(null);
     } catch (error) {
       console.error("Error al crear turno rapido:", error);
@@ -2378,11 +2407,39 @@ export default function TurnosPage() {
         )}
       </div>
 
+      {quickAppointmentSuccess && (
+        <div className="fixed bottom-4 right-4 z-40 w-[calc(100vw-2rem)] max-w-md rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900 shadow-lg dark:border-emerald-900/60 dark:bg-emerald-900/25 dark:text-emerald-100" role="status">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-sm font-bold">Turno creado</div>
+              <div className="mt-1 text-sm">
+                {quickAppointmentSuccess.modeLabel} · {quickAppointmentSuccess.patientLabel}
+              </div>
+              <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-200">
+                {quickAppointmentSuccess.doctorLabel} · {quickAppointmentSuccess.dateLabel} · {quickAppointmentSuccess.timeLabel}
+              </div>
+              {quickAppointmentSuccess.motivo && (
+                <div className="mt-1 text-xs text-emerald-700 dark:text-emerald-200">
+                  {quickAppointmentSuccess.motivo}
+                </div>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => setQuickAppointmentSuccess(null)}
+              className="rounded-lg px-2 py-1 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:text-emerald-100 dark:hover:bg-emerald-900/40"
+            >
+              Cerrar
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Modal de alta rapida de turno */}
       {quickAppointment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setQuickAppointment(null)}>
           <div
-            className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-lg overflow-hidden"
+            className="bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="p-5 border-b border-zinc-200 dark:border-zinc-800 flex items-start justify-between gap-4">
@@ -2393,6 +2450,18 @@ export default function TurnosPage() {
                 <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
                   {doctorLabel(doctorFor(quickAppointment.disponibilidad))} · {formatDate(quickAppointment.fechaHora)} · {quickAppointment.fechaHora.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {quickAppointment.disponibilidad.tipo}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-2 text-xs font-medium">
+                  <span className={`rounded-full px-2.5 py-1 ${
+                    quickAppointment.mode === "overbooking"
+                      ? "bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-200"
+                      : "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
+                  }`}>
+                    {quickAppointment.mode === "overbooking" ? "Sobreturno" : "Turno regular"}
+                  </span>
+                  <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                    {quickAppointment.disponibilidad.tipo}
+                  </span>
+                </div>
               </div>
               <button
                 type="button"
@@ -2406,12 +2475,32 @@ export default function TurnosPage() {
               </button>
             </div>
 
-            <div className="p-5 space-y-4">
+            <div className="p-5 space-y-4 overflow-y-auto">
               {quickAppointment.error && (
                 <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
                   {quickAppointment.error}
                 </div>
               )}
+
+              <section className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60" aria-label="Resumen del turno">
+                <div className="mb-3 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Resumen del turno</div>
+                <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                  {[
+                    ["Medico", doctorLabel(doctorFor(quickAppointment.disponibilidad))],
+                    ["Fecha", formatDate(quickAppointment.fechaHora)],
+                    ["Hora", shortTime(quickAppointment.fechaHora)],
+                    ["Tipo", quickAppointment.disponibilidad.tipo],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{label}</div>
+                      <div className="mt-0.5 font-medium text-zinc-900 dark:text-zinc-100">{value}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 rounded-md border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+                  Disponibilidad: {shortTime(new Date(quickAppointment.disponibilidad.fecha_hora_inicio))} - {shortTime(new Date(quickAppointment.disponibilidad.fecha_hora_fin))} · Duracion inicial {quickAppointment.duracion} min
+                </div>
+              </section>
 
               {quickAppointment.mode === "overbooking" && (
                 <div className="rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-sm text-orange-800 dark:border-orange-900/60 dark:bg-orange-900/20 dark:text-orange-200">
@@ -2420,6 +2509,9 @@ export default function TurnosPage() {
                     {quickAppointment.referenceAppointment?.expand?.paciente_id
                       ? `${quickAppointment.referenceAppointment.expand.paciente_id.apellido}, ${quickAppointment.referenceAppointment.expand.paciente_id.nombre}`
                       : "El horario ya tiene un turno asignado."}
+                  </div>
+                  <div className="mt-1 text-xs text-orange-700 dark:text-orange-300">
+                    Se guardara como sobreturno y quedara asociado a esta disponibilidad.
                   </div>
                 </div>
               )}
@@ -2455,7 +2547,7 @@ export default function TurnosPage() {
                       <button
                         key={patient.id}
                         type="button"
-                        onClick={() => updateQuickAppointment({ paciente_id: patient.id, pacienteSearch: patientLabel(patient) })}
+                        onClick={() => updateQuickAppointment({ paciente_id: patient.id, pacienteSearch: patientLabel(patient), error: "" })}
                         className={`w-full px-3 py-2 text-left text-sm transition-colors ${
                           quickAppointment.paciente_id === patient.id
                             ? "bg-blue-50 text-blue-800 dark:bg-blue-900/30 dark:text-blue-200"
@@ -2468,6 +2560,20 @@ export default function TurnosPage() {
                         </span>
                       </button>
                     ))}
+                  </div>
+                )}
+                {quickShowNoPatientResults && (
+                  <div className="mt-2 rounded-lg border border-dashed border-zinc-300 px-3 py-3 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
+                    No encontramos pacientes para esa busqueda.
+                  </div>
+                )}
+                {selectedQuickPatient && (
+                  <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-900/20 dark:text-blue-100">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Paciente seleccionado</div>
+                    <div className="mt-1 font-semibold">{selectedQuickPatient.apellido}, {selectedQuickPatient.nombre}</div>
+                    <div className="mt-1 text-xs text-blue-700 dark:text-blue-200">
+                      {patientMeta(selectedQuickPatient).join(" · ") || "Sin datos adicionales"}
+                    </div>
                   </div>
                 )}
                 {quickNewPatient.isOpen && (
@@ -2542,7 +2648,8 @@ export default function TurnosPage() {
                 )}
                 {quickActivePatientAppointments.length > 0 && (
                   <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">
-                    <div className="font-semibold">Este paciente tiene proximos turnos activos.</div>
+                    <div className="font-semibold">Advertencias del paciente</div>
+                    <div className="mt-1">Este paciente tiene proximos turnos activos.</div>
                     {quickSameDoctorActiveAppointments.length > 0 && (
                       <div className="mt-1 rounded-md bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900 dark:bg-amber-950/60 dark:text-amber-100">
                         Hay un turno activo con este mismo medico.
