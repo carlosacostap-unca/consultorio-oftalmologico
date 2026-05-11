@@ -172,6 +172,40 @@ test.describe("roles y otorgamiento de turnos", () => {
     }
   });
 
+  test("secretaria consulta y corrige ficha rapida del paciente desde turnos", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const patient = await findDemoPatient(request, env, adminToken, OCCUPIED_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const originalPhone = String(patient!.telefono || "");
+    const nextPhone = `2604${Date.now().toString().slice(-6)}`;
+
+    try {
+      await login(page, "secretaria.demo@consultorio.local");
+      await page.goto("/turnos");
+      await page.getByRole("button", { name: "Agenda Diaria" }).click();
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+
+      const row = page
+        .getByText("OCUPADO DEMO, PACIENTE", { exact: true })
+        .locator("xpath=ancestor::div[contains(@class,'grid')][1]");
+      await row.getByRole("button", { name: "Ficha paciente" }).click();
+
+      await expect(page.getByText("Ficha rapida", { exact: true })).toBeVisible();
+      await expect(page.getByText("Datos del paciente")).toBeVisible();
+      await expect(page.getByText("Ultimos turnos")).toBeVisible();
+      await page.getByLabel("Telefono").fill(nextPhone);
+      await page.getByRole("button", { name: "Guardar paciente" }).click();
+
+      await expect(page.getByText("Datos del paciente actualizados.")).toBeVisible();
+      await page.getByRole("button", { name: "Cerrar ficha rapida" }).click();
+      await expect(row.getByText(`Tel ${nextPhone}`)).toBeVisible();
+    } finally {
+      await updateDemoPatient(request, env, adminToken, patient!.id as string, { telefono: originalPhone });
+    }
+  });
+
   test("secretaria crea turno rapido desde agenda diaria", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
@@ -732,6 +766,20 @@ async function cleanupDemoPatient(
       headers: { Authorization: `Bearer ${token}` },
     });
   }
+}
+
+async function updateDemoPatient(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  patientId: string,
+  data: Record<string, string>
+) {
+  const response = await request.patch(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${patientId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data,
+  });
+  expect(response.ok()).toBeTruthy();
 }
 
 async function pbList(

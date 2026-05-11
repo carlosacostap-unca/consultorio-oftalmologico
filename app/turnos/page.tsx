@@ -13,10 +13,15 @@ interface Paciente {
   id: string;
   nombre: string;
   apellido: string;
+  tipo_documento?: string;
   dni?: string;
   numero_documento?: string;
   telefono?: string;
+  email?: string;
   obra_social?: string;
+  numero_afiliado?: string;
+  domicilio?: string;
+  numero_ficha?: string;
 }
 
 interface QuickNewPatientState {
@@ -75,6 +80,26 @@ interface AppUser {
   roles?: UserRole[];
 }
 
+interface ConsultaResumen {
+  id: string;
+  fecha?: string;
+  motivo_consulta?: string;
+  diagnostico?: string;
+}
+
+interface PatientQuickCardForm {
+  nombre: string;
+  apellido: string;
+  tipo_documento: string;
+  numero_documento: string;
+  telefono: string;
+  email: string;
+  obra_social: string;
+  numero_afiliado: string;
+  domicilio: string;
+  numero_ficha: string;
+}
+
 type ViewMode = "list" | "weekly" | "daily" | "availability" | "waiting-room";
 type AppointmentModalTab = "datos" | "reprogramar" | "cancelacion" | "historial";
 type DailyOperationFilter = "all" | "waiting" | "inConsultation" | "attended" | "absent" | "overbooking" | "late";
@@ -114,6 +139,19 @@ interface QuickAppointmentSuccess {
   motivo: string;
 }
 
+interface PatientQuickCardState {
+  isOpen: boolean;
+  pacienteId: string;
+  paciente: Paciente | null;
+  form: PatientQuickCardForm;
+  turnos: Turno[];
+  consultas: ConsultaResumen[];
+  isLoading: boolean;
+  isSaving: boolean;
+  error: string;
+  success: string;
+}
+
 interface AvailabilitySlot {
   start: Date;
   end: Date;
@@ -145,6 +183,32 @@ const TERMINAL_APPOINTMENT_STATES = ["Cancelado", "Atendido", "Ausente", "comple
 
 const isActiveAppointment = (turno: { estado?: string }) =>
   !turno.estado || !TERMINAL_APPOINTMENT_STATES.includes(turno.estado);
+
+const emptyPatientQuickCardForm = (): PatientQuickCardForm => ({
+  nombre: "",
+  apellido: "",
+  tipo_documento: "DNI",
+  numero_documento: "",
+  telefono: "",
+  email: "",
+  obra_social: "",
+  numero_afiliado: "",
+  domicilio: "",
+  numero_ficha: "",
+});
+
+const initialPatientQuickCardState = (): PatientQuickCardState => ({
+  isOpen: false,
+  pacienteId: "",
+  paciente: null,
+  form: emptyPatientQuickCardForm(),
+  turnos: [],
+  consultas: [],
+  isLoading: false,
+  isSaving: false,
+  error: "",
+  success: "",
+});
 
 const DAILY_OPERATION_FILTERS: Array<{ key: DailyOperationFilter; label: string }> = [
   { key: "all", label: "Todos" },
@@ -275,6 +339,7 @@ export default function TurnosPage() {
   const [isLoadingQuickPatientAppointments, setIsLoadingQuickPatientAppointments] = useState(false);
   const [quickWarningsAcknowledged, setQuickWarningsAcknowledged] = useState(false);
   const [quickAppointmentSuccess, setQuickAppointmentSuccess] = useState<QuickAppointmentSuccess | null>(null);
+  const [patientQuickCard, setPatientQuickCard] = useState<PatientQuickCardState>(initialPatientQuickCardState);
 
   const handleTurnoClick = (turno: Turno, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
@@ -359,6 +424,19 @@ export default function TurnosPage() {
       patient.obra_social || "",
     ].filter(Boolean);
   };
+
+  const patientQuickCardFormFromPatient = (patient: Paciente): PatientQuickCardForm => ({
+    nombre: patient.nombre || "",
+    apellido: patient.apellido || "",
+    tipo_documento: patient.tipo_documento || "DNI",
+    numero_documento: patientDocument(patient),
+    telefono: patient.telefono || "",
+    email: patient.email || "",
+    obra_social: patient.obra_social || "",
+    numero_afiliado: patient.numero_afiliado || "",
+    domicilio: patient.domicilio || "",
+    numero_ficha: patient.numero_ficha || "",
+  });
 
   const shortTime = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const minutesBetween = (from: Date, to = new Date()) => Math.max(0, Math.floor((to.getTime() - from.getTime()) / 60000));
@@ -448,6 +526,112 @@ export default function TurnosPage() {
       setAppointmentEvents((prev) => [event, ...prev]);
     }
     return event;
+  };
+
+  const openPatientQuickCard = async (pacienteId?: string, patientSeed?: Paciente | null) => {
+    if (!pacienteId) return;
+
+    setPatientQuickCard({
+      ...initialPatientQuickCardState(),
+      isOpen: true,
+      pacienteId,
+      paciente: patientSeed || null,
+      form: patientSeed ? patientQuickCardFormFromPatient(patientSeed) : emptyPatientQuickCardForm(),
+      isLoading: true,
+    });
+
+    try {
+      const [paciente, turnosResponse, consultasResponse] = await Promise.all([
+        pb.collection("pacientes").getOne<Paciente>(pacienteId, { requestKey: null }),
+        pb.collection("turnos").getList<Turno>(1, 5, {
+          filter: `paciente_id = "${escapePocketBaseFilter(pacienteId)}"`,
+          sort: "-fecha_hora",
+          expand: "medico_id",
+          requestKey: null,
+        }),
+        pb.collection("consultas").getList<ConsultaResumen>(1, 5, {
+          filter: `paciente_id = "${escapePocketBaseFilter(pacienteId)}"`,
+          sort: "-fecha",
+          requestKey: null,
+        }),
+      ]);
+
+      setPatientQuickCard((prev) => ({
+        ...prev,
+        paciente,
+        form: patientQuickCardFormFromPatient(paciente),
+        turnos: turnosResponse.items,
+        consultas: consultasResponse.items,
+        isLoading: false,
+        error: "",
+      }));
+    } catch (error) {
+      console.error("Error al cargar ficha rapida del paciente:", error);
+      setPatientQuickCard((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: "No se pudo cargar la ficha rapida del paciente.",
+      }));
+    }
+  };
+
+  const updatePatientQuickCardForm = (patch: Partial<PatientQuickCardForm>) => {
+    setPatientQuickCard((prev) => ({ ...prev, form: { ...prev.form, ...patch }, error: "", success: "" }));
+  };
+
+  const closePatientQuickCard = () => setPatientQuickCard(initialPatientQuickCardState());
+
+  const savePatientQuickCard = async () => {
+    if (!patientQuickCard.pacienteId) return;
+
+    const form = patientQuickCard.form;
+    if (!form.nombre.trim() || !form.apellido.trim()) {
+      setPatientQuickCard((prev) => ({ ...prev, error: "Completa apellido y nombre para guardar." }));
+      return;
+    }
+
+    setPatientQuickCard((prev) => ({ ...prev, isSaving: true, error: "", success: "" }));
+    try {
+      const dataToSave = {
+        nombre: form.nombre.trim(),
+        apellido: form.apellido.trim(),
+        tipo_documento: form.tipo_documento.trim() || "DNI",
+        numero_documento: form.numero_documento.trim(),
+        dni: form.numero_documento.trim(),
+        telefono: form.telefono.trim(),
+        email: form.email.trim(),
+        obra_social: form.obra_social.trim(),
+        numero_afiliado: form.numero_afiliado.trim(),
+        domicilio: form.domicilio.trim(),
+        numero_ficha: form.numero_ficha.trim().toUpperCase(),
+      };
+
+      const updatedPatient = await pb.collection("pacientes").update<Paciente>(patientQuickCard.pacienteId, dataToSave, { requestKey: null });
+      setTurnos((prev) => prev.map((turno) =>
+        turno.paciente_id === updatedPatient.id
+          ? { ...turno, expand: { ...turno.expand, paciente_id: updatedPatient } }
+          : turno
+      ));
+      setSelectedTurno((prev) =>
+        prev?.paciente_id === updatedPatient.id
+          ? { ...prev, expand: { ...prev.expand, paciente_id: updatedPatient } }
+          : prev
+      );
+      setPatientQuickCard((prev) => ({
+        ...prev,
+        paciente: updatedPatient,
+        form: patientQuickCardFormFromPatient(updatedPatient),
+        isSaving: false,
+        success: "Datos del paciente actualizados.",
+      }));
+    } catch (error) {
+      console.error("Error al guardar ficha rapida del paciente:", error);
+      setPatientQuickCard((prev) => ({
+        ...prev,
+        isSaving: false,
+        error: "No se pudieron guardar los cambios del paciente.",
+      }));
+    }
   };
 
   const completeStatusChange = async (id: string, nuevoEstado: string, motivo = "") => {
@@ -1855,6 +2039,15 @@ export default function TurnosPage() {
                                     DNI: {turno.expand.paciente_id.dni}
                                   </div>
                                 )}
+                                {turno.expand?.paciente_id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openPatientQuickCard(turno.paciente_id, turno.expand?.paciente_id)}
+                                    className="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                  >
+                                    Ficha paciente
+                                  </button>
+                                )}
                               </td>
                               <td className="px-6 py-4">
                                 <div className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
@@ -2337,6 +2530,15 @@ export default function TurnosPage() {
                                     <div className="mt-2 font-semibold text-zinc-900 dark:text-zinc-100">
                                       {turno.expand?.paciente_id ? `${turno.expand.paciente_id.apellido.toUpperCase()}, ${turno.expand.paciente_id.nombre.toUpperCase()}` : "Paciente no encontrado"}
                                     </div>
+                                    {turno.expand?.paciente_id && (
+                                      <button
+                                        type="button"
+                                        onClick={() => openPatientQuickCard(turno.paciente_id, turno.expand?.paciente_id)}
+                                        className="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                      >
+                                        Ficha paciente
+                                      </button>
+                                    )}
                                     <div className="mt-1 flex flex-wrap gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                                       {selectedMedicoId === "all" && <span>{doctorLabel(doctorFor(turno))}</span>}
                                       {patientMeta(turno.expand?.paciente_id).map((meta) => (
@@ -2599,6 +2801,15 @@ export default function TurnosPage() {
                                 <div className="font-semibold text-zinc-900 dark:text-zinc-100">
                                   {turno.expand?.paciente_id ? `${turno.expand.paciente_id.apellido.toUpperCase()}, ${turno.expand.paciente_id.nombre.toUpperCase()}` : 'Paciente no encontrado'}
                                 </div>
+                                {turno.expand?.paciente_id && (
+                                  <button
+                                    type="button"
+                                    onClick={() => openPatientQuickCard(turno.paciente_id, turno.expand?.paciente_id)}
+                                    className="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                                  >
+                                    Ficha paciente
+                                  </button>
+                                )}
                                 <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                                   {patientDocument(turno.expand?.paciente_id) && <span>DNI {patientDocument(turno.expand?.paciente_id)}</span>}
                                   {turno.expand?.paciente_id?.telefono && <span>Tel {turno.expand.paciente_id.telefono}</span>}
@@ -3307,6 +3518,15 @@ export default function TurnosPage() {
                     )}
                   </div>
                 )}
+                {selectedTurno.expand?.paciente_id && (
+                  <button
+                    type="button"
+                    onClick={() => openPatientQuickCard(selectedTurno.paciente_id, selectedTurno.expand?.paciente_id)}
+                    className="mt-2 rounded-lg bg-white/70 px-2.5 py-1 text-xs font-semibold text-blue-700 hover:bg-white dark:bg-black/20 dark:text-blue-300 dark:hover:bg-black/30"
+                  >
+                    Ficha paciente
+                  </button>
+                )}
                 <span className="text-xs opacity-80 mt-1.5 inline-block font-medium px-2 py-0.5 rounded-full bg-white/50 dark:bg-black/20 border border-zinc-200/50 dark:border-zinc-700/50">
                   {selectedTurno.estado ? selectedTurno.estado.charAt(0).toUpperCase() + selectedTurno.estado.slice(1) : 'Sin asignar'}
                 </span>
@@ -3650,6 +3870,221 @@ export default function TurnosPage() {
                     Guardar
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {patientQuickCard.isOpen && (
+        <div className="fixed inset-0 z-[55] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={closePatientQuickCard}>
+          <div
+            className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-900"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-zinc-200 p-4 dark:border-zinc-800">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Ficha rapida</p>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                  {patientQuickCard.paciente
+                    ? `${patientQuickCard.paciente.apellido}, ${patientQuickCard.paciente.nombre}`
+                    : "Paciente"}
+                </h3>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Datos administrativos y actividad reciente del paciente.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePatientQuickCard}
+                className="rounded-lg p-2 text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+                aria-label="Cerrar ficha rapida"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-4">
+              {patientQuickCard.isLoading ? (
+                <div className="py-12 text-center text-sm text-zinc-500 dark:text-zinc-400">Cargando ficha rapida...</div>
+              ) : (
+                <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+                  <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h4 className="font-semibold text-zinc-900 dark:text-zinc-100">Datos del paciente</h4>
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Correccion administrativa minima.</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {patientQuickCard.pacienteId && (
+                          <>
+                            <Link
+                              href={`/pacientes/${patientQuickCard.pacienteId}?mode=view`}
+                              className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                            >
+                              Ver ficha completa
+                            </Link>
+                            <Link
+                              href={`/consultas/nueva?paciente_id=${patientQuickCard.pacienteId}`}
+                              className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700"
+                            >
+                              Nueva consulta
+                            </Link>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {patientQuickCard.error && (
+                      <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-900/20 dark:text-red-300">
+                        {patientQuickCard.error}
+                      </div>
+                    )}
+                    {patientQuickCard.success && (
+                      <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300">
+                        {patientQuickCard.success}
+                      </div>
+                    )}
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Apellido</span>
+                        <input
+                          value={patientQuickCard.form.apellido}
+                          onChange={(event) => updatePatientQuickCardForm({ apellido: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Nombre</span>
+                        <input
+                          value={patientQuickCard.form.nombre}
+                          onChange={(event) => updatePatientQuickCardForm({ nombre: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Documento</span>
+                        <input
+                          value={patientQuickCard.form.numero_documento}
+                          onChange={(event) => updatePatientQuickCardForm({ numero_documento: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Telefono</span>
+                        <input
+                          value={patientQuickCard.form.telefono}
+                          onChange={(event) => updatePatientQuickCardForm({ telefono: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Email</span>
+                        <input
+                          type="email"
+                          value={patientQuickCard.form.email}
+                          onChange={(event) => updatePatientQuickCardForm({ email: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Obra social</span>
+                        <input
+                          value={patientQuickCard.form.obra_social}
+                          onChange={(event) => updatePatientQuickCardForm({ obra_social: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Numero afiliado</span>
+                        <input
+                          value={patientQuickCard.form.numero_afiliado}
+                          onChange={(event) => updatePatientQuickCardForm({ numero_afiliado: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Numero ficha</span>
+                        <input
+                          value={patientQuickCard.form.numero_ficha}
+                          onChange={(event) => updatePatientQuickCardForm({ numero_ficha: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm uppercase text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm sm:col-span-2">
+                        <span className="mb-1 block font-medium text-zinc-700 dark:text-zinc-300">Domicilio</span>
+                        <input
+                          value={patientQuickCard.form.domicilio}
+                          onChange={(event) => updatePatientQuickCardForm({ domicilio: event.target.value })}
+                          className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-blue-500/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+                      <h4 className="font-semibold text-zinc-900 dark:text-zinc-100">Ultimos turnos</h4>
+                      <div className="mt-3 space-y-2">
+                        {patientQuickCard.turnos.length === 0 ? (
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400">No hay turnos registrados.</p>
+                        ) : patientQuickCard.turnos.map((turno) => (
+                          <div key={turno.id} className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              {formatDate(turno.fecha_hora)} · {shortTime(new Date(turno.fecha_hora))}
+                            </div>
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {doctorLabel(doctorFor(turno))} · {turno.estado || "Sin estado"} · {turno.motivo || "Sin motivo"}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
+                      <h4 className="font-semibold text-zinc-900 dark:text-zinc-100">Ultimas consultas</h4>
+                      <div className="mt-3 space-y-2">
+                        {patientQuickCard.consultas.length === 0 ? (
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
+                        ) : patientQuickCard.consultas.map((consulta) => (
+                          <Link
+                            key={consulta.id}
+                            href={`/consultas/${consulta.id}?mode=view`}
+                            className="block rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm hover:bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                          >
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">
+                              {consulta.fecha ? formatDate(consulta.fecha) : "Sin fecha"}
+                            </div>
+                            <div className="text-xs text-zinc-500 dark:text-zinc-400">
+                              {consulta.motivo_consulta || "Sin motivo"}{consulta.diagnostico ? ` · ${consulta.diagnostico}` : ""}
+                            </div>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 border-t border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-800/30">
+              <button
+                type="button"
+                onClick={closePatientQuickCard}
+                className="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={savePatientQuickCard}
+                disabled={patientQuickCard.isLoading || patientQuickCard.isSaving}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {patientQuickCard.isSaving ? "Guardando..." : "Guardar paciente"}
               </button>
             </div>
           </div>
