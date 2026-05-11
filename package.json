@@ -9,22 +9,37 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "openspec": "openspec",
+    "openspec:list": "openspec list",
+    "openspec:validate": "openspec validate --all",
+    "schema:test": "node scripts/bootstrap_pocketbase_test_schema.mjs --source-env .env.local --target-env .env.test.local --require-test-pocketbase --include-users",
+    "seed:test:usuarios": "node scripts/seed_usuarios_prueba.mjs --env .env.test.local --require-test-pocketbase",
+    "seed:test:agenda": "node scripts/seed_agenda_prueba.mjs --env .env.test.local --require-test-pocketbase",
+    "seed:test": "npm run seed:test:usuarios && npm run seed:test:agenda",
+    "test:playwright": "playwright test",
+    "test:playwright:test": "node scripts/run_playwright_test.mjs --env .env.test.local",
+    "test:playwright:headed": "playwright test --headed"
   },
   "dependencies": {
-    "next": "16.2.4",
+    "next": "16.2.6",
     "pocketbase": "^0.26.8",
     "react": "19.2.5",
     "react-dom": "19.2.5"
   },
   "devDependencies": {
+    "@fission-ai/openspec": "^1.3.1",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "8.5.14"
   }
 }

@@ -1,4 +1,9 @@
-const PB_URL = (process.env.POCKETBASE_URL || process.env.NEXT_PUBLIC_POCKETBASE_URL || "").replace(/\/$/, "");
+import { ACTIVE_ROLE_HEADER } from "./active-role";
+import { hasAdminRole } from "./permissions";
+import { normalizePocketBaseUrl } from "./pocketbase-url";
+import { isUserRole, normalizeUserRoles } from "./permissions";
+
+const PB_URL = normalizePocketBaseUrl(process.env.POCKETBASE_URL || process.env.NEXT_PUBLIC_POCKETBASE_URL || "");
 
 let cachedAdminToken = process.env.POCKETBASE_ADMIN_TOKEN || "";
 
@@ -56,7 +61,13 @@ export async function authenticatedUser(request: Request) {
 
 export async function requireAdmin(request: Request) {
   const user = await authenticatedUser(request);
-  return user?.role === "admin" ? user : null;
+  if (!hasAdminRole(user)) return null;
+
+  const activeRole = request.headers.get(ACTIVE_ROLE_HEADER);
+  if (!isUserRole(activeRole) || activeRole !== "admin") return null;
+  if (!normalizeUserRoles(user).includes(activeRole)) return null;
+
+  return user;
 }
 
 async function adminToken() {

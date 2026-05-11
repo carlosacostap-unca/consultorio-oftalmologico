@@ -14,6 +14,8 @@ npm install
 ## Variables
 
 El servidor lee `POCKETBASE_URL` o, como fallback, `NEXT_PUBLIC_POCKETBASE_URL` desde el `.env.local` del proyecto.
+La URL puede incluir `https://`; si se configura solo el host, el servidor usa `https://` por defecto.
+Tambien puede cargar otro archivo con `MCP_ENV_FILE` o `ENV_FILE`, por ejemplo para usar `.env.test.local`.
 
 Para listar colecciones o registros hace falta una credencial administrativa:
 
@@ -37,3 +39,8 @@ POCKETBASE_ADMIN_PASSWORD=tu_password
 - `get_record`
 - `create_record`
 - `update_record`
+
+## Instancia de testing
+
+Para registrar un MCP contra PocketBase de testing, configurar `MCP_ENV_FILE` apuntando al `.env.test.local` del proyecto y `REQUIRE_TEST_POCKETBASE=true`.
+Con esa variable activa, el servidor aborta si la URL no parece una instancia de testing.

@@ -3,29 +3,82 @@
 import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
+import {
+  ACTIVE_ROLE_CHANGED_EVENT,
+  activeRoleLabel,
+  clearActiveRole,
+  getValidStoredActiveRole,
+  resolveActiveRole,
+  setActiveRole,
+} from "@/lib/active-role";
+import type { UserRole } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
 export default function Home() {
   const [user, setUser] = useState<AppUser | null>(null);
+  const [activeRole, setCurrentActiveRole] = useState<UserRole | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [emailLogin, setEmailLogin] = useState("");
+  const [passwordLogin, setPasswordLogin] = useState("");
+  const [loginError, setLoginError] = useState("");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record as AppUser | null);
+    const loadUser = async (record: AppUser | null) => {
+      if (!pb.authStore.isValid || !record?.id) {
+        setUser(null);
+        setCurrentActiveRole(null);
+        return;
+      }
+
+      try {
+        const freshUser = await pb.collection("users").getOne<AppUser>(record.id, { requestKey: null });
+        const storedRole = getValidStoredActiveRole(freshUser);
+        const resolvedRole = storedRole || resolveActiveRole(freshUser, ["secretaria"]);
+
+        setUser(freshUser);
+        setCurrentActiveRole(resolvedRole);
+
+        if (!storedRole && resolvedRole && freshUser.id) {
+          setActiveRole(freshUser.id, resolvedRole);
+        }
+      } catch (error) {
+        console.error("Error al cargar usuario autenticado:", error);
+        const storedRole = getValidStoredActiveRole(record);
+        const resolvedRole = storedRole || resolveActiveRole(record, ["secretaria"]);
+
+        setUser(record);
+        setCurrentActiveRole(resolvedRole);
+
+        if (!storedRole && resolvedRole && record.id) {
+          setActiveRole(record.id, resolvedRole);
+        }
+      }
+    };
     
     // Escuchar cambios en la autenticación
     const unsubscribe = pb.authStore.onChange((_token, record) => {
-      setUser(record as AppUser | null);
+      loadUser(record as AppUser | null);
     }, true);
+
+    const handleActiveRoleChange = () => {
+      const record = pb.authStore.record as AppUser | null;
+      if (!record?.id) return;
+      setCurrentActiveRole(resolveActiveRole(record, ["secretaria"]));
+    };
+
+    window.addEventListener(ACTIVE_ROLE_CHANGED_EVENT, handleActiveRoleChange);
 
     return () => {
       unsubscribe();
+      window.removeEventListener(ACTIVE_ROLE_CHANGED_EVENT, handleActiveRoleChange);
     };
   }, []);
 
   const loginWithGoogle = async () => {
     setIsLoading(true);
+    setLoginError("");
     try {
       // Iniciar sesión con Google usando OAuth2
       await pb.collection("users").authWithOAuth2({ provider: "google" });
@@ -37,7 +90,29 @@ export default function Home() {
     }
   };
 
+  const loginWithPassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setIsLoading(true);
+    setLoginError("");
+
+    try {
+      const authData = await pb.collection("users").authWithPassword(emailLogin.trim(), passwordLogin);
+      const authUser = authData.record as AppUser;
+      const resolvedRole = resolveActiveRole(authUser, ["secretaria"]);
+
+      if (resolvedRole && authUser.id) {
+        setActiveRole(authUser.id, resolvedRole);
+      }
+    } catch (error) {
+      console.error("Error al iniciar sesion con email:", error);
+      setLoginError("No se pudo iniciar sesion. Revisa el email y la contrasena.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
+    clearActiveRole(user?.id);
     pb.authStore.clear();
   };
 
@@ -70,6 +145,11 @@ export default function Home() {
                 <p className="text-zinc-500 dark:text-zinc-400 text-sm">
                   {user.email}
                 </p>
+                {activeRole && (
+                  <p className="text-blue-600 dark:text-blue-400 text-sm font-medium mt-1">
+                    Rol activo: {activeRoleLabel(activeRole)}
+                  </p>
+                )}
               </div>
             </div>
             <button
@@ -164,6 +244,47 @@ export default function Home() {
         <p className="text-zinc-500 dark:text-zinc-400 mb-10">
           Inicia sesión para acceder a tu portal de paciente y gestionar tus turnos.
         </p>
+
+        <form onSubmit={loginWithPassword} className="space-y-4 text-left">
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Email</label>
+            <input
+              required
+              type="email"
+              value={emailLogin}
+              onChange={(event) => setEmailLogin(event.target.value)}
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Contrasena</label>
+            <input
+              required
+              type="password"
+              value={passwordLogin}
+              onChange={(event) => setPasswordLogin(event.target.value)}
+              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+            />
+          </div>
+          {loginError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+              {loginError}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {isLoading ? "Conectando..." : "Ingresar"}
+          </button>
+        </form>
+
+        <div className="my-6 flex items-center gap-3 text-xs text-zinc-400">
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"></div>
+          <span>o</span>
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"></div>
+        </div>
 
         <button
           onClick={loginWithGoogle}

@@ -1,0 +1,22 @@
+schema: spec-driven
+
+context: |
+  Project: consultorio-oftalmologico, a private ophthalmology office management app.
+  Runtime: Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4, ESLint 9.
+  Data layer: PocketBase, with server/admin helpers under lib/ and route handlers under app/api/.
+  Main domains: pacientes, consultas, turnos, mutuales, recetas, permisos, configuracion.
+  Legacy data import scripts live under scripts/ and source data lives under data/.
+  Before changing Next.js code, read the relevant local guide in node_modules/next/dist/docs/.
+
+rules:
+  proposal:
+    - Explain the user-facing reason for the change and the affected domain.
+    - Call out data migration, PocketBase schema, or import-script impact when relevant.
+  specs:
+    - Describe behavior in Spanish when the feature is user-facing.
+    - Use concrete scenarios for clinical-office workflows and permission-sensitive actions.
+  design:
+    - Prefer existing App Router, PocketBase helper, and component patterns.
+    - Mention validation, authorization, and print/export behavior when impacted.
+  tasks:
+    - Include focused verification steps, such as lint/build or a targeted manual flow.

@@ -6,6 +6,7 @@ export interface AppUser extends RecordModel {
   email?: string;
   name?: string;
   role?: UserRole;
+  roles?: UserRole[];
 }
 
 export interface Patient extends RecordModel {

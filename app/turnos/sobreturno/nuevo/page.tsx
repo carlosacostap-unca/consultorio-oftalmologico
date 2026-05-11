@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
+import { resolveActiveRole } from "@/lib/active-role";
+import type { UserRole } from "@/lib/permissions";
 
 interface Paciente {
   id: string;
@@ -19,21 +21,46 @@ interface Paciente {
 
 interface Disponibilidad {
   id: string;
+  medico_id?: string;
   fecha_hora_inicio: string;
   fecha_hora_fin: string;
   tipo: "Consulta" | "Estudio" | "Cirugía";
+}
+
+interface Medico {
+  id: string;
+  name?: string;
+  email?: string;
+}
+
+interface AppUser {
+  id?: string;
+  name?: string;
+  email?: string;
+  role?: UserRole;
+  roles?: UserRole[];
+}
+
+interface TurnoAdyacente {
+  id: string;
+  medico_id?: string;
+  fecha_hora: string;
+  expand?: {
+    paciente_id?: Paciente;
+  };
 }
 
 export default function NuevoTurnoPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [disponibilidades, setDisponibilidades] = useState<Disponibilidad[]>([]);
   const [isLoadingDisponibilidades, setIsLoadingDisponibilidades] = useState(false);
 
-  const [isFromAgenda, setIsFromAgenda] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showDropdown, setShowDropdown] = useState(false);
 
@@ -57,6 +84,7 @@ export default function NuevoTurnoPage() {
   const [isUpdatingPatient, setIsUpdatingPatient] = useState(false);
 
   const [formData, setFormData] = useState({
+    medico_id: "",
     paciente_id: "",
     fecha: "",
     disponibilidad_id: "",
@@ -70,12 +98,13 @@ export default function NuevoTurnoPage() {
     sobreturno_tipo: "",
   });
 
-  const [prevTurno, setPrevTurno] = useState<any>(null);
-  const [nextTurno, setNextTurno] = useState<any>(null);
-
-  const TURN_STATES = ["En espera", "En consulta", "Atendido", "Ausente", "Atrasado", "Quiere adelantarlo", "No llegó"];
+  const [prevTurno, setPrevTurno] = useState<TurnoAdyacente | null>(null);
+  const [nextTurno, setNextTurno] = useState<TurnoAdyacente | null>(null);
 
   const [selectedDisponibilidad, setSelectedDisponibilidad] = useState<Disponibilidad | null>(null);
+
+  const canChooseDoctor = activeRole !== "medico";
+  const doctorLabel = (doctor?: Medico | null) => doctor?.name || doctor?.email || "Medico";
 
   const removeAccents = (str: string) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -83,22 +112,22 @@ export default function NuevoTurnoPage() {
 
   useEffect(() => {
     const fetchTurnos = async () => {
-      if (!formData.fecha || !formData.hora) return;
+      if (!formData.fecha || !formData.hora || !formData.medico_id) return;
 
       try {
         const startOfDay = new Date(`${formData.fecha}T00:00:00Z`).toISOString().replace('T', ' ');
         const endOfDay = new Date(`${formData.fecha}T23:59:59Z`).toISOString().replace('T', ' ');
         
-        const records = await pb.collection("turnos").getFullList({
-          filter: `fecha_hora >= "${startOfDay}" && fecha_hora <= "${endOfDay}"`,
+        const records = await pb.collection("turnos").getFullList<TurnoAdyacente>({
+          filter: `fecha_hora >= "${startOfDay}" && fecha_hora <= "${endOfDay}" && medico_id = "${formData.medico_id}"`,
           sort: "fecha_hora",
           expand: "paciente_id"
         });
 
         const targetTime = new Date(`${formData.fecha}T${formData.hora}:00`);
         
-        let prev = null;
-        let next = null;
+        let prev: TurnoAdyacente | null = null;
+        let next: TurnoAdyacente | null = null;
 
         for (const turno of records) {
           const tTime = new Date(turno.fecha_hora);
@@ -123,7 +152,7 @@ export default function NuevoTurnoPage() {
     };
 
     fetchTurnos();
-  }, [formData.fecha, formData.hora]);
+  }, [formData.fecha, formData.hora, formData.medico_id]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -132,6 +161,7 @@ export default function NuevoTurnoPage() {
       const urlHora = params.get('hora');
       const urlFechaHora = params.get('fecha_hora');
       const urlDispId = params.get('disponibilidad_id');
+      const urlMedicoId = params.get('medico_id');
       const urlTipo = params.get('tipo');
       const urlEsSobreturno = params.get('es_sobreturno') === 'true';
       
@@ -144,13 +174,10 @@ export default function NuevoTurnoPage() {
         initialHora = timePart ? timePart.slice(0, 5) : initialHora;
       }
 
-      if (urlDispId) {
-        setIsFromAgenda(true);
-      }
-
-      if (initialFecha || initialHora || urlDispId || urlEsSobreturno) {
+      if (initialFecha || initialHora || urlDispId || urlMedicoId || urlEsSobreturno) {
         setFormData(prev => ({
           ...prev,
+          medico_id: urlMedicoId || prev.medico_id,
           fecha: initialFecha || prev.fecha,
           hora: initialHora || prev.hora,
           disponibilidad_id: urlDispId || prev.disponibilidad_id,
@@ -164,19 +191,38 @@ export default function NuevoTurnoPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    const authUser = pb.authStore.record as AppUser | null;
+    const resolvedRole = resolveActiveRole(authUser, ["secretaria"]);
+    setUser(authUser);
+    setActiveRole(resolvedRole);
 
     if (!pb.authStore.isValid) {
       router.push("/");
       return;
     }
 
+    if (resolvedRole === "medico" && authUser?.id) {
+      setFormData((prev) => ({ ...prev, medico_id: authUser.id || prev.medico_id }));
+    }
+
     const loadData = async () => {
       try {
-        const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
-          sort: "apellido,nombre",
-        });
+        const [pacientesRecords, medicosResponse] = await Promise.all([
+          pb.collection("pacientes").getFullList<Paciente>({
+            sort: "apellido,nombre",
+          }),
+          fetch("/api/medicos", {
+            headers: { Authorization: `Bearer ${pb.authStore.token}` },
+          }),
+        ]);
+
+        if (!medicosResponse.ok) {
+          throw new Error("No se pudieron cargar los medicos.");
+        }
+
+        const medicosData = await medicosResponse.json();
         setPacientes(pacientesRecords);
+        setMedicos(Array.isArray(medicosData.medicos) ? medicosData.medicos : []);
       } catch (error) {
         console.error("Error al cargar pacientes:", error);
       }
@@ -187,7 +233,7 @@ export default function NuevoTurnoPage() {
 
   useEffect(() => {
     const fetchDisponibilidades = async () => {
-      if (!formData.fecha) {
+      if (!formData.fecha || !formData.medico_id) {
         setDisponibilidades([]);
         return;
       }
@@ -201,7 +247,7 @@ export default function NuevoTurnoPage() {
         const endOfDay = new Date(`${formData.fecha}T23:59:59Z`).toISOString().replace('T', ' ');
         
         const records = await pb.collection("disponibilidades").getFullList<Disponibilidad>({
-          filter: `fecha_hora_inicio >= "${startOfDay}" && fecha_hora_inicio <= "${endOfDay}"`,
+          filter: `fecha_hora_inicio >= "${startOfDay}" && fecha_hora_inicio <= "${endOfDay}" && medico_id = "${formData.medico_id}"`,
           sort: "fecha_hora_inicio",
         });
         setDisponibilidades(records);
@@ -226,7 +272,7 @@ export default function NuevoTurnoPage() {
     };
 
     fetchDisponibilidades();
-  }, [formData.fecha]);
+  }, [formData.fecha, formData.medico_id, formData.disponibilidad_id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -238,6 +284,7 @@ export default function NuevoTurnoPage() {
       setFormData(prev => ({
         ...prev,
         disponibilidad_id: value,
+        medico_id: disp?.medico_id || prev.medico_id,
         hora: disp ? new Date(disp.fecha_hora_inicio).toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit', hour12: false}) : "",
         duracion: disp?.tipo === "Consulta" ? "15" : "",
       }));
@@ -251,6 +298,16 @@ export default function NuevoTurnoPage() {
     
     if (!formData.paciente_id) {
       alert("Por favor, seleccione un paciente de la lista.");
+      return;
+    }
+
+    if (!formData.medico_id) {
+      alert("Por favor, seleccione un medico.");
+      return;
+    }
+
+    if (activeRole === "medico" && user?.id && formData.medico_id !== user.id) {
+      alert("No podes crear sobreturnos para otro medico con el rol medico activo.");
       return;
     }
 
@@ -273,6 +330,7 @@ export default function NuevoTurnoPage() {
       const fechaHoraIso = new Date(`${formData.fecha}T${formData.hora}`).toISOString();
       
       await pb.collection("turnos").create({
+        medico_id: selectedDisponibilidad?.medico_id || formData.medico_id,
         paciente_id: formData.paciente_id,
         fecha_hora: fechaHoraIso,
         motivo: formData.motivo,
@@ -377,6 +435,32 @@ export default function NuevoTurnoPage() {
 
         <div className="bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 overflow-hidden">
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Medico *</label>
+              <select
+                required
+                name="medico_id"
+                value={formData.medico_id}
+                onChange={(event) => {
+                  setSelectedDisponibilidad(null);
+                  setFormData((prev) => ({
+                    ...prev,
+                    medico_id: event.target.value,
+                    disponibilidad_id: "",
+                  }));
+                }}
+                disabled={!canChooseDoctor}
+                className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70"
+              >
+                <option value="">Seleccione un medico</option>
+                {medicos.map((medico) => (
+                  <option key={medico.id} value={medico.id}>
+                    {doctorLabel(medico)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className="relative">
               <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Paciente *</label>
               <div className="flex gap-2">
@@ -440,7 +524,7 @@ export default function NuevoTurnoPage() {
               </div>
               {pacientes.length === 0 && (
                 <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
-                  No hay pacientes registrados. Usa el botón "+ Nuevo" para agregar uno.
+                  No hay pacientes registrados. Usa el botón &quot;+ Nuevo&quot; para agregar uno.
                 </p>
               )}
             </div>
@@ -675,7 +759,7 @@ export default function NuevoTurnoPage() {
               </button>
               <button 
                 type="submit"
-                disabled={isLoading || pacientes.length === 0}
+                disabled={isLoading || isLoadingDisponibilidades || pacientes.length === 0}
                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
               >
                 {isLoading ? "Guardando..." : "Agendar Turno"}

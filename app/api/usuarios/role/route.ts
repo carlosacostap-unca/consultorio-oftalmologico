@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import { pbAdmin, requireAdmin } from "@/lib/pocketbase-admin";
-import { ROLE_LABELS } from "@/lib/permissions";
-import type { UserRole } from "@/lib/permissions";
+import { legacyRoleForRoles, normalizeRoleInput, normalizeUserRoles } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
 
@@ -14,25 +13,36 @@ export async function PATCH(request: NextRequest) {
 
     const body = await request.json();
     const userId = String(body.userId || "");
-    const role = String(body.role || "") as UserRole;
+    const roles = normalizeRoleInput(body);
 
-    if (!userId || !ROLE_LABELS[role]) {
+    if (!userId || roles.length === 0) {
       return Response.json({ error: "Datos invalidos" }, { status: 400 });
     }
 
+    if (admin.id === userId && !roles.includes("admin")) {
+      return Response.json({ error: "No podes quitarte tu propio rol admin" }, { status: 400 });
+    }
+
+    const legacyRole = legacyRoleForRoles(roles);
+
     const user = await pbAdmin(`/api/collections/users/records/${encodeURIComponent(userId)}`, {
       method: "PATCH",
-      body: JSON.stringify({ role }),
+      body: JSON.stringify({ role: legacyRole, roles }),
     });
+    const normalizedRoles = normalizeUserRoles(user, roles);
 
     return Response.json({
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
+      role: legacyRoleForRoles(normalizedRoles),
+      roles: normalizedRoles,
     });
   } catch (error) {
     console.error("Error al actualizar rol:", error);
-    return Response.json({ error: "No se pudo actualizar el rol" }, { status: 500 });
+    return Response.json(
+      { error: error instanceof Error ? error.message : "No se pudo actualizar el rol" },
+      { status: 500 }
+    );
   }
 }

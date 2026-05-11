@@ -7,7 +7,8 @@ import { z } from "zod";
 
 loadEnvFiles();
 
-const PB_URL = requiredEnv("POCKETBASE_URL").replace(/\/$/, "");
+const PB_URL = normalizePocketBaseUrl(requiredEnv("POCKETBASE_URL"));
+assertTestingPocketBaseUrl(PB_URL);
 const PB_ADMIN_EMAIL = process.env.POCKETBASE_ADMIN_EMAIL || "";
 const PB_ADMIN_PASSWORD = process.env.POCKETBASE_ADMIN_PASSWORD || "";
 const PB_ADMIN_TOKEN = process.env.POCKETBASE_ADMIN_TOKEN || "";
@@ -194,10 +195,12 @@ async function adminToken() {
 function loadEnvFiles() {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
+    process.env.MCP_ENV_FILE,
+    process.env.ENV_FILE,
     join(here, ".env"),
     join(here, ".env.local"),
     join(here, "..", "..", ".env.local"),
-  ];
+  ].filter(Boolean);
 
   for (const file of candidates) {
     if (existsSync(file)) {
@@ -249,4 +252,27 @@ function requiredEnv(name) {
   }
 
   return value;
+}
+
+function normalizePocketBaseUrl(value) {
+  const trimmed = value.trim();
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+
+  return withProtocol.replace(/\/+$/, "");
+}
+
+function assertTestingPocketBaseUrl(url) {
+  if (process.env.REQUIRE_TEST_POCKETBASE !== "true") return;
+  if (process.env.ALLOW_PRODUCTION_PB_FOR_TESTS === "true") return;
+
+  const normalized = url.toLowerCase();
+  const looksTesting =
+    normalized.includes("test") ||
+    normalized.includes("testing") ||
+    normalized.includes("localhost") ||
+    normalized.includes("127.0.0.1");
+
+  if (!looksTesting) {
+    throw new Error(`PocketBase URL does not look like a testing instance: ${url}`);
+  }
 }

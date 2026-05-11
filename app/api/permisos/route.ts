@@ -1,7 +1,29 @@
 import { NextRequest } from "next/server";
 import { pbAdmin, requireAdmin } from "@/lib/pocketbase-admin";
-import { ALL_PERMISSION_KEYS, DEFAULT_ROLE_PERMISSIONS, MANAGED_ROLES } from "@/lib/permissions";
-import type { ManagedRole, PermissionKey, UserRole } from "@/lib/permissions";
+import {
+  ALL_PERMISSION_KEYS,
+  DEFAULT_ROLE_PERMISSIONS,
+  MANAGED_ROLES,
+  isManagedRole,
+  legacyRoleForRoles,
+  normalizeUserRoles,
+} from "@/lib/permissions";
+import type { PermissionKey, RoleLikeRecord, UserRole } from "@/lib/permissions";
+
+interface PocketBaseList<T> {
+  items?: T[];
+}
+
+interface PocketBaseUserRecord extends RoleLikeRecord {
+  id: string;
+  email?: string;
+  name?: string;
+}
+
+interface RolePermissionRecord {
+  role?: string;
+  permissions?: unknown;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -13,17 +35,25 @@ export async function GET(request: NextRequest) {
     }
 
     const [usersResult, permissionsResult] = await Promise.all([
-      pbAdmin("/api/collections/users/records?page=1&perPage=200&sort=email"),
-      pbAdmin("/api/collections/role_permissions/records?page=1&perPage=50&sort=role"),
+      pbAdmin("/api/collections/users/records?page=1&perPage=200&sort=email") as Promise<
+        PocketBaseList<PocketBaseUserRecord>
+      >,
+      pbAdmin("/api/collections/role_permissions/records?page=1&perPage=50&sort=role") as Promise<
+        PocketBaseList<RolePermissionRecord>
+      >,
     ]);
 
     return Response.json({
-      users: (usersResult.items || []).map((user: any) => ({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role || "secretaria",
-      })),
+      users: (usersResult.items || []).map((user) => {
+        const roles = normalizeUserRoles(user, ["secretaria"]);
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: legacyRoleForRoles(roles),
+          roles,
+        };
+      }),
       rolePermissions: normalizeRolePermissions(permissionsResult.items || []),
     });
   } catch (error) {
@@ -72,7 +102,7 @@ export async function PATCH(request: NextRequest) {
   }
 }
 
-function normalizeRolePermissions(records: any[]) {
+function normalizeRolePermissions(records: RolePermissionRecord[]) {
   const result: Record<string, PermissionKey[]> = {};
 
   for (const role of MANAGED_ROLES) {
@@ -81,10 +111,6 @@ function normalizeRolePermissions(records: any[]) {
   }
 
   return result;
-}
-
-function isManagedRole(role: UserRole): role is ManagedRole {
-  return MANAGED_ROLES.includes(role as ManagedRole);
 }
 
 function sanitizePermissions(value: unknown) {

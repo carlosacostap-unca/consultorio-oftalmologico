@@ -1,0 +1,82 @@
+# Patient Management Specification
+
+## Purpose
+Define la gestion de pacientes, fichas clinicas, busqueda por padron y relacion con obras sociales/mutuales.
+
+## Requirements
+
+### Requirement: Listado y busqueda de pacientes
+El sistema SHALL listar pacientes autenticados con paginacion, orden alfabetico y filtros por apellido, texto libre y numero de ficha.
+
+#### Scenario: Listado inicial
+- **WHEN** un usuario autenticado abre `/pacientes`
+- **THEN** el sistema consulta `pacientes` ordenado por `apellido,nombre`
+- **AND** muestra hasta 100 pacientes por pagina con datos de documento, ficha y obra social
+
+#### Scenario: Busqueda por texto
+- **WHEN** el usuario busca por nombre, apellido, documento o ficha
+- **THEN** el sistema aplica una busqueda demorada
+- **AND** filtra pacientes por todos los terminos ingresados
+
+#### Scenario: Filtro alfabetico
+- **WHEN** el usuario selecciona una letra
+- **THEN** el sistema filtra pacientes cuyo apellido comienza con esa letra
+- **AND** reinicia la paginacion a la primera pagina
+
+### Requirement: Alta de paciente
+El sistema SHALL permitir crear pacientes con datos personales, documento, ficha, contacto y cobertura.
+
+#### Scenario: Crear paciente con mutual existente
+- **WHEN** el usuario completa apellido, nombre, numero de documento y selecciona una mutual
+- **THEN** el sistema guarda el paciente en `pacientes`
+- **AND** normaliza nombre, apellido y numero de ficha a mayusculas
+- **AND** redirige a crear una nueva consulta para el paciente creado
+
+#### Scenario: Calculo de siguiente ficha
+- **WHEN** el usuario abre el alta de paciente
+- **THEN** el sistema consulta `/api/pacientes/ficha`
+- **AND** precarga el siguiente numero de ficha disponible cuando el campo esta vacio
+
+#### Scenario: Ficha duplicada
+- **WHEN** el usuario intenta guardar un numero de ficha ya asignado a otro paciente
+- **THEN** el sistema informa el paciente duplicado
+- **AND** no crea el registro
+
+### Requirement: Creacion rapida de mutual desde paciente
+El sistema SHALL permitir crear una mutual durante el alta de paciente si no existe una coincidencia exacta.
+
+#### Scenario: Registrar nueva obra social
+- **WHEN** el usuario busca una mutual sin coincidencia exacta
+- **THEN** el sistema ofrece registrar la obra social buscada
+- **AND** crea la mutual con nombre en mayusculas y datos opcionales de codigo, direccion y telefono
+- **AND** selecciona automaticamente la mutual creada para el paciente
+
+### Requirement: Detalle, edicion y vista de paciente
+El sistema SHALL permitir ver, editar y eliminar pacientes desde `/pacientes/[id]`.
+
+#### Scenario: Ver paciente
+- **WHEN** el usuario abre `/pacientes/[id]?mode=view`
+- **THEN** el sistema muestra datos personales, documento, ficha, contacto y cobertura en modo lectura
+- **AND** muestra el historial de consultas del paciente
+
+#### Scenario: Editar paciente
+- **WHEN** el usuario guarda cambios de un paciente
+- **THEN** el sistema actualiza `pacientes`
+- **AND** valida que el numero de ficha no pertenezca a otro paciente usando `exclude_id`
+
+#### Scenario: Eliminar paciente
+- **WHEN** el usuario confirma la eliminacion
+- **THEN** el sistema elimina el registro de `pacientes`
+- **AND** regresa al listado de pacientes
+
+### Requirement: Historial clinico desde paciente
+El sistema SHALL mostrar las consultas del paciente ordenadas por fecha descendente.
+
+#### Scenario: Paciente con consultas
+- **WHEN** el paciente tiene consultas registradas
+- **THEN** el sistema muestra su historial con fecha, motivo y diagnostico
+- **AND** cada fila permite abrir la consulta en modo vista
+
+#### Scenario: Nueva consulta desde ficha
+- **WHEN** el usuario elige crear consulta desde el detalle del paciente
+- **THEN** el sistema navega a `/consultas/nueva?paciente_id=<id>`

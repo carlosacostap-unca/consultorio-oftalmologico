@@ -1,4 +1,6 @@
-const PB_URL = (process.env.POCKETBASE_URL || process.env.NEXT_PUBLIC_POCKETBASE_URL || "").replace(/\/$/, "");
+import { normalizePocketBaseUrl } from "@/lib/pocketbase-url";
+
+const PB_URL = normalizePocketBaseUrl(process.env.POCKETBASE_URL || process.env.NEXT_PUBLIC_POCKETBASE_URL || "");
 const PER_PAGE = 5000;
 let cachedAdminToken = process.env.POCKETBASE_ADMIN_TOKEN || "";
 

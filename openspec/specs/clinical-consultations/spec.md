@@ -1,0 +1,108 @@
+# Clinical Consultations Specification
+
+## Purpose
+Define la carga, consulta, edicion, navegacion e impresion de datos clinicos oftalmologicos.
+
+## Requirements
+
+### Requirement: Listado de consultas
+El sistema SHALL listar consultas con filtros por paciente, letra inicial y fecha.
+
+#### Scenario: Cargar consultas
+- **WHEN** el usuario abre `/consultas`
+- **THEN** el sistema consulta `consultas` paginadas de a 20
+- **AND** ordena por fecha descendente y expande `paciente_id`
+
+#### Scenario: Filtrar por paciente
+- **WHEN** el usuario busca por nombre, apellido, documento o ficha
+- **THEN** el sistema busca primero pacientes coincidentes
+- **AND** filtra consultas por los IDs encontrados
+
+#### Scenario: Filtrar por fecha
+- **WHEN** el usuario selecciona una fecha
+- **THEN** el sistema muestra consultas entre el inicio y fin de ese dia
+
+### Requirement: Nueva consulta clinica
+El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos.
+
+#### Scenario: Crear consulta desde paciente
+- **WHEN** la URL incluye `paciente_id`
+- **THEN** el sistema carga el paciente con mutual expandida
+- **AND** precarga paciente, numero de ficha y antecedentes fijos disponibles
+
+#### Scenario: Crear consulta desde turno
+- **WHEN** la URL incluye `turno_id`
+- **THEN** el sistema carga el turno
+- **AND** usa su motivo y paciente como datos iniciales
+
+#### Scenario: Guardar consulta
+- **WHEN** el usuario guarda la consulta con paciente seleccionado
+- **THEN** el sistema crea un registro en `consultas`
+- **AND** guarda la fecha en formato ISO
+
+#### Scenario: Vincular consulta con turno
+- **WHEN** la consulta se creo desde un turno
+- **THEN** el sistema actualiza el turno con `consulta_id`
+- **AND** cambia su estado a `Atendido`
+
+### Requirement: Antecedentes clinicos
+El sistema SHALL registrar antecedentes fijos y copiarlos desde el paciente o la consulta anterior cuando corresponda.
+
+#### Scenario: Antecedentes del paciente
+- **WHEN** el paciente seleccionado tiene antecedentes fijos
+- **THEN** el formulario de consulta los precarga desde `pacientes`
+
+#### Scenario: Respaldo desde ultima consulta
+- **WHEN** el paciente no tiene antecedentes fijos cargados
+- **THEN** el sistema intenta cargar antecedentes desde la ultima consulta del paciente
+
+### Requirement: Datos oftalmologicos de consulta
+El sistema SHALL registrar motivo, agudeza visual, presion ocular, refraccion, biomicroscopia, fondo de ojo, diagnostico y tratamiento.
+
+#### Scenario: Completar datos clinicos
+- **WHEN** el usuario completa el formulario medico
+- **THEN** el sistema conserva los campos de agudeza visual, PIO, refraccion de lejos y cerca, ADD, biomicroscopia, fondo de ojo, diagnostico y tratamiento
+
+#### Scenario: Calcular refraccion de cerca con ADD
+- **WHEN** el usuario cambia el valor ADD
+- **THEN** el sistema copia cilindro y eje de lejos a cerca
+- **AND** suma ADD a la esfera de lejos para calcular esfera de cerca
+
+### Requirement: Edicion protegida de consultas
+El sistema SHALL limitar la edicion de consultas segun la configuracion `consulta_edit_limit_days`.
+
+#### Scenario: Consulta editable
+- **WHEN** la fecha de consulta esta dentro del limite permitido
+- **THEN** el formulario permite editar y guardar mediante `PATCH /api/consultas/[id]`
+
+#### Scenario: Consulta fuera de limite
+- **WHEN** la fecha de consulta es anterior al limite configurado
+- **THEN** el formulario queda en modo lectura
+- **AND** el API rechaza el PATCH con estado 403
+
+### Requirement: Navegacion clinica entre consultas
+El sistema SHALL permitir navegar dentro del historial de consultas del mismo paciente.
+
+#### Scenario: Consultas relacionadas del paciente
+- **WHEN** se abre una consulta existente
+- **THEN** el sistema carga las consultas del mismo paciente ordenadas por fecha y creacion
+- **AND** identifica primera, anterior y posterior respecto de la consulta actual
+
+### Requirement: Recetas asociadas a consulta
+El sistema SHALL mostrar recetas emitidas para una consulta y permitir crear nuevas recetas vinculadas.
+
+#### Scenario: Consulta con recetas
+- **WHEN** una consulta tiene recetas con `consulta_id`
+- **THEN** el sistema las muestra con fecha y acceso a su vista
+
+#### Scenario: Crear receta desde consulta
+- **WHEN** el usuario elige crear receta desde una consulta
+- **THEN** el sistema navega a `/recetas/nueva?consulta_id=<consulta>&paciente_id=<paciente>`
+
+### Requirement: Impresion de receta de anteojos
+El sistema SHALL generar una hoja imprimible de refraccion de lejos y cerca desde una consulta.
+
+#### Scenario: Imprimir anteojos
+- **WHEN** el usuario abre `/consultas/[id]/imprimir-anteojos`
+- **THEN** el sistema carga la consulta con paciente expandido
+- **AND** muestra tablas de LEJOS y CERCA para OD y OI con esferico, cilindrico y eje

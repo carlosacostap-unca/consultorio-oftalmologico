@@ -27,7 +27,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
 
 const token = await adminToken();
 await ensureUsersRoleField();
-await assignExistingUsersAdmin();
+await ensureUsersRolesField();
+await normalizeExistingUserRoles();
 await ensureRolePermissionsCollection();
 await ensureDefaultRolePermissionRecords();
 
@@ -58,21 +59,77 @@ async function ensureUsersRoleField() {
   });
 }
 
-async function assignExistingUsersAdmin() {
+async function ensureUsersRolesField() {
+  const users = await getCollection("users");
+  const existingField = users.fields.find((field) => field.name === "roles");
+  if (existingField) {
+    const hasAllValues = ROLES.every((role) => existingField.values?.includes(role));
+    if (existingField.maxSelect >= ROLES.length && hasAllValues) {
+      console.log("users.roles ya existe.");
+      return;
+    }
+
+    console.log("Actualizando campo users.roles...");
+    await updateCollection("users", {
+      fields: users.fields.map((field) =>
+        field.name === "roles"
+          ? {
+              ...field,
+              maxSelect: ROLES.length,
+              values: ROLES,
+            }
+          : field
+      ),
+    });
+    return;
+  }
+
+  console.log("Creando campo users.roles...");
+  await updateCollection("users", {
+    fields: [
+      ...users.fields,
+      {
+        hidden: false,
+        maxSelect: ROLES.length,
+        name: "roles",
+        presentable: false,
+        required: false,
+        system: false,
+        type: "select",
+        values: ROLES,
+      },
+    ],
+  });
+}
+
+async function normalizeExistingUserRoles() {
   const users = await listAllRecords("users");
   let updated = 0;
 
   for (const user of users) {
-    if (user.role !== "admin") {
+    const currentRoles = sanitizeRoles(user.roles);
+    const roles = currentRoles.length > 0 ? currentRoles : [validRole(user.role) || "admin"];
+    const legacyRole = roleForLegacyField(roles);
+    const patch = {};
+
+    if (!sameRoles(currentRoles, roles)) {
+      patch.roles = roles;
+    }
+
+    if (user.role !== legacyRole) {
+      patch.role = legacyRole;
+    }
+
+    if (Object.keys(patch).length > 0) {
       await pb(`/api/collections/users/records/${encodeURIComponent(user.id)}`, {
         method: "PATCH",
-        body: JSON.stringify({ role: "admin" }),
+        body: JSON.stringify(patch),
       });
       updated += 1;
     }
   }
 
-  console.log(`Usuarios existentes asignados como admin: ${updated}/${users.length}`);
+  console.log(`Usuarios existentes normalizados con roles multiples: ${updated}/${users.length}`);
 }
 
 async function ensureRolePermissionsCollection() {
@@ -245,4 +302,22 @@ function requiredEnv(name, fallback = "") {
   const value = env[name] || process.env[name] || fallback;
   if (!value) throw new Error(`${name} es requerido`);
   return value;
+}
+
+function sanitizeRoles(value) {
+  const values = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
+  return Array.from(new Set(values.filter((role) => ROLES.includes(role))));
+}
+
+function validRole(value) {
+  return ROLES.includes(value) ? value : "";
+}
+
+function roleForLegacyField(roles) {
+  return roles.includes("admin") ? "admin" : roles[0] || "secretaria";
+}
+
+function sameRoles(left, right) {
+  if (left.length !== right.length) return false;
+  return left.every((role, index) => role === right[index]);
 }
