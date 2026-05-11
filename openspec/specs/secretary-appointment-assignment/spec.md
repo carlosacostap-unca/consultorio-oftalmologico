@@ -193,3 +193,53 @@ El sistema SHALL permitir que secretaria consulte el historial del turno sin aba
 - **WHEN** secretaria esta viendo el historial de un turno
 - **THEN** puede volver a datos, cancelacion o reprogramacion sin cerrar el modal
 
+### Requirement: Sala de espera como tablero operativo
+El sistema SHALL permitir que secretaria gestione la recepcion diaria desde Sala de espera con contexto suficiente para cada turno.
+
+#### Scenario: Ver contexto operativo del turno
+- **WHEN** secretaria abre Sala de espera para una fecha y medico
+- **THEN** el sistema muestra cada turno con hora, paciente, medico cuando corresponde, DNI, telefono, obra social, tipo, motivo, estado y observaciones breves si existen
+- **AND** indica demora o tiempo de espera cuando el turno ya esta en espera o atrasado
+
+#### Scenario: Filtrar recepcion por medico y paciente
+- **WHEN** secretaria selecciona un medico o busca un paciente
+- **THEN** Sala de espera muestra solo los turnos que coinciden con esos filtros
+- **AND** conserva los grupos por estado operativo
+
+### Requirement: Acciones rapidas completas en sala de espera
+El sistema SHALL permitir que secretaria ejecute acciones operativas frecuentes desde Sala de espera sin abandonar Gestion de Turnos.
+
+#### Scenario: Avanzar paciente por el circuito de recepcion
+- **WHEN** secretaria marca llegada, pasa a consulta o marca atendido desde Sala de espera
+- **THEN** el sistema actualiza el estado del turno
+- **AND** mueve el turno al grupo correspondiente
+- **AND** crea un evento en el historial del turno
+
+#### Scenario: Marcar ausente con motivo
+- **WHEN** secretaria intenta marcar un turno como ausente desde Sala de espera
+- **THEN** el sistema solicita motivo obligatorio antes de guardar
+- **AND** al confirmar actualiza el estado y registra el motivo en el historial
+
+#### Scenario: Cancelar turno con motivo
+- **WHEN** secretaria intenta cancelar un turno desde Sala de espera
+- **THEN** el sistema solicita motivo obligatorio antes de guardar
+- **AND** al confirmar actualiza el estado a `Cancelado` y registra el motivo en el historial
+
+### Requirement: Listado diario imprimible por medico
+El sistema SHALL permitir que secretaria genere un listado imprimible de turnos por fecha y medico.
+
+#### Scenario: Imprimir agenda de un medico
+- **WHEN** secretaria abre el modal de impresion desde Gestion de Turnos y selecciona una fecha y un medico
+- **THEN** el sistema abre un listado imprimible con solo los turnos de ese medico para esa fecha
+- **AND** muestra hora, paciente, DNI, telefono, obra social, tipo, motivo, estado y observaciones segun los campos elegidos
+
+#### Scenario: Imprimir todas las agendas
+- **WHEN** secretaria selecciona `Todos los medicos` en el modal de impresion
+- **THEN** el sistema abre un listado imprimible agrupado por medico
+- **AND** cada grupo muestra sus turnos ordenados por hora
+
+#### Scenario: Imprimir desde contexto actual
+- **WHEN** secretaria esta filtrando Gestion de Turnos por medico y abre el modal de impresion
+- **THEN** el medico del modal queda preseleccionado con el medico actual
+- **AND** la fecha queda preseleccionada con la fecha activa o la fecha actual si no habia fecha
+

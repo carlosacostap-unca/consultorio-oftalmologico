@@ -165,6 +165,14 @@ const WAITING_ROOM_GROUPS: Array<{ key: WaitingRoomGroupKey; title: string; empt
   { key: "canceled", title: "Cancelados", empty: "No hay turnos cancelados." },
 ];
 
+const WAITING_ROOM_ACTIONS = [
+  { label: "Llego", estado: "En espera" },
+  { label: "En consulta", estado: "En consulta" },
+  { label: "Atendido", estado: "Atendido" },
+  { label: "Ausente", estado: "Ausente" },
+  { label: "Cancelar", estado: "Cancelado" },
+];
+
 const getEstadoColor = (estado?: string) => {
   if (!estado) return 'bg-gray-100 dark:bg-gray-800 border-gray-300 dark:border-gray-700 text-gray-500 dark:text-gray-400';
   switch(estado) {
@@ -240,13 +248,14 @@ export default function TurnosPage() {
   // Modal de impresión
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [printDate, setPrintDate] = useState("");
+  const [printMedicoId, setPrintMedicoId] = useState("all");
   const [printFields, setPrintFields] = useState({
     hora: true,
     paciente: true,
     dni: true,
     telefono: true,
-    obra_social: false,
-    tipo: false,
+    obra_social: true,
+    tipo: true,
     motivo: true,
     estado: true,
     observaciones: true
@@ -352,6 +361,20 @@ export default function TurnosPage() {
   };
 
   const shortTime = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const minutesBetween = (from: Date, to = new Date()) => Math.max(0, Math.floor((to.getTime() - from.getTime()) / 60000));
+  const waitingRoomTimeLabel = (turno: Turno) => {
+    const appointmentDate = new Date(turno.fecha_hora);
+    const diffMinutes = minutesBetween(appointmentDate);
+
+    if (turno.estado === "Cancelado" || turno.estado === "Atendido" || turno.estado === "Ausente") return "";
+    if (appointmentDate.getTime() > Date.now()) {
+      const minutesUntil = Math.max(0, Math.ceil((appointmentDate.getTime() - Date.now()) / 60000));
+      return minutesUntil <= 60 ? `En ${minutesUntil} min` : "";
+    }
+    if (turno.estado === "En espera") return diffMinutes > 0 ? `Espera desde horario: ${diffMinutes} min` : "Horario actual";
+    if (turno.estado === "En consulta") return "En atencion";
+    return diffMinutes > 0 ? `Atrasado ${diffMinutes} min` : "Horario actual";
+  };
   const eventDateTime = (value: string) => new Date(value).toLocaleString([], {
     day: "2-digit",
     month: "2-digit",
@@ -396,6 +419,7 @@ export default function TurnosPage() {
       const pad = (n: number) => n.toString().padStart(2, '0');
       setPrintDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
     }
+    setPrintMedicoId(canChooseDoctor ? selectedMedicoId : (user?.id || selectedMedicoId));
     setIsPrintModalOpen(true);
   };
 
@@ -460,7 +484,13 @@ export default function TurnosPage() {
       .join(",");
 
     // Abrir en nueva pestaña
-    window.open(`/turnos/imprimir?date=${printDate}&fields=${selectedFields}`, '_blank');
+    const params = new URLSearchParams({
+      date: printDate,
+      fields: selectedFields,
+      medico_id: printMedicoId || "all",
+    });
+
+    window.open(`/turnos/imprimir?${params.toString()}`, '_blank');
     setIsPrintModalOpen(false);
   };
 
@@ -2298,30 +2328,41 @@ export default function TurnosPage() {
                                           Sobreturno
                                         </span>
                                       )}
+                                      {waitingRoomTimeLabel(turno) && (
+                                        <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                                          {waitingRoomTimeLabel(turno)}
+                                        </span>
+                                      )}
                                     </div>
                                     <div className="mt-2 font-semibold text-zinc-900 dark:text-zinc-100">
                                       {turno.expand?.paciente_id ? `${turno.expand.paciente_id.apellido.toUpperCase()}, ${turno.expand.paciente_id.nombre.toUpperCase()}` : "Paciente no encontrado"}
                                     </div>
                                     <div className="mt-1 flex flex-wrap gap-2 text-sm text-zinc-500 dark:text-zinc-400">
                                       {selectedMedicoId === "all" && <span>{doctorLabel(doctorFor(turno))}</span>}
-                                      {patientDocument(turno.expand?.paciente_id) && <span>DNI {patientDocument(turno.expand?.paciente_id)}</span>}
+                                      {patientMeta(turno.expand?.paciente_id).map((meta) => (
+                                        <span key={meta}>{meta}</span>
+                                      ))}
                                       <span>{turno.tipo || "Consulta"} {turno.duracion ? `(${turno.duracion} min)` : ""}</span>
                                       <span>{turno.motivo || "Sin motivo"}</span>
                                     </div>
+                                    {turno.observaciones && (
+                                      <div className="mt-2 line-clamp-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-950/60 dark:text-zinc-300">
+                                        {turno.observaciones}
+                                      </div>
+                                    )}
                                   </div>
                                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                                    {[
-                                      ["Llego", "En espera"],
-                                      ["En consulta", "En consulta"],
-                                      ["Atendido", "Atendido"],
-                                      ["Ausente", "Ausente"],
-                                    ].map(([label, estado]) => (
+                                    {WAITING_ROOM_ACTIONS.map(({ label, estado }) => (
                                       <button
                                         key={label}
                                         type="button"
                                         onClick={() => handleEstadoChange(turno.id, estado)}
                                         disabled={turno.estado === estado}
-                                        className="rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-45 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                        className={
+                                          estado === "Cancelado"
+                                            ? "rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-45 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-900/40"
+                                            : "rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-45 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                        }
                                       >
                                         {label}
                                       </button>
@@ -3161,6 +3202,25 @@ export default function TurnosPage() {
                   onChange={(e) => setPrintDate(e.target.value)}
                   className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark]"
                 />
+              </div>
+
+              <div className="mb-5">
+                <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Medico
+                </label>
+                <select
+                  value={printMedicoId}
+                  onChange={(event) => setPrintMedicoId(event.target.value)}
+                  disabled={!canChooseDoctor}
+                  className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-300 dark:border-zinc-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70"
+                >
+                  {canChooseDoctor && <option value="all">Todos los medicos</option>}
+                  {medicos.map((medico) => (
+                    <option key={medico.id} value={medico.id}>
+                      {doctorLabel(medico)}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

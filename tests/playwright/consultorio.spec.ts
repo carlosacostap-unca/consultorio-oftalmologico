@@ -100,16 +100,75 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByRole("heading", { name: "Sala de espera" })).toBeVisible();
       await expect(page.getByText(/Proximos: 1/)).toBeVisible();
 
-      const card = page.getByText(motivo).locator("xpath=ancestor::div[contains(@class,'px-5 py-4')][1]");
+      let card = page.getByText(motivo).locator("xpath=ancestor::div[contains(@class,'px-5 py-4')][1]");
       await expect(card.getByText("Medico Demo")).toBeVisible();
+      await expect(card.getByText("DNI 99000001")).toBeVisible();
+      await expect(card.getByText("Tel 2604000001")).toBeVisible();
       await card.getByRole("button", { name: "Llego" }).click();
 
       await expect(page.getByText(/En espera: 2/)).toBeVisible();
       await expect(
         await findDemoAppointment(request, env, adminToken, medicoId, motivo, DEMO_SLOT, "En espera")
       ).toBeTruthy();
+
+      card = page.getByText(motivo).locator("xpath=ancestor::div[contains(@class,'px-5 py-4')][1]");
+      await card.getByRole("button", { name: "En consulta" }).click();
+      await expect(page.getByText(/En consulta: 1/)).toBeVisible();
+      await expect(
+        await findDemoAppointment(request, env, adminToken, medicoId, motivo, DEMO_SLOT, "En consulta")
+      ).toBeTruthy();
+
+      card = page.getByText(motivo).locator("xpath=ancestor::div[contains(@class,'px-5 py-4')][1]");
+      await card.getByRole("button", { name: "Cancelar" }).click();
+      await expect(page.getByRole("heading", { name: "Motivo requerido" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Guardar estado" })).toBeDisabled();
+      await page.getByPlaceholder("Ej: El paciente solicito cancelar...").fill("Cancelacion desde sala de espera");
+      await page.getByRole("button", { name: "Guardar estado" }).click();
+
+      await expect(page.getByText(/Cancelados: 1/)).toBeVisible();
+      await expect(
+        await findDemoAppointment(request, env, adminToken, medicoId, motivo, DEMO_SLOT, "Cancelado")
+      ).toBeTruthy();
+      await expect
+        .poll(() => findDemoAppointmentEvents(request, env, adminToken, medicoId, motivo, DEMO_SLOT, "canceled"), {
+          timeout: 10_000,
+        })
+        .toHaveLength(1);
     } finally {
       await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, DEMO_SLOT);
+    }
+  });
+
+  test("secretaria imprime listado diario por medico y todos los medicos", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const medicoDosId = await getUserIdByEmail(request, env, adminToken, "medico.dos.demo@consultorio.local");
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const motivo = `Playwright impresion ${Date.now()}`;
+    await cleanupDemoAppointment(request, env, adminToken, medicoDosId, undefined, "10:00");
+
+    try {
+      await createDemoAppointment(request, env, adminToken, medicoDosId, patient!.id as string, motivo, "10:00", "En espera", "10:00");
+
+      await login(page, "secretaria.demo@consultorio.local");
+      const fields = "hora,paciente,dni,telefono,obra_social,tipo,motivo,estado";
+      await page.goto(`/turnos/imprimir?date=${DEMO_DATE}&medico_id=${medicoDosId}&fields=${fields}&autoprint=0`);
+
+      await expect(page.getByRole("heading", { name: "Listado diario de turnos" })).toBeVisible();
+      await expect(page.getByText("Alcance: Medico Dos Demo")).toBeVisible();
+      await expect(page.getByText(motivo)).toBeVisible();
+      await expect(page.getByText("Turno ocupado demo")).toHaveCount(0);
+
+      await page.goto(`/turnos/imprimir?date=${DEMO_DATE}&medico_id=all&fields=${fields}&autoprint=0`);
+      await expect(page.getByRole("heading", { name: "Medico Demo" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Medico Dos Demo" })).toBeVisible();
+      await expect(page.getByText("Turno ocupado demo")).toBeVisible();
+      await expect(page.getByText(motivo)).toBeVisible();
+    } finally {
+      await cleanupDemoAppointment(request, env, adminToken, medicoDosId, motivo, "10:00");
     }
   });
 
@@ -603,14 +662,15 @@ async function createDemoAppointment(
   patientId: string,
   motivo: string,
   slot = DEMO_SLOT,
-  estado = "En espera"
+  estado = "En espera",
+  availabilityStart = "09:00"
 ) {
   const availability = await pbList(
     request,
     env,
     token,
     "disponibilidades",
-    `medico_id = "${medicoId}" && fecha_hora_inicio = "${demoSlotIso("09:00").replace("T", " ")}"`
+    `medico_id = "${medicoId}" && fecha_hora_inicio = "${demoSlotIso(availabilityStart).replace("T", " ")}"`
   );
   const response = await request.post(`${pocketBaseUrl(env)}/api/collections/turnos/records`, {
     headers: { Authorization: `Bearer ${token}` },
