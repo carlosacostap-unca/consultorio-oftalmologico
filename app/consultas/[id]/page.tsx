@@ -338,6 +338,72 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     return edad;
   };
 
+  const displayValue = (value?: string | number | null) => {
+    const normalized = String(value ?? "").trim();
+    return normalized || "-";
+  };
+
+  const consultaDateLabel = formData.fecha
+    ? new Date(`${formData.fecha}T12:00:00`).toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      })
+    : "-";
+
+  const pacienteNombre = selectedPacienteData
+    ? `${selectedPacienteData.apellido}, ${selectedPacienteData.nombre}`
+    : "Paciente seleccionado";
+
+  const patientSummaryItems = selectedPacienteData
+    ? [
+        selectedPacienteData.numero_ficha ? `Ficha ${selectedPacienteData.numero_ficha}` : "",
+        getPacienteDocumento(selectedPacienteData) ? `DNI ${getPacienteDocumento(selectedPacienteData)}` : "",
+        selectedPacienteData.fecha_nacimiento ? `${calcularEdad(selectedPacienteData.fecha_nacimiento)} anos` : "",
+        getPacienteObraSocial(selectedPacienteData),
+      ].filter(Boolean)
+    : [];
+
+  const activeAntecedentes = [
+    formData.ant_diabetes ? "Diabetes" : "",
+    formData.ant_glaucoma ? "Glaucoma" : "",
+    formData.ant_maculopatia ? "Maculopatia" : "",
+    formData.ant_asmatico ? "Asma" : "",
+    formData.ant_hipertension ? "Hipertension" : "",
+    formData.ant_alergico ? "Alergia" : "",
+    formData.ant_reuma ? "Reuma" : "",
+    formData.ant_gota ? "Gota" : "",
+    formData.ant_herpes ? "Herpes" : "",
+    formData.ant_otra?.trim() || "",
+  ].filter(Boolean);
+
+  const refractionRows = [
+    {
+      label: "Lejos OD",
+      esf: formData.ref_lejos_od_esf,
+      cil: formData.ref_lejos_od_cil,
+      eje: formData.ref_lejos_od_eje,
+    },
+    {
+      label: "Lejos OI",
+      esf: formData.ref_lejos_oi_esf,
+      cil: formData.ref_lejos_oi_cil,
+      eje: formData.ref_lejos_oi_eje,
+    },
+    {
+      label: "Cerca OD",
+      esf: formData.ref_cerca_od_esf,
+      cil: formData.ref_cerca_od_cil,
+      eje: formData.ref_cerca_od_eje,
+    },
+    {
+      label: "Cerca OI",
+      esf: formData.ref_cerca_oi_esf,
+      cil: formData.ref_cerca_oi_cil,
+      eje: formData.ref_cerca_oi_eje,
+    },
+  ];
+
   const goToConsulta = (id: string) => {
     router.push(`/consultas/${id}${isViewMode ? "?mode=view" : ""}`);
   };
@@ -441,6 +507,130 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         )}
 
         {/* Contenedor del Formulario (Diseño estilo Legacy) */}
+        <section className="mb-6 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="border-b border-zinc-200 p-5 dark:border-zinc-800">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Detalle clinico</p>
+                <h2 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{pacienteNombre}</h2>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                  <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-semibold dark:bg-zinc-800">Consulta {consultaDateLabel}</span>
+                  {patientSummaryItems.length > 0 ? patientSummaryItems.map((item) => (
+                    <span key={item} className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium dark:bg-zinc-800">{item}</span>
+                  )) : (
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium dark:bg-zinc-800">Datos del paciente en carga</span>
+                  )}
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                    {isReadOnly ? "Solo lectura" : "Editable"}
+                  </span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
+                <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
+                  Ver paciente
+                </Link>
+                <Link href={`/recetas/nueva?consulta_id=${consultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
+                  Crear receta
+                </Link>
+                <Link href={`/consultas/${consultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                  Imprimir anteojos
+                </Link>
+                <Link href={formData.paciente_id ? `/consultas/nueva?paciente_id=${formData.paciente_id}` : "#"} className={`rounded-lg px-3 py-2 text-center text-sm font-bold transition-colors ${formData.paciente_id ? "bg-[#2d8f8f] text-white hover:bg-[#1f6b6b]" : "pointer-events-none bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"}`}>
+                  Nueva consulta
+                </Link>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-0 lg:grid-cols-[minmax(0,1fr)_minmax(340px,0.8fr)]">
+            <div className="border-b border-zinc-200 p-5 dark:border-zinc-800 lg:border-b-0 lg:border-r">
+              <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Resumen clinico</h3>
+              <dl className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950/60">
+                  <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Motivo</dt>
+                  <dd className="mt-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayValue(formData.motivo_consulta)}</dd>
+                </div>
+                <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950/60">
+                  <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Diagnostico</dt>
+                  <dd className="mt-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayValue(formData.diagnostico)}</dd>
+                </div>
+                <div className="rounded-lg bg-zinc-50 p-3 dark:bg-zinc-950/60">
+                  <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Tratamiento</dt>
+                  <dd className="mt-1 text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayValue(formData.tratamiento)}</dd>
+                </div>
+              </dl>
+
+              <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+                <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+                  <h4 className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Agudeza visual</h4>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <span>SC OD: <strong>{displayValue(formData.av_sc_od)}</strong></span>
+                    <span>SC OI: <strong>{displayValue(formData.av_sc_oi)}</strong></span>
+                    <span>CC OD: <strong>{displayValue(formData.av_cc_od)}</strong></span>
+                    <span>CC OI: <strong>{displayValue(formData.av_cc_oi)}</strong></span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+                  <h4 className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Presion ocular</h4>
+                  <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                    <span>OD: <strong>{displayValue(formData.pio_od)}</strong></span>
+                    <span>OI: <strong>{displayValue(formData.pio_oi)}</strong></span>
+                  </div>
+                </div>
+                <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
+                  <h4 className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Antecedentes activos</h4>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
+                      <span key={item} className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                    )) : (
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">Refraccion</h3>
+                {formData.add_value && (
+                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">ADD {formData.add_value}</span>
+                )}
+              </div>
+              <div className="mt-3 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-zinc-50 text-xs uppercase text-zinc-500 dark:bg-zinc-950/70 dark:text-zinc-400">
+                    <tr>
+                      <th className="px-3 py-2">Ojo</th>
+                      <th className="px-3 py-2">ESF</th>
+                      <th className="px-3 py-2">CIL</th>
+                      <th className="px-3 py-2">EJE</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                    {refractionRows.map((row) => (
+                      <tr key={row.label}>
+                        <td className="px-3 py-2 font-semibold text-zinc-900 dark:text-zinc-100">{row.label}</td>
+                        <td className="px-3 py-2">{displayValue(row.esf)}</td>
+                        <td className="px-3 py-2">{displayValue(row.cil)}</td>
+                        <td className="px-3 py-2">{displayValue(row.eje)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 grid grid-cols-1 gap-3">
+                <div className="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950/60">
+                  <span className="font-semibold">Biomicroscopia: </span>{displayValue(formData.biomicroscopia)}
+                </div>
+                <div className="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-950/60">
+                  <span className="font-semibold">Fondo de ojo: </span>{displayValue(formData.fondo_ojo)}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
           {/* Header del Formulario */}

@@ -755,9 +755,12 @@ test.describe("roles y otorgamiento de turnos", () => {
         new RegExp(`/turnos\\?tab=daily&date=${DEMO_DATE}&medico_id=${medicoId}`)
       );
 
-      await page.getByRole("link", { name: "Volver a jornada" }).click();
-      await expect(page).toHaveURL(new RegExp(`/turnos\\?tab=daily&date=${DEMO_DATE}&medico_id=${medicoId}`));
-      await expect(page.getByText("Jornada de atencion")).toBeVisible();
+      await page.getByRole("link", { name: "Abrir consulta" }).click();
+      await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}`));
+      await expect(page.getByText("Detalle clinico")).toBeVisible();
+      await expect(page.getByText("Resumen clinico")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Crear receta" }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: "Imprimir anteojos" }).first()).toBeVisible();
     } finally {
       if (createdConsultaId) {
         await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
