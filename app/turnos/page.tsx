@@ -1525,9 +1525,16 @@ export default function TurnosPage() {
     setIsMounted(true);
     const params = new URLSearchParams(window.location.search);
     const urlMedicoId = params.get("medico_id");
+    const urlTab = params.get("tab") as ViewMode | null;
+    const urlDate = params.get("date");
+    const allowedTabs: ViewMode[] = ["weekly", "daily", "list", "availability", "waiting-room"];
 
-    if (params.get("tab") === "availability") {
-      setViewMode("availability");
+    if (urlTab && allowedTabs.includes(urlTab)) {
+      setViewMode(urlTab);
+    }
+
+    if (urlDate) {
+      setFilterDate(urlDate);
     }
 
     if (!pb.authStore.isValid) {

@@ -21,7 +21,7 @@ El sistema SHALL listar consultas con filtros por paciente, letra inicial y fech
 - **THEN** el sistema muestra consultas entre el inicio y fin de ese dia
 
 ### Requirement: Nueva consulta clinica
-El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado.
+El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado y ofreciendo acciones de cierre al finalizar el guardado.
 
 #### Scenario: Crear consulta desde paciente
 - **WHEN** la URL incluye `paciente_id`
@@ -44,11 +44,19 @@ El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftal
 - **WHEN** el usuario guarda la consulta con paciente seleccionado
 - **THEN** el sistema crea un registro en `consultas`
 - **AND** guarda la fecha en formato ISO
+- **AND** muestra una confirmacion de consulta guardada sin redirigir automaticamente
+
+#### Scenario: Acciones posteriores al guardado
+- **WHEN** la consulta se guarda correctamente
+- **THEN** el sistema permite abrir la consulta creada
+- **AND** permite crear receta vinculada a la consulta y al paciente
+- **AND** permite imprimir la receta de anteojos desde la consulta
 
 #### Scenario: Vincular consulta con turno
 - **WHEN** la consulta se creo desde un turno
 - **THEN** el sistema actualiza el turno con `consulta_id`
 - **AND** cambia su estado a `Atendido`
+- **AND** informa que el turno fue marcado como atendido
 
 ### Requirement: Antecedentes clinicos
 El sistema SHALL registrar antecedentes fijos y copiarlos desde el paciente o la consulta anterior cuando corresponda.
@@ -138,7 +146,7 @@ El sistema SHALL conservar las consultas clinicas al fusionar pacientes duplicad
 - **AND** el paciente duplicado conserva trazabilidad hacia el paciente principal
 
 ### Requirement: Consulta iniciada desde jornada medica
-El sistema SHALL conservar el contexto del turno cuando una consulta clinica se inicia desde la jornada diaria del medico.
+El sistema SHALL conservar el contexto del turno cuando una consulta clinica se inicia desde la jornada diaria del medico y ofrecer retorno directo a la misma jornada al finalizar.
 
 #### Scenario: Precargar consulta desde turno
 - **WHEN** el medico abre `/consultas/nueva` con `turno_id`
@@ -149,8 +157,10 @@ El sistema SHALL conservar el contexto del turno cuando una consulta clinica se 
 - **WHEN** el medico guarda una consulta creada desde un turno
 - **THEN** el sistema vincula la consulta al turno
 - **AND** cambia el turno a `Atendido`
+- **AND** muestra una accion para volver a la jornada medica del dia del turno
 
 #### Scenario: Evitar consulta duplicada
 - **WHEN** un turno ya tiene una consulta asociada
 - **THEN** el sistema dirige al medico a la consulta existente
 - **AND** no ofrece crear otra consulta para el mismo turno como accion principal
+

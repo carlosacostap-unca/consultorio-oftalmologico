@@ -735,6 +735,12 @@ test.describe("roles y otorgamiento de turnos", () => {
         .toBeTruthy();
 
       await page.getByRole("button", { name: "GUARDAR CONSULTA" }).click();
+      await expect(page.getByText("Consulta guardada correctamente")).toBeVisible();
+      await expect(page.getByText("Consulta guardada y turno marcado como atendido")).toBeVisible();
+      await expect(page.getByText("El turno fue marcado como Atendido.")).toBeVisible();
+      await expect(page.getByRole("link", { name: "Abrir consulta" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Crear receta" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Imprimir anteojos" })).toBeVisible();
       await expect
         .poll(async () => {
           const updatedTurno = await pbGet(request, env, adminToken, "turnos", turno.id as string);
@@ -744,6 +750,14 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       const updatedTurno = await pbGet(request, env, adminToken, "turnos", turno.id as string);
       createdConsultaId = String(updatedTurno.consulta_id || "");
+      await expect(page.getByRole("link", { name: "Volver a jornada" })).toHaveAttribute(
+        "href",
+        new RegExp(`/turnos\\?tab=daily&date=${DEMO_DATE}&medico_id=${medicoId}`)
+      );
+
+      await page.getByRole("link", { name: "Volver a jornada" }).click();
+      await expect(page).toHaveURL(new RegExp(`/turnos\\?tab=daily&date=${DEMO_DATE}&medico_id=${medicoId}`));
+      await expect(page.getByText("Jornada de atencion")).toBeVisible();
     } finally {
       if (createdConsultaId) {
         await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {

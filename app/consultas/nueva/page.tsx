@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { pb } from "@/lib/pocketbase";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { appendActivePatientFilter } from "@/lib/patient-merge";
@@ -44,6 +45,16 @@ interface TurnoContext {
   estado?: string;
   tipo?: string;
   paciente_id?: string;
+  medico_id?: string;
+  consulta_id?: string;
+}
+
+interface SavedConsultation {
+  id: string;
+  pacienteId: string;
+  returnHref: string;
+  returnLabel: string;
+  turnoUpdated: boolean;
 }
 
 export default function NuevaConsultaPage() {
@@ -68,6 +79,7 @@ function NuevaConsultaForm() {
   // Para auto-completar datos del paciente seleccionado
   const [selectedPacienteData, setSelectedPacienteData] = useState<Paciente | null>(null);
   const [selectedTurnoData, setSelectedTurnoData] = useState<TurnoContext | null>(null);
+  const [savedConsultation, setSavedConsultation] = useState<SavedConsultation | null>(null);
 
   // Extraer parámetros de la URL
   const initialPacienteId = searchParams.get('paciente_id') || "";
@@ -119,6 +131,43 @@ function NuevaConsultaForm() {
   };
 
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
+  const toLocalDateValue = (value?: string) => {
+    if (!value) return "";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return localDate.toISOString().split("T")[0];
+  };
+
+  const buildReturnAction = () => {
+    if (selectedTurnoData?.fecha_hora) {
+      const params = new URLSearchParams({
+        tab: "daily",
+        date: toLocalDateValue(selectedTurnoData.fecha_hora),
+      });
+
+      if (selectedTurnoData.medico_id) {
+        params.set("medico_id", selectedTurnoData.medico_id);
+      }
+
+      return {
+        href: `/turnos?${params.toString()}`,
+        label: "Volver a jornada",
+      };
+    }
+
+    if (formData.paciente_id) {
+      return {
+        href: `/pacientes/${formData.paciente_id}?mode=view`,
+        label: "Volver al paciente",
+      };
+    }
+
+    return {
+      href: "/consultas",
+      label: "Volver a consultas",
+    };
+  };
   const getAntecedentesFromPaciente = (paciente: Paciente) => ({
     ant_diabetes: paciente.ant_diabetes || false,
     ant_glaucoma: paciente.ant_glaucoma || false,
@@ -335,6 +384,8 @@ function NuevaConsultaForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (savedConsultation) return;
+
     setIsLoading(true);
     try {
       // Aseguramos formato ISO para la fecha
@@ -344,6 +395,7 @@ function NuevaConsultaForm() {
       };
       
       const nuevaConsulta = await pb.collection("consultas").create(dataToSave);
+      let turnoUpdated = false;
       
       // Si venimos desde un turno, lo actualizamos para enlazarlo y marcarlo como Atendido
       if (turnoId) {
@@ -352,13 +404,23 @@ function NuevaConsultaForm() {
             consulta_id: nuevaConsulta.id,
             estado: "Atendido"
           });
+          turnoUpdated = true;
+          setSelectedTurnoData((prev) => prev ? { ...prev, consulta_id: nuevaConsulta.id, estado: "Atendido" } : prev);
         } catch (turnoError: any) {
           console.error("Error al actualizar el turno:", turnoError);
           alert(`La consulta se guardó, pero hubo un error al enlazarla con el turno. Detalle: ${turnoError?.message || 'Error desconocido'}. Verifica que el campo 'consulta_id' exista y sea de tipo relación simple.`);
         }
       }
 
-      router.push(initialPacienteId ? `/pacientes/${initialPacienteId}?mode=view` : "/consultas");
+      const returnAction = buildReturnAction();
+      setSavedConsultation({
+        id: nuevaConsulta.id,
+        pacienteId: dataToSave.paciente_id,
+        returnHref: returnAction.href,
+        returnLabel: returnAction.label,
+        turnoUpdated,
+      });
+      setIsLoading(false);
     } catch (error) {
       console.error("Error al crear consulta:", error);
       alert("Error al guardar. Verifica que la colección 'consultas' exista con los campos correspondientes.");
@@ -469,6 +531,40 @@ function NuevaConsultaForm() {
           </div>
           
           <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
+            {savedConsultation && (
+              <section className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Consulta guardada correctamente</p>
+                    <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
+                      {savedConsultation.turnoUpdated
+                        ? "Consulta guardada y turno marcado como atendido"
+                        : "La consulta ya esta disponible"}
+                    </h3>
+                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                      {savedConsultation.turnoUpdated
+                        ? "El turno fue marcado como Atendido."
+                        : "Podes continuar con una accion relacionada o volver al contexto anterior."}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Link href={`/consultas/${savedConsultation.id}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      Abrir consulta
+                    </Link>
+                    <Link href={`/recetas/nueva?consulta_id=${savedConsultation.id}&paciente_id=${savedConsultation.pacienteId}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      Crear receta
+                    </Link>
+                    <Link href={`/consultas/${savedConsultation.id}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      Imprimir anteojos
+                    </Link>
+                    <Link href={savedConsultation.returnHref} className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#1f6b6b]">
+                      {savedConsultation.returnLabel}
+                    </Link>
+                  </div>
+                </div>
+              </section>
+            )}
+
             <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
               <section className="rounded-xl border border-zinc-300 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -968,10 +1064,10 @@ function NuevaConsultaForm() {
               </button>
               <button 
                 type="submit" 
-                disabled={isLoading || !formData.paciente_id}
+                disabled={isLoading || !formData.paciente_id || Boolean(savedConsultation)}
                 className="px-8 py-2 bg-[#2d8f8f] hover:bg-[#1f6b6b] text-white font-bold rounded shadow-md border border-[#1a5c5c] disabled:opacity-50 flex items-center gap-2"
               >
-                {isLoading ? 'GUARDANDO...' : 'GUARDAR CONSULTA'}
+                {isLoading ? 'GUARDANDO...' : savedConsultation ? 'CONSULTA GUARDADA' : 'GUARDAR CONSULTA'}
               </button>
             </div>
           </form>
