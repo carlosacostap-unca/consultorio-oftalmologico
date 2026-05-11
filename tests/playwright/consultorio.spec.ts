@@ -51,12 +51,32 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByRole("button", { name: "Agenda Diaria" }).click();
     await page.locator('main input[type="date"]').fill(DEMO_DATE);
 
+    await expect(page.getByText("Tablero operativo diario")).toBeVisible();
     await expect(page.getByText("Vista agrupada por medico")).toBeVisible();
+    await expect(page.getByText(/Mostrando 1 de 1 turnos filtrados/)).toBeVisible();
     await expect(page.getByText("Turnos: 1")).toBeVisible();
+    await expect(page.getByText("Proximo turno", { exact: true })).toBeVisible();
+    await expect(page.getByText(/09:15.*OCUPADO DEMO, PACIENTE/).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "En espera" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Medico Demo" })).toBeVisible();
     await expect(page.getByText(/09:00.*12:00.*Consulta/)).toBeVisible();
-    await expect(page.getByText(/OCUPADO DEMO, PACIENTE/)).toBeVisible();
+    await expect(page.getByText("OCUPADO DEMO, PACIENTE", { exact: true })).toBeVisible();
+  });
+
+  test("secretaria filtra la agenda diaria sin perder la ocupacion de disponibilidades", async ({ page }) => {
+    await login(page, "secretaria.demo@consultorio.local");
+
+    await page.goto("/turnos");
+    await page.getByRole("button", { name: "Agenda Diaria" }).click();
+    await page.locator('main input[type="date"]').fill(DEMO_DATE);
+
+    await expect(page.getByRole("button", { name: /09:15.*Ocupado/ })).toBeVisible();
+    await page.getByRole("button", { name: "Atendidos" }).click();
+
+    await expect(page.getByText(/Mostrando 0 de 1 turnos filtrados/)).toBeVisible();
+    await expect(page.getByText("No hay turnos que coincidan con la busqueda o el filtro seleccionado.").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /09:00.*Libre/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /09:15.*Ocupado/ })).toBeVisible();
   });
 
   test("secretaria crea turno rapido desde agenda diaria", async ({ page, request }) => {

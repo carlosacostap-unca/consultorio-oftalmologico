@@ -961,6 +961,20 @@ export default function TurnosPage() {
     return days;
   };
 
+  const matchesPatientSearch = (turno: Turno) => {
+    if (!filterPatient) return true;
+
+    const search = filterPatient.toLowerCase();
+    const p = turno.expand?.paciente_id;
+    if (!p) return false;
+
+    return (
+      p.nombre.toLowerCase().includes(search) ||
+      p.apellido.toLowerCase().includes(search) ||
+      patientDocument(p).includes(search)
+    );
+  };
+
   const filteredTurnos = turnos.filter(turno => {
     let matchPatient = true;
     let matchDate = true;
@@ -970,18 +984,7 @@ export default function TurnosPage() {
       matchDoctor = turno.medico_id === selectedMedicoId;
     }
 
-    if (filterPatient) {
-      const search = filterPatient.toLowerCase();
-      const p = turno.expand?.paciente_id;
-      if (p) {
-        matchPatient =
-          p.nombre.toLowerCase().includes(search) ||
-          p.apellido.toLowerCase().includes(search) ||
-          patientDocument(p).includes(search);
-      } else {
-        matchPatient = false;
-      }
-    }
+    matchPatient = matchesPatientSearch(turno);
 
     if (filterDate) {
       const d = new Date(turno.fecha_hora);
@@ -1044,10 +1047,22 @@ export default function TurnosPage() {
         return true;
     }
   };
-  const dailyAllTurnos = filteredTurnos.filter((turno) =>
-    dateKey(new Date(turno.fecha_hora)) === dailyDate
-  );
-  const dailyStats = buildDailyStats(dailyAllTurnos);
+  const dailyBaseTurnos = turnos
+    .filter((turno) =>
+      (selectedMedicoId === "all" || turno.medico_id === selectedMedicoId) &&
+      dateKey(new Date(turno.fecha_hora)) === dailyDate
+    )
+    .sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
+  const dailySearchedTurnos = dailyBaseTurnos.filter(matchesPatientSearch);
+  const dailyVisibleTurnos = dailySearchedTurnos.filter(matchesDailyOperationFilter);
+  const dailyStats = buildDailyStats(dailyVisibleTurnos);
+  const dailySearchStats = buildDailyStats(dailySearchedTurnos);
+  const dailyTotalStats = buildDailyStats(dailyBaseTurnos);
+  const dailyActiveFilterLabel = DAILY_OPERATION_FILTERS.find((option) => option.key === dailyOperationFilter)?.label ?? "Todos";
+  const nextDailyTurno =
+    dailyVisibleTurnos.find((turno) => turno.estado !== "Cancelado" && new Date(turno.fecha_hora).getTime() >= Date.now()) ??
+    dailyVisibleTurnos.find((turno) => turno.estado !== "Cancelado") ??
+    null;
   const dailyDisponibilidades = filteredDisponibilidades.filter((disp) =>
     dateKey(new Date(disp.fecha_hora_inicio)) === dailyDate
   );
@@ -1056,13 +1071,18 @@ export default function TurnosPage() {
     : medicos.filter((medico) => medico.id === selectedMedicoId);
   const dailyDoctorSections = doctorsForDailyView
     .map((medico) => {
-      const allDoctorTurnos = dailyAllTurnos
+      const allDoctorTurnos = dailyBaseTurnos
         .filter((turno) => turno.medico_id === medico.id)
         .sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
-      const doctorTurnos = allDoctorTurnos.filter(matchesDailyOperationFilter);
+      const searchedDoctorTurnos = allDoctorTurnos.filter(matchesPatientSearch);
+      const doctorTurnos = searchedDoctorTurnos.filter(matchesDailyOperationFilter);
       const doctorDisponibilidades = dailyDisponibilidades
         .filter((disp) => disp.medico_id === medico.id)
         .sort((a, b) => new Date(a.fecha_hora_inicio).getTime() - new Date(b.fecha_hora_inicio).getTime());
+      const nextTurno =
+        doctorTurnos.find((turno) => turno.estado !== "Cancelado" && new Date(turno.fecha_hora).getTime() >= Date.now()) ??
+        doctorTurnos.find((turno) => turno.estado !== "Cancelado") ??
+        null;
 
       return {
         medico,
@@ -1070,6 +1090,9 @@ export default function TurnosPage() {
         allTurnos: allDoctorTurnos,
         disponibilidades: doctorDisponibilidades,
         stats: buildDailyStats(allDoctorTurnos),
+        visibleStats: buildDailyStats(doctorTurnos),
+        searchedStats: buildDailyStats(searchedDoctorTurnos),
+        nextTurno,
         hasActivity: allDoctorTurnos.length > 0 || doctorDisponibilidades.length > 0,
       };
     })
@@ -1935,11 +1958,17 @@ export default function TurnosPage() {
                 <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                        Tablero operativo diario
+                      </p>
                       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 capitalize">
                         Agenda diaria del {formatDate(new Date(dailyDate + 'T12:00:00'))}
                       </h2>
                       <p className="text-sm text-zinc-500 dark:text-zinc-400">
                         {selectedMedicoId === "all" ? "Vista agrupada por medico" : doctorLabel(medicos.find((medico) => medico.id === selectedMedicoId))}
+                      </p>
+                      <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                        Mostrando {dailyStats.total} de {dailySearchStats.total} turnos filtrados ({dailyTotalStats.total} del dia).
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -1960,6 +1989,33 @@ export default function TurnosPage() {
                       <span className="rounded-full bg-zinc-100 px-3 py-1 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                         Disponibilidades: {dailyDisponibilidades.length}
                       </span>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Proximo turno</div>
+                      <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        {nextDailyTurno ? (
+                          <>
+                            {new Date(nextDailyTurno.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {nextDailyTurno.expand?.paciente_id ? `${nextDailyTurno.expand.paciente_id.apellido.toUpperCase()}, ${nextDailyTurno.expand.paciente_id.nombre.toUpperCase()}` : "Paciente no encontrado"}
+                          </>
+                        ) : (
+                          "Sin turnos visibles"
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Filtro activo</div>
+                      <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        {dailyActiveFilterLabel}
+                        {filterPatient ? ` · Busqueda: ${filterPatient}` : ""}
+                      </div>
+                    </div>
+                    <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Cobertura de agenda</div>
+                      <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        {dailyDisponibilidades.length} bloques · {dailyTotalStats.overbooking} sobreturnos
+                      </div>
                     </div>
                   </div>
                   <div className="mt-4 flex flex-wrap gap-2">
@@ -1994,16 +2050,25 @@ export default function TurnosPage() {
                             {doctorLabel(section.medico)}
                           </h3>
                           <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                            {section.stats.total} turnos otorgados · {section.disponibilidades.length} bloques disponibles
+                            {section.stats.total} turnos otorgados · {section.disponibilidades.length} bloques disponibles · {section.turnos.length} visibles
+                          </p>
+                          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+                            {section.nextTurno ? (
+                              <>
+                                Proximo: {new Date(section.nextTurno.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · {section.nextTurno.expand?.paciente_id ? `${section.nextTurno.expand.paciente_id.apellido.toUpperCase()}, ${section.nextTurno.expand.paciente_id.nombre.toUpperCase()}` : "Paciente no encontrado"}
+                              </>
+                            ) : (
+                              "Sin proximo turno visible"
+                            )}
                           </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {[
-                              ["Espera", section.stats.waiting],
-                              ["Consulta", section.stats.inConsultation],
-                              ["Atendidos", section.stats.attended],
-                              ["Ausentes", section.stats.absent],
-                              ["Sobreturnos", section.stats.overbooking],
-                              ["Atrasados", section.stats.late],
+                              ["Espera", section.visibleStats.waiting],
+                              ["Consulta", section.visibleStats.inConsultation],
+                              ["Atendidos", section.visibleStats.attended],
+                              ["Ausentes", section.visibleStats.absent],
+                              ["Sobreturnos", section.visibleStats.overbooking],
+                              ["Atrasados", section.visibleStats.late],
                             ].map(([label, value]) => (
                               <span key={label} className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                                 {label}: {value}
@@ -2073,7 +2138,7 @@ export default function TurnosPage() {
                           <div className="px-5 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
                             {dailyOperationFilter === "all"
                               ? "Todavia no hay turnos otorgados para este medico en el dia."
-                              : "No hay turnos que coincidan con el filtro seleccionado."}
+                              : "No hay turnos que coincidan con la busqueda o el filtro seleccionado."}
                           </div>
                         ) : (
                           section.turnos.map((turno) => (
