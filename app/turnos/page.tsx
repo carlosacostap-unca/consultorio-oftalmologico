@@ -74,9 +74,10 @@ interface AppUser {
   roles?: UserRole[];
 }
 
-type ViewMode = "list" | "weekly" | "daily" | "availability";
+type ViewMode = "list" | "weekly" | "daily" | "availability" | "waiting-room";
 type AppointmentModalTab = "datos" | "reprogramar" | "cancelacion";
 type DailyOperationFilter = "all" | "waiting" | "inConsultation" | "attended" | "absent" | "overbooking" | "late";
+type WaitingRoomGroupKey = "upcoming" | "waiting" | "inConsultation" | "attended" | "absent" | "canceled";
 
 interface QuickAppointmentState {
   disponibilidad: Disponibilidad;
@@ -144,6 +145,15 @@ const DAILY_OPERATION_FILTERS: Array<{ key: DailyOperationFilter; label: string 
   { key: "absent", label: "Ausentes" },
   { key: "overbooking", label: "Sobreturnos" },
   { key: "late", label: "Atrasados" },
+];
+
+const WAITING_ROOM_GROUPS: Array<{ key: WaitingRoomGroupKey; title: string; empty: string }> = [
+  { key: "upcoming", title: "Proximos", empty: "No hay pacientes pendientes." },
+  { key: "waiting", title: "En espera", empty: "No hay pacientes esperando." },
+  { key: "inConsultation", title: "En consulta", empty: "No hay pacientes en consulta." },
+  { key: "attended", title: "Atendidos", empty: "No hay turnos atendidos." },
+  { key: "absent", title: "Ausentes", empty: "No hay pacientes marcados ausentes." },
+  { key: "canceled", title: "Cancelados", empty: "No hay turnos cancelados." },
 ];
 
 const getEstadoColor = (estado?: string) => {
@@ -779,7 +789,7 @@ export default function TurnosPage() {
 
   // Establecer fecha de hoy por defecto al cambiar a vista diaria o semanal si no hay fecha seleccionada
   useEffect(() => {
-    if ((viewMode === 'daily' || viewMode === 'weekly') && !filterDate) {
+    if ((viewMode === 'daily' || viewMode === 'weekly' || viewMode === 'waiting-room') && !filterDate) {
       const today = new Date();
       const pad = (n: number) => n.toString().padStart(2, '0');
       setFilterDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
@@ -1020,7 +1030,7 @@ export default function TurnosPage() {
       const pad = (n: number) => n.toString().padStart(2, '0');
       const turnoDate = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 
-      if (viewMode === 'list' || viewMode === 'daily') {
+      if (viewMode === 'list' || viewMode === 'daily' || viewMode === 'waiting-room') {
         matchDate = turnoDate === filterDate;
       } else if (viewMode === 'weekly') {
         const weekDays = getDaysOfWeek(filterDate);
@@ -1126,6 +1136,41 @@ export default function TurnosPage() {
       };
     })
     .filter((section) => selectedMedicoId !== "all" || section.hasActivity);
+
+  const waitingRoomTurnos = dailySearchedTurnos;
+  const waitingRoomGroups = WAITING_ROOM_GROUPS.map((group) => {
+    const items = waitingRoomTurnos.filter((turno) => {
+      switch (group.key) {
+        case "waiting":
+          return turno.estado === "En espera";
+        case "inConsultation":
+          return turno.estado === "En consulta";
+        case "attended":
+          return turno.estado === "Atendido";
+        case "absent":
+          return turno.estado === "Ausente" || turno.estado === "No llegó" || turno.estado === "No llegÃ³";
+        case "canceled":
+          return turno.estado === "Cancelado";
+        default:
+          return !["En espera", "En consulta", "Atendido", "Ausente", "No llegó", "No llegÃ³", "Cancelado"].includes(turno.estado || "");
+      }
+    });
+
+    return { ...group, items };
+  });
+  const waitingRoomStats = {
+    total: waitingRoomTurnos.length,
+    upcoming: waitingRoomGroups.find((group) => group.key === "upcoming")?.items.length || 0,
+    waiting: waitingRoomGroups.find((group) => group.key === "waiting")?.items.length || 0,
+    inConsultation: waitingRoomGroups.find((group) => group.key === "inConsultation")?.items.length || 0,
+    attended: waitingRoomGroups.find((group) => group.key === "attended")?.items.length || 0,
+    absent: waitingRoomGroups.find((group) => group.key === "absent")?.items.length || 0,
+    canceled: waitingRoomGroups.find((group) => group.key === "canceled")?.items.length || 0,
+  };
+  const nextWaitingRoomTurno =
+    waitingRoomGroups.find((group) => group.key === "upcoming")?.items.find((turno) => new Date(turno.fecha_hora).getTime() >= Date.now()) ||
+    waitingRoomGroups.find((group) => group.key === "upcoming")?.items[0] ||
+    null;
 
   const fullFormHrefForQuickAppointment = (appointment: QuickAppointmentState) => {
     const params = new URLSearchParams({
@@ -1258,6 +1303,12 @@ export default function TurnosPage() {
             Agenda Diaria
           </button>
           <button
+            onClick={() => handleViewModeChange('waiting-room')}
+            className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${viewMode === 'waiting-room' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+          >
+            Sala de espera
+          </button>
+          <button
             onClick={() => handleViewModeChange('list')}
             className={`px-4 py-2 border-b-2 font-medium text-sm transition-colors ${viewMode === 'list' ? 'border-blue-500 text-blue-600 dark:text-blue-400' : 'border-transparent text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
           >
@@ -1296,7 +1347,7 @@ export default function TurnosPage() {
                 className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark] text-sm"
               />
             </div>
-            {(viewMode === 'weekly' || viewMode === 'daily') && (
+            {(viewMode === 'weekly' || viewMode === 'daily' || viewMode === 'waiting-room') && (
               <div className="flex gap-1 mb-[1px]">
                 <button
                   onClick={() => {
@@ -1980,6 +2031,142 @@ export default function TurnosPage() {
                 </div>
               );
             })()}
+
+            {/* VISTA SALA DE ESPERA */}
+            {viewMode === 'waiting-room' && (
+              <div className="space-y-4">
+                <div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm p-5">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
+                        Recepcion del dia
+                      </p>
+                      <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+                        Sala de espera
+                      </h2>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                        {formatDate(new Date(dailyDate + 'T12:00:00'))} · {selectedMedicoId === "all" ? "Todos los medicos" : doctorLabel(medicos.find((medico) => medico.id === selectedMedicoId))}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      {[
+                        ["Total", waitingRoomStats.total],
+                        ["Proximos", waitingRoomStats.upcoming],
+                        ["En espera", waitingRoomStats.waiting],
+                        ["En consulta", waitingRoomStats.inConsultation],
+                        ["Atendidos", waitingRoomStats.attended],
+                        ["Ausentes", waitingRoomStats.absent],
+                        ["Cancelados", waitingRoomStats.canceled],
+                      ].map(([label, value]) => (
+                        <span key={label} className="rounded-full bg-zinc-100 px-3 py-1 font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                          {label}: {value}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      Proximo turno
+                    </div>
+                    <div className="mt-1 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      {nextWaitingRoomTurno ? (
+                        <>
+                          {shortTime(new Date(nextWaitingRoomTurno.fecha_hora))} · {nextWaitingRoomTurno.expand?.paciente_id ? `${nextWaitingRoomTurno.expand.paciente_id.apellido.toUpperCase()}, ${nextWaitingRoomTurno.expand.paciente_id.nombre.toUpperCase()}` : "Paciente no encontrado"}
+                        </>
+                      ) : (
+                        "No hay turnos pendientes."
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {waitingRoomStats.total === 0 ? (
+                  <div className="text-center text-zinc-500 dark:text-zinc-400 py-12 bg-white dark:bg-zinc-900 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                    <p className="text-lg">No hay turnos para la sala de espera.</p>
+                    <p className="text-sm mt-2">Proba con otra fecha, otro medico o limpiando la busqueda.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                    {waitingRoomGroups.map((group) => (
+                      <section key={group.key} className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 shadow-sm overflow-hidden">
+                        <div className="px-5 py-4 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between gap-3">
+                          <h3 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                            {group.title}
+                          </h3>
+                          <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                            {group.items.length}
+                          </span>
+                        </div>
+                        <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                          {group.items.length === 0 ? (
+                            <div className="px-5 py-8 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                              {group.empty}
+                            </div>
+                          ) : (
+                            group.items.map((turno) => (
+                              <div key={turno.id} className="px-5 py-4">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
+                                        {shortTime(new Date(turno.fecha_hora))}
+                                      </span>
+                                      <span className={`rounded-full border px-2.5 py-1 text-xs font-medium ${getStateColorClass(turno.estado)}`}>
+                                        {turno.estado || "Proximo"}
+                                      </span>
+                                      {turno.es_sobreturno && (
+                                        <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold uppercase text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                                          Sobreturno
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="mt-2 font-semibold text-zinc-900 dark:text-zinc-100">
+                                      {turno.expand?.paciente_id ? `${turno.expand.paciente_id.apellido.toUpperCase()}, ${turno.expand.paciente_id.nombre.toUpperCase()}` : "Paciente no encontrado"}
+                                    </div>
+                                    <div className="mt-1 flex flex-wrap gap-2 text-sm text-zinc-500 dark:text-zinc-400">
+                                      {selectedMedicoId === "all" && <span>{doctorLabel(doctorFor(turno))}</span>}
+                                      {patientDocument(turno.expand?.paciente_id) && <span>DNI {patientDocument(turno.expand?.paciente_id)}</span>}
+                                      <span>{turno.tipo || "Consulta"} {turno.duracion ? `(${turno.duracion} min)` : ""}</span>
+                                      <span>{turno.motivo || "Sin motivo"}</span>
+                                    </div>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                                    {[
+                                      ["Llego", "En espera"],
+                                      ["En consulta", "En consulta"],
+                                      ["Atendido", "Atendido"],
+                                      ["Ausente", "Ausente"],
+                                    ].map(([label, estado]) => (
+                                      <button
+                                        key={label}
+                                        type="button"
+                                        onClick={() => handleEstadoChange(turno.id, estado)}
+                                        disabled={turno.estado === estado}
+                                        className="rounded-lg border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-45 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleTurnoClick(turno)}
+                                      aria-label={`Gestionar turno ${turno.motivo || ""}`.trim()}
+                                      className="px-3 py-2 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 rounded-lg transition-colors"
+                                    >
+                                      Gestionar
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </section>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* VISTA DIARIA */}
             {viewMode === 'daily' && (

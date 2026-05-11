@@ -79,6 +79,40 @@ test.describe("roles y otorgamiento de turnos", () => {
     await expect(page.getByRole("button", { name: /09:15.*Ocupado/ })).toBeVisible();
   });
 
+  test("secretaria gestiona sala de espera por estado", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const motivo = `Playwright sala ${Date.now()}`;
+    await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, DEMO_SLOT);
+
+    try {
+      await createDemoAppointment(request, env, adminToken, medicoId, patient!.id as string, motivo, DEMO_SLOT, "");
+
+      await login(page, "secretaria.demo@consultorio.local");
+      await page.goto("/turnos");
+      await page.getByRole("button", { name: "Sala de espera" }).click();
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+
+      await expect(page.getByRole("heading", { name: "Sala de espera" })).toBeVisible();
+      await expect(page.getByText(/Proximos: 1/)).toBeVisible();
+
+      const card = page.getByText(motivo).locator("xpath=ancestor::div[contains(@class,'px-5 py-4')][1]");
+      await expect(card.getByText("Medico Demo")).toBeVisible();
+      await card.getByRole("button", { name: "Llego" }).click();
+
+      await expect(page.getByText(/En espera: 2/)).toBeVisible();
+      await expect(
+        await findDemoAppointment(request, env, adminToken, medicoId, motivo, DEMO_SLOT, "En espera")
+      ).toBeTruthy();
+    } finally {
+      await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, DEMO_SLOT);
+    }
+  });
+
   test("secretaria crea turno rapido desde agenda diaria", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
@@ -482,6 +516,43 @@ async function findDemoAppointment(
     `medico_id = "${medicoId}" && fecha_hora = "${demoSlotIso(slot).replace("T", " ")}" && motivo = "${motivo}"${statusFilter}`
   );
   return result.items[0] || null;
+}
+
+async function createDemoAppointment(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  medicoId: string,
+  patientId: string,
+  motivo: string,
+  slot = DEMO_SLOT,
+  estado = "En espera"
+) {
+  const availability = await pbList(
+    request,
+    env,
+    token,
+    "disponibilidades",
+    `medico_id = "${medicoId}" && fecha_hora_inicio = "${demoSlotIso("09:00").replace("T", " ")}"`
+  );
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/turnos/records`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      paciente_id: patientId,
+      medico_id: medicoId,
+      disponibilidad_id: availability.items[0]?.id,
+      fecha_hora: demoSlotIso(slot),
+      motivo,
+      observaciones: "",
+      estado,
+      tipo: "Consulta",
+      duracion: 15,
+      es_sobreturno: false,
+      sobreturno_tipo: "",
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json();
 }
 
 async function cleanupDemoAppointment(
