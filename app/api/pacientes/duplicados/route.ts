@@ -15,9 +15,16 @@ interface RelatedCounts {
   recetas: number;
 }
 
+interface RecentActivity {
+  turnos: Array<{ id: string; fecha_hora?: string; motivo?: string; estado?: string; tipo?: string }>;
+  consultas: Array<{ id: string; fecha?: string; motivo_consulta?: string; diagnostico?: string }>;
+  recetas: Array<{ id: string; fecha?: string; medicamentos?: string; indicaciones?: string }>;
+}
+
 interface PatientSummary {
   patient: Patient;
   counts: RelatedCounts;
+  recent: RecentActivity;
 }
 
 const RELATED_COLLECTIONS = ["turnos", "consultas", "recetas"] as const;
@@ -131,12 +138,13 @@ async function comparePatients(primaryId: string, duplicateId: string) {
 }
 
 async function patientSummary(patientId: string): Promise<PatientSummary> {
-  const [patient, counts] = await Promise.all([
+  const [patient, counts, recent] = await Promise.all([
     getPatient(patientId),
     relatedCounts(patientId),
+    recentActivity(patientId),
   ]);
 
-  return { patient, counts };
+  return { patient, counts, recent };
 }
 
 async function getPatient(patientId: string) {
@@ -233,6 +241,28 @@ async function relatedCounts(patientId: string): Promise<RelatedCounts> {
   ]);
 
   return { turnos, consultas, recetas };
+}
+
+async function recentActivity(patientId: string): Promise<RecentActivity> {
+  const [turnos, consultas, recetas] = await Promise.all([
+    listRecentRecords<RecentActivity["turnos"][number]>("turnos", patientId, "-fecha_hora", "id,fecha_hora,motivo,estado,tipo"),
+    listRecentRecords<RecentActivity["consultas"][number]>("consultas", patientId, "-fecha", "id,fecha,motivo_consulta,diagnostico"),
+    listRecentRecords<RecentActivity["recetas"][number]>("recetas", patientId, "-fecha", "id,fecha,medicamentos,indicaciones"),
+  ]);
+
+  return { turnos, consultas, recetas };
+}
+
+async function listRecentRecords<T>(collection: string, patientId: string, sort: string, fields: string) {
+  const params = new URLSearchParams({
+    page: "1",
+    perPage: "3",
+    sort,
+    fields,
+    filter: `paciente_id = "${escapeFilterValue(patientId)}"`,
+  });
+  const result = (await pbAdmin(`/api/collections/${collection}/records?${params}`)) as PocketBaseList<T>;
+  return result.items || [];
 }
 
 async function countRelated(collection: string, patientId: string) {

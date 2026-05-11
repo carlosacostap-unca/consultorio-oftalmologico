@@ -616,6 +616,12 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       await expect(page.getByText("Paciente principal")).toBeVisible();
       await expect(page.getByText("Paciente duplicado")).toBeVisible();
+      await expect(page.getByText("Ultimos turnos")).toHaveCount(2);
+      await expect(page.getByText(`Playwright fusion turno ${suffix}`)).toBeVisible();
+      await expect(page.getByText("Ultimas consultas")).toHaveCount(2);
+      await expect(page.getByText(`Playwright fusion consulta ${suffix}`)).toBeVisible();
+      await expect(page.getByText("Ultimas recetas")).toHaveCount(2);
+      await expect(page.getByText(`Playwright fusion receta ${suffix}`)).toBeVisible();
       await page.getByLabel("Motivo").fill("Prueba Playwright de fusion");
       await page.getByLabel("Confirmacion").fill("FUSIONAR");
       await page.getByRole("button", { name: "Fusionar pacientes" }).click();

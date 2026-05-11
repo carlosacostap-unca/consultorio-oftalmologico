@@ -15,9 +15,16 @@ interface Counts {
   recetas: number;
 }
 
+interface RecentActivity {
+  turnos: Array<{ id: string; fecha_hora?: string; motivo?: string; estado?: string; tipo?: string }>;
+  consultas: Array<{ id: string; fecha?: string; motivo_consulta?: string; diagnostico?: string }>;
+  recetas: Array<{ id: string; fecha?: string; medicamentos?: string; indicaciones?: string }>;
+}
+
 interface PatientSummary {
   patient: Patient;
   counts: Counts;
+  recent?: RecentActivity;
 }
 
 interface CandidateGroup {
@@ -433,11 +440,75 @@ function PatientComparisonCard({ title, summary, accent }: { title: string; summ
       <div className="mt-4 rounded-lg bg-white/70 p-3 text-sm dark:bg-zinc-950/40">
         {counts.turnos} turnos - {counts.consultas} consultas - {counts.recetas} recetas
       </div>
+      <div className="mt-4 space-y-3">
+        <ActivityList
+          title="Ultimos turnos"
+          items={(summary.recent?.turnos || []).map((turno) => ({
+            id: turno.id,
+            date: turno.fecha_hora,
+            primary: turno.motivo || "Turno sin motivo",
+            secondary: [turno.tipo, turno.estado].filter(Boolean).join(" - "),
+          }))}
+        />
+        <ActivityList
+          title="Ultimas consultas"
+          items={(summary.recent?.consultas || []).map((consulta) => ({
+            id: consulta.id,
+            date: consulta.fecha,
+            primary: consulta.motivo_consulta || "Consulta sin motivo",
+            secondary: consulta.diagnostico || "",
+          }))}
+        />
+        <ActivityList
+          title="Ultimas recetas"
+          items={(summary.recent?.recetas || []).map((receta) => ({
+            id: receta.id,
+            date: receta.fecha,
+            primary: receta.medicamentos || "Receta sin medicamentos",
+            secondary: receta.indicaciones || "",
+          }))}
+        />
+      </div>
       <Link href={`/pacientes/${patient.id}?mode=view`} className="mt-3 inline-block text-sm font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-200">
         Ver ficha
       </Link>
     </div>
   );
+}
+
+function ActivityList({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ id: string; date?: string; primary: string; secondary?: string }>;
+}) {
+  return (
+    <div className="rounded-lg bg-white/60 p-3 dark:bg-zinc-950/30">
+      <div className="text-xs font-semibold uppercase tracking-wide opacity-75">{title}</div>
+      {items.length === 0 ? (
+        <div className="mt-2 text-xs opacity-70">Sin registros recientes.</div>
+      ) : (
+        <div className="mt-2 space-y-2">
+          {items.map((item) => (
+            <div key={item.id} className="text-xs">
+              <div className="font-semibold">{formatActivityDate(item.date)} - {item.primary}</div>
+              {item.secondary && <div className="mt-0.5 truncate opacity-75" title={item.secondary}>{item.secondary}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatActivityDate(value?: string) {
+  if (!value) return "Sin fecha";
+  try {
+    return new Date(value).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+  } catch {
+    return "Sin fecha";
+  }
 }
 
 function Row({ label, value }: { label: string; value: string }) {
