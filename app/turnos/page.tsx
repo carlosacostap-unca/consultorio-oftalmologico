@@ -414,6 +414,7 @@ export default function TurnosPage() {
     return record.expand?.medico_id || medicos.find((medico) => medico.id === record.medico_id) || null;
   };
 
+  const isDoctorRole = activeRole === "medico";
   const canChooseDoctor = activeRole !== "medico";
   const newTurnoHref = selectedMedicoId === "all" ? "/turnos/nuevo" : `/turnos/nuevo?medico_id=${selectedMedicoId}`;
 
@@ -423,6 +424,7 @@ export default function TurnosPage() {
     if (role === "medico" && authUser?.id) {
       setSelectedMedicoId(authUser.id);
       setAvailabilityForm((prev) => ({ ...prev, medico_id: authUser.id || "" }));
+      setViewMode("daily");
       return;
     }
 
@@ -1654,6 +1656,36 @@ export default function TurnosPage() {
     }
   };
 
+  const consultationActionLabel = (turno: Turno) => {
+    if (turno.consulta_id) return "Continuar consulta";
+    if (turno.estado === "En consulta") return "Continuar atencion";
+    return "Iniciar consulta";
+  };
+
+  const handleConsultationAction = async (turno: Turno) => {
+    if (turno.consulta_id) {
+      router.push(`/consultas/${turno.consulta_id}`);
+      return;
+    }
+
+    if (!turno.paciente_id) {
+      alert("El turno no tiene paciente asociado.");
+      return;
+    }
+
+    const shouldMarkInConsultation = !TERMINAL_APPOINTMENT_STATES.includes(turno.estado || "") && turno.estado !== "En consulta";
+
+    try {
+      if (shouldMarkInConsultation) {
+        await completeStatusChange(turno.id, "En consulta", "Inicio de atencion medica");
+      }
+      router.push(`/consultas/nueva?paciente_id=${turno.paciente_id}&turno_id=${turno.id}`);
+    } catch (error) {
+      console.error("Error al iniciar consulta desde turno:", error);
+      alert("No se pudo iniciar la consulta desde este turno.");
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar este turno?")) {
       try {
@@ -1924,8 +1956,8 @@ export default function TurnosPage() {
               </svg>
             </button>
             <div>
-              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Gestión de Turnos</h1>
-              <p className="text-zinc-500 dark:text-zinc-400">Agenda y administra las citas médicas</p>
+              <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{isDoctorRole ? "Mi jornada medica" : "Gestión de Turnos"}</h1>
+              <p className="text-zinc-500 dark:text-zinc-400">{isDoctorRole ? "Pacientes, turnos y consultas del dia" : "Agenda y administra las citas médicas"}</p>
             </div>
           </div>
           <div className="flex gap-2">
@@ -1965,6 +1997,11 @@ export default function TurnosPage() {
               </option>
             ))}
           </select>
+          {isDoctorRole && (
+            <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+              Estas viendo tu agenda propia. La secretaria gestiona las agendas de todos los medicos.
+            </p>
+          )}
         </div>
 
         {/* Tabs de Vistas */}
@@ -2840,6 +2877,15 @@ export default function TurnosPage() {
                                     )}
                                   </div>
                                   <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                                    {isDoctorRole && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleConsultationAction(turno)}
+                                        className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                                      >
+                                        {consultationActionLabel(turno)}
+                                      </button>
+                                    )}
                                     {WAITING_ROOM_ACTIONS.map(({ label, estado }) => (
                                       <button
                                         key={label}
@@ -2883,16 +2929,16 @@ export default function TurnosPage() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">
-                        Tablero operativo diario
+                        {isDoctorRole ? "Jornada de atencion" : "Tablero operativo diario"}
                       </p>
                       <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 capitalize">
-                        Agenda diaria del {formatDate(new Date(dailyDate + 'T12:00:00'))}
+                        {isDoctorRole ? "Pacientes del dia" : "Agenda diaria"} del {formatDate(new Date(dailyDate + 'T12:00:00'))}
                       </h2>
                       <p className="text-sm text-zinc-500 dark:text-zinc-400">
                         {selectedMedicoId === "all" ? "Vista agrupada por medico" : doctorLabel(medicos.find((medico) => medico.id === selectedMedicoId))}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-                        Mostrando {dailyStats.total} de {dailySearchStats.total} turnos filtrados ({dailyTotalStats.total} del dia).
+                        {isDoctorRole ? "Pacientes para atender:" : "Mostrando"} {dailyStats.total} de {dailySearchStats.total} turnos filtrados ({dailyTotalStats.total} del dia).
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-500 dark:text-zinc-400">
@@ -3142,10 +3188,18 @@ export default function TurnosPage() {
                                     <option key={estado} value={estado}>{estado}</option>
                                   ))}
                                 </select>
-                                {turno.consulta_id ? (
+                                {isDoctorRole ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConsultationAction(turno)}
+                                    className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                                  >
+                                    {consultationActionLabel(turno)}
+                                  </button>
+                                ) : turno.consulta_id ? (
                                   <Link href={`/consultas/${turno.consulta_id}`} className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 rounded-lg transition-colors" title="Ver consulta">
                                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 016 0z" />
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                     </svg>
                                   </Link>

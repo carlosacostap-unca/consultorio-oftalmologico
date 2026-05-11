@@ -614,8 +614,8 @@ test.describe("roles y otorgamiento de turnos", () => {
       await page.getByLabel("Buscar paciente").fill(duplicateDocument);
       await page.getByText("Fusion Playwright, Duplicado").locator("xpath=ancestor::div[contains(@class,'rounded-xl')][1]").getByRole("button", { name: "Duplicado" }).click();
 
-      await expect(page.getByText("Paciente principal")).toBeVisible();
-      await expect(page.getByText("Paciente duplicado")).toBeVisible();
+      await expect(page.getByText("Paciente principal", { exact: true })).toBeVisible();
+      await expect(page.getByText("Paciente duplicado", { exact: true })).toBeVisible();
       await expect(page.getByText("Ultimos turnos")).toHaveCount(2);
       await expect(page.getByText(`Playwright fusion turno ${suffix}`)).toBeVisible();
       await expect(page.getByText("Ultimas consultas")).toHaveCount(2);
@@ -687,6 +687,64 @@ test.describe("roles y otorgamiento de turnos", () => {
     const doctorSelect = page.locator("main select").first();
     await expect(doctorSelect).toBeDisabled();
     await expect(doctorSelect.locator("option:checked")).toHaveText("Medico Demo");
+  });
+
+  test("medico inicia consulta desde su jornada diaria", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const motivo = `Playwright medico consulta ${Date.now()}`;
+    const slot = "09:45";
+    let createdConsultaId = "";
+    await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, slot);
+
+    try {
+      const turno = await createDemoAppointment(request, env, adminToken, medicoId, patient!.id as string, motivo, slot, "En espera");
+
+      await login(page, "medico.demo@consultorio.local");
+      await page.goto("/turnos");
+      await expect(page.getByText("Mi jornada medica")).toBeVisible();
+      const doctorSelect = page.locator("main select").first();
+      await expect(doctorSelect).toBeDisabled();
+      await expect(doctorSelect.locator("option:checked")).toHaveText("Medico Demo");
+
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+      await expect(page.getByText("Jornada de atencion")).toBeVisible();
+      await expect(page.getByText("Pacientes para atender:")).toBeVisible();
+
+      const row = page.getByText(motivo).locator("xpath=ancestor::div[contains(@class,'grid')][1]");
+      await expect(row.getByRole("button", { name: "Iniciar consulta" })).toBeVisible();
+      await row.getByRole("button", { name: "Iniciar consulta" }).click();
+
+      await expect(page).toHaveURL(/\/consultas\/nueva/);
+      await expect(page).toHaveURL(new RegExp(`turno_id=${turno.id}`));
+      await expect
+        .poll(() => findDemoAppointment(request, env, adminToken, medicoId, motivo, slot, "En consulta"), {
+          timeout: 10_000,
+        })
+        .toBeTruthy();
+
+      await page.getByRole("button", { name: "GUARDAR CONSULTA" }).click();
+      await expect
+        .poll(async () => {
+          const updatedTurno = await pbGet(request, env, adminToken, "turnos", turno.id as string);
+          return updatedTurno.estado === "Atendido" && Boolean(updatedTurno.consulta_id);
+        }, { timeout: 10_000 })
+        .toBeTruthy();
+
+      const updatedTurno = await pbGet(request, env, adminToken, "turnos", turno.id as string);
+      createdConsultaId = String(updatedTurno.consulta_id || "");
+    } finally {
+      if (createdConsultaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, slot);
+    }
   });
 });
 
