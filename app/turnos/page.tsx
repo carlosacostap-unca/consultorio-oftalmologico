@@ -24,6 +24,19 @@ interface Paciente {
   numero_ficha?: string;
 }
 
+interface PatientDuplicateCandidate extends Paciente {
+  matchReasons: string[];
+}
+
+interface PatientDuplicateLookupInput {
+  nombre?: string;
+  apellido?: string;
+  dni?: string;
+  numero_documento?: string;
+  telefono?: string;
+  numero_ficha?: string;
+}
+
 interface QuickNewPatientState {
   isOpen: boolean;
   nombre: string;
@@ -33,6 +46,9 @@ interface QuickNewPatientState {
   obra_social: string;
   error: string;
   isSaving: boolean;
+  duplicateCandidates: PatientDuplicateCandidate[];
+  isCheckingDuplicates: boolean;
+  duplicateError: string;
 }
 
 interface Turno {
@@ -150,6 +166,9 @@ interface PatientQuickCardState {
   isSaving: boolean;
   error: string;
   success: string;
+  duplicateCandidates: PatientDuplicateCandidate[];
+  isCheckingDuplicates: boolean;
+  duplicateError: string;
 }
 
 interface AvailabilitySlot {
@@ -197,6 +216,20 @@ const emptyPatientQuickCardForm = (): PatientQuickCardForm => ({
   numero_ficha: "",
 });
 
+const emptyQuickNewPatientState = (): QuickNewPatientState => ({
+  isOpen: false,
+  nombre: "",
+  apellido: "",
+  dni: "",
+  telefono: "",
+  obra_social: "",
+  error: "",
+  isSaving: false,
+  duplicateCandidates: [],
+  isCheckingDuplicates: false,
+  duplicateError: "",
+});
+
 const initialPatientQuickCardState = (): PatientQuickCardState => ({
   isOpen: false,
   pacienteId: "",
@@ -208,6 +241,9 @@ const initialPatientQuickCardState = (): PatientQuickCardState => ({
   isSaving: false,
   error: "",
   success: "",
+  duplicateCandidates: [],
+  isCheckingDuplicates: false,
+  duplicateError: "",
 });
 
 const DAILY_OPERATION_FILTERS: Array<{ key: DailyOperationFilter; label: string }> = [
@@ -325,16 +361,7 @@ export default function TurnosPage() {
     observaciones: true
   });
   const [quickAppointment, setQuickAppointment] = useState<QuickAppointmentState | null>(null);
-  const [quickNewPatient, setQuickNewPatient] = useState<QuickNewPatientState>({
-    isOpen: false,
-    nombre: "",
-    apellido: "",
-    dni: "",
-    telefono: "",
-    obra_social: "",
-    error: "",
-    isSaving: false,
-  });
+  const [quickNewPatient, setQuickNewPatient] = useState<QuickNewPatientState>(emptyQuickNewPatientState);
   const [quickPatientDayAppointments, setQuickPatientDayAppointments] = useState<Turno[]>([]);
   const [isLoadingQuickPatientAppointments, setIsLoadingQuickPatientAppointments] = useState(false);
   const [quickWarningsAcknowledged, setQuickWarningsAcknowledged] = useState(false);
@@ -423,6 +450,166 @@ export default function TurnosPage() {
       patient.telefono ? `Tel ${patient.telefono}` : "",
       patient.obra_social || "",
     ].filter(Boolean);
+  };
+
+  const patientDuplicateMeta = (patient?: Paciente | null) => {
+    if (!patient) return [];
+    return [
+      patientDocument(patient) ? `DNI ${patientDocument(patient)}` : "",
+      patient?.telefono ? `Tel ${patient.telefono}` : "",
+      patient?.numero_ficha ? `Ficha ${patient.numero_ficha}` : "",
+      patient?.obra_social || "",
+    ].filter(Boolean);
+  };
+
+  const normalizeDuplicateText = (value?: string) =>
+    (value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+
+  const compactDuplicateText = (value?: string) => normalizeDuplicateText(value).replace(/[^a-z0-9]/g, "");
+
+  const isSameDuplicateValue = (left?: string, right?: string) => {
+    const normalizedLeft = compactDuplicateText(left);
+    const normalizedRight = compactDuplicateText(right);
+    return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+  };
+
+  const hasSimilarText = (left?: string, right?: string, minLength = 3) => {
+    const normalizedLeft = normalizeDuplicateText(left);
+    const normalizedRight = normalizeDuplicateText(right);
+    if (normalizedLeft.length < minLength || normalizedRight.length < minLength) return false;
+    return normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
+  };
+
+  const hasDuplicateLookupSignal = (input: PatientDuplicateLookupInput) =>
+    compactDuplicateText(input.dni || input.numero_documento).length >= 5 ||
+    compactDuplicateText(input.telefono).length >= 6 ||
+    compactDuplicateText(input.numero_ficha).length >= 2 ||
+    normalizeDuplicateText(input.apellido).length >= 3;
+
+  const buildDuplicatePatientFilter = (input: PatientDuplicateLookupInput, excludePatientId?: string) => {
+    const clauses: string[] = [];
+    const document = (input.numero_documento || input.dni || "").trim();
+    const phone = (input.telefono || "").trim();
+    const fileNumber = (input.numero_ficha || "").trim();
+    const lastName = (input.apellido || "").trim();
+    const firstName = (input.nombre || "").trim();
+
+    if (compactDuplicateText(document).length >= 5) {
+      const safeDocument = escapePocketBaseFilter(document);
+      clauses.push(`numero_documento = "${safeDocument}"`);
+    }
+    if (compactDuplicateText(phone).length >= 6) {
+      clauses.push(`telefono = "${escapePocketBaseFilter(phone)}"`);
+    }
+    if (compactDuplicateText(fileNumber).length >= 2) {
+      clauses.push(`numero_ficha = "${escapePocketBaseFilter(fileNumber.toUpperCase())}"`);
+    }
+    if (normalizeDuplicateText(lastName).length >= 3 && normalizeDuplicateText(firstName).length >= 2) {
+      clauses.push(`(apellido ~ "${escapePocketBaseFilter(lastName)}" && nombre ~ "${escapePocketBaseFilter(firstName)}")`);
+    } else if (normalizeDuplicateText(lastName).length >= 3) {
+      clauses.push(`apellido ~ "${escapePocketBaseFilter(lastName)}"`);
+    }
+
+    if (clauses.length === 0) return "";
+    const baseFilter = clauses.map((clause) => `(${clause})`).join(" || ");
+    return excludePatientId
+      ? `(${baseFilter}) && id != "${escapePocketBaseFilter(excludePatientId)}"`
+      : baseFilter;
+  };
+
+  const getDuplicateReasons = (patient: Paciente, input: PatientDuplicateLookupInput) => {
+    const reasons: string[] = [];
+    const document = input.numero_documento || input.dni || "";
+
+    if (isSameDuplicateValue(patientDocument(patient), document)) reasons.push("Mismo documento");
+    if (isSameDuplicateValue(patient.telefono, input.telefono)) reasons.push("Mismo telefono");
+    if (isSameDuplicateValue(patient.numero_ficha, input.numero_ficha)) reasons.push("Misma ficha");
+    if (hasSimilarText(patient.apellido, input.apellido) && (!input.nombre || hasSimilarText(patient.nombre, input.nombre, 2))) {
+      reasons.push(input.nombre ? "Nombre parecido" : "Apellido parecido");
+    }
+
+    return Array.from(new Set(reasons));
+  };
+
+  const findPatientDuplicateCandidates = async (
+    input: PatientDuplicateLookupInput,
+    excludePatientId?: string
+  ): Promise<PatientDuplicateCandidate[]> => {
+    if (!hasDuplicateLookupSignal(input)) return [];
+
+    const filter = buildDuplicatePatientFilter(input, excludePatientId);
+    if (!filter) return [];
+
+    const response = await pb.collection("pacientes").getList<Paciente>(1, 8, {
+      filter,
+      sort: "apellido,nombre",
+      requestKey: null,
+    });
+
+    return response.items
+      .filter((patient) => patient.id !== excludePatientId)
+      .map((patient) => ({ ...patient, matchReasons: getDuplicateReasons(patient, input) }))
+      .filter((patient) => patient.matchReasons.length > 0);
+  };
+
+  const renderDuplicateCandidates = (
+    candidates: PatientDuplicateCandidate[],
+    isChecking: boolean,
+    error: string
+  ) => {
+    if (isChecking) {
+      return (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">
+          Buscando posibles duplicados...
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-200">
+          {error}
+        </div>
+      );
+    }
+
+    if (candidates.length === 0) return null;
+
+    return (
+      <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-900 dark:border-amber-900/70 dark:bg-amber-900/20 dark:text-amber-100">
+        <div className="font-semibold">Posibles pacientes duplicados</div>
+        <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
+          Revisa estas coincidencias antes de guardar. La operacion no se bloquea.
+        </p>
+        <div className="mt-2 space-y-2">
+          {candidates.map((candidate) => (
+            <div key={candidate.id} className="rounded-md border border-amber-200 bg-white/70 px-2 py-2 dark:border-amber-900/60 dark:bg-zinc-950/40">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                  <div className="font-semibold">{candidate.apellido}, {candidate.nombre}</div>
+                  <div className="mt-0.5 text-xs text-amber-800 dark:text-amber-200">
+                    {patientDuplicateMeta(candidate).join(" - ") || "Sin datos administrativos"}
+                  </div>
+                  <div className="mt-1 text-xs font-medium text-amber-900 dark:text-amber-100">
+                    {candidate.matchReasons.join(" - ")}
+                  </div>
+                </div>
+                <Link
+                  href={`/pacientes/${candidate.id}?mode=view`}
+                  className="text-xs font-semibold text-blue-700 hover:text-blue-900 dark:text-blue-300 dark:hover:text-blue-200"
+                >
+                  Ver ficha
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const patientQuickCardFormFromPatient = (patient: Paciente): PatientQuickCardForm => ({
@@ -703,16 +890,7 @@ export default function TurnosPage() {
     });
     setQuickPatientDayAppointments([]);
     setQuickWarningsAcknowledged(false);
-    setQuickNewPatient({
-      isOpen: false,
-      nombre: "",
-      apellido: "",
-      dni: "",
-      telefono: "",
-      obra_social: "",
-      error: "",
-      isSaving: false,
-    });
+    setQuickNewPatient(emptyQuickNewPatientState());
   };
 
   const updateQuickAppointment = (patch: Partial<QuickAppointmentState>) => {
@@ -780,16 +958,7 @@ export default function TurnosPage() {
         error: "",
       });
       setQuickWarningsAcknowledged(false);
-      setQuickNewPatient({
-        isOpen: false,
-        nombre: "",
-        apellido: "",
-        dni: "",
-        telefono: "",
-        obra_social: "",
-        error: "",
-        isSaving: false,
-      });
+      setQuickNewPatient(emptyQuickNewPatientState());
     } catch (error) {
       console.error("Error al crear paciente desde turno rapido:", error);
       updateQuickNewPatient({ error: "No se pudo crear el paciente.", isSaving: false });
@@ -1198,6 +1367,120 @@ export default function TurnosPage() {
 
     return () => window.clearTimeout(timeout);
   }, [quickPatientSearch, quickSelectedPatientId]);
+
+  useEffect(() => {
+    const input: PatientDuplicateLookupInput = {
+      nombre: quickNewPatient.nombre,
+      apellido: quickNewPatient.apellido,
+      dni: quickNewPatient.dni,
+      telefono: quickNewPatient.telefono,
+    };
+
+    if (!quickNewPatient.isOpen || !hasDuplicateLookupSignal(input)) {
+      setQuickNewPatient((prev) => ({
+        ...prev,
+        duplicateCandidates: [],
+        isCheckingDuplicates: false,
+        duplicateError: "",
+      }));
+      return;
+    }
+
+    let isCancelled = false;
+    setQuickNewPatient((prev) => ({ ...prev, isCheckingDuplicates: true, duplicateError: "" }));
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const candidates = await findPatientDuplicateCandidates(input);
+        if (isCancelled) return;
+        setQuickNewPatient((prev) => ({
+          ...prev,
+          duplicateCandidates: candidates,
+          isCheckingDuplicates: false,
+          duplicateError: "",
+        }));
+      } catch (error) {
+        console.error("Error al buscar posibles duplicados en alta rapida:", error);
+        if (isCancelled) return;
+        setQuickNewPatient((prev) => ({
+          ...prev,
+          duplicateCandidates: [],
+          isCheckingDuplicates: false,
+          duplicateError: "No se pudieron revisar posibles duplicados.",
+        }));
+      }
+    }, 350);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [
+    quickNewPatient.isOpen,
+    quickNewPatient.nombre,
+    quickNewPatient.apellido,
+    quickNewPatient.dni,
+    quickNewPatient.telefono,
+  ]);
+
+  useEffect(() => {
+    const input: PatientDuplicateLookupInput = {
+      nombre: patientQuickCard.form.nombre,
+      apellido: patientQuickCard.form.apellido,
+      numero_documento: patientQuickCard.form.numero_documento,
+      telefono: patientQuickCard.form.telefono,
+      numero_ficha: patientQuickCard.form.numero_ficha,
+    };
+
+    if (!patientQuickCard.isOpen || patientQuickCard.isLoading || !hasDuplicateLookupSignal(input)) {
+      setPatientQuickCard((prev) => ({
+        ...prev,
+        duplicateCandidates: [],
+        isCheckingDuplicates: false,
+        duplicateError: "",
+      }));
+      return;
+    }
+
+    let isCancelled = false;
+    setPatientQuickCard((prev) => ({ ...prev, isCheckingDuplicates: true, duplicateError: "" }));
+
+    const timeout = window.setTimeout(async () => {
+      try {
+        const candidates = await findPatientDuplicateCandidates(input, patientQuickCard.pacienteId);
+        if (isCancelled) return;
+        setPatientQuickCard((prev) => ({
+          ...prev,
+          duplicateCandidates: candidates,
+          isCheckingDuplicates: false,
+          duplicateError: "",
+        }));
+      } catch (error) {
+        console.error("Error al buscar posibles duplicados en ficha rapida:", error);
+        if (isCancelled) return;
+        setPatientQuickCard((prev) => ({
+          ...prev,
+          duplicateCandidates: [],
+          isCheckingDuplicates: false,
+          duplicateError: "No se pudieron revisar posibles duplicados.",
+        }));
+      }
+    }, 350);
+
+    return () => {
+      isCancelled = true;
+      window.clearTimeout(timeout);
+    };
+  }, [
+    patientQuickCard.isOpen,
+    patientQuickCard.isLoading,
+    patientQuickCard.pacienteId,
+    patientQuickCard.form.nombre,
+    patientQuickCard.form.apellido,
+    patientQuickCard.form.numero_documento,
+    patientQuickCard.form.telefono,
+    patientQuickCard.form.numero_ficha,
+  ]);
 
   useEffect(() => {
     if (!quickAppointment?.paciente_id) {
@@ -3214,6 +3497,11 @@ export default function TurnosPage() {
                         {quickNewPatient.error}
                       </div>
                     )}
+                    {renderDuplicateCandidates(
+                      quickNewPatient.duplicateCandidates,
+                      quickNewPatient.isCheckingDuplicates,
+                      quickNewPatient.duplicateError
+                    )}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <input
                         type="text"
@@ -3946,6 +4234,11 @@ export default function TurnosPage() {
                       <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300">
                         {patientQuickCard.success}
                       </div>
+                    )}
+                    {renderDuplicateCandidates(
+                      patientQuickCard.duplicateCandidates,
+                      patientQuickCard.isCheckingDuplicates,
+                      patientQuickCard.duplicateError
                     )}
 
                     <div className="grid gap-3 sm:grid-cols-2">

@@ -195,6 +195,12 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByText("Ficha rapida", { exact: true })).toBeVisible();
       await expect(page.getByText("Datos del paciente")).toBeVisible();
       await expect(page.getByText("Ultimos turnos")).toBeVisible();
+      await page.getByLabel("Documento").fill(DEMO_PATIENT_DOCUMENT);
+      await expect(page.getByText("Posibles pacientes duplicados")).toBeVisible();
+      await expect(page.getByText("Libre Demo, Paciente")).toBeVisible();
+      await expect(page.getByText("Mismo documento")).toBeVisible();
+      await page.getByLabel("Documento").fill(OCCUPIED_PATIENT_DOCUMENT);
+      await expect(page.getByText("Libre Demo, Paciente")).toBeHidden();
       await page.getByLabel("Telefono").fill(nextPhone);
       await page.getByRole("button", { name: "Guardar paciente" }).click();
 
@@ -259,7 +265,12 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByRole("button", { name: "+ Nuevo" }).click();
     await page.getByPlaceholder("Apellido", { exact: true }).fill("Alta Rapida");
     await page.getByPlaceholder("Nombre", { exact: true }).fill("Paciente");
+    await page.getByPlaceholder("DNI", { exact: true }).fill(DEMO_PATIENT_DOCUMENT);
+    await expect(page.getByText("Posibles pacientes duplicados")).toBeVisible();
+    await expect(page.getByText("Libre Demo, Paciente")).toBeVisible();
+    await expect(page.getByText("Mismo documento")).toBeVisible();
     await page.getByPlaceholder("DNI", { exact: true }).fill(document);
+    await expect(page.getByText("Libre Demo, Paciente")).toBeHidden();
     await page.getByPlaceholder("Telefono", { exact: true }).fill("111-222");
     await page.getByPlaceholder("Obra social", { exact: true }).fill("Demo Salud");
     await page.getByRole("button", { name: "Crear y seleccionar" }).click();
