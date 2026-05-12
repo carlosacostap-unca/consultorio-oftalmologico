@@ -702,6 +702,61 @@ test.describe("roles y otorgamiento de turnos", () => {
     await expect(page.getByText("Sin consulta vinculada")).toBeVisible();
   });
 
+  test("medico ve ficha clinica del paciente con acciones y recetas", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const suffix = Date.now();
+    let consultaId = "";
+    let recetaId = "";
+
+    try {
+      const consulta = await createDemoConsultation(request, env, adminToken, patient!.id as string, `Playwright ficha consulta ${suffix}`);
+      consultaId = consulta.id as string;
+      const receta = await createDemoPrescription(request, env, adminToken, patient!.id as string, consultaId, `Playwright ficha receta ${suffix}`);
+      recetaId = receta.id as string;
+
+      await login(page, "medico.demo@consultorio.local");
+      await page.goto(`/pacientes/${patient!.id}?mode=view`);
+
+      const clinicalSummary = page
+        .getByText("Ficha clinica del paciente")
+        .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+      await expect(clinicalSummary).toBeVisible();
+      await expect(clinicalSummary.getByText(/Libre Demo, Paciente/i)).toBeVisible();
+      await expect(clinicalSummary.getByText(`DNI ${DEMO_PATIENT_DOCUMENT}`)).toBeVisible();
+      await expect(clinicalSummary.getByRole("heading", { name: "Antecedentes activos" })).toBeVisible();
+      await expect(clinicalSummary.getByRole("heading", { name: "Ultima consulta" })).toBeVisible();
+      await expect(clinicalSummary.getByText(`Playwright ficha consulta ${suffix}`)).toBeVisible();
+
+      await expect(page.getByText("Recetas recientes")).toBeVisible();
+      await expect(page.getByText(`Playwright ficha receta ${suffix}`)).toBeVisible();
+
+      await clinicalSummary.getByRole("button", { name: "Nueva consulta" }).click();
+      await expect(page).toHaveURL(new RegExp(`/consultas/nueva\\?paciente_id=${patient!.id}`));
+
+      await page.goto(`/pacientes/${patient!.id}?mode=view`);
+      const reloadedSummary = page
+        .getByText("Ficha clinica del paciente")
+        .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+      await reloadedSummary.getByRole("button", { name: "Nueva receta" }).click();
+      await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?paciente_id=${patient!.id}`));
+    } finally {
+      if (recetaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${recetaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      if (consultaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${consultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+    }
+  });
+
   test("medico inicia consulta desde su jornada diaria", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);

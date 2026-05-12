@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
-import type { AppUser, Consulta, Mutual, Patient } from "@/lib/types";
+import type { AppUser, Consulta, Mutual, Patient, Receta } from "@/lib/types";
 import { isMergedPatient, patientDisplayName } from "@/lib/patient-merge";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
@@ -21,6 +21,8 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [mutuales, setMutuales] = useState<Mutual[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoadingConsultas, setIsLoadingConsultas] = useState(true);
+  const [recetas, setRecetas] = useState<Receta[]>([]);
+  const [isLoadingRecetas, setIsLoadingRecetas] = useState(true);
   const [paciente, setPaciente] = useState<Patient | null>(null);
   const isMerged = isMergedPatient(paciente);
 
@@ -78,6 +80,19 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           console.error("Error al cargar consultas:", error);
         } finally {
           setIsLoadingConsultas(false);
+        }
+
+        // Cargar recetas recientes del paciente para la ficha clinica
+        try {
+          const recetasRecords = await pb.collection("recetas").getFullList<Receta>({
+            filter: `paciente_id = "${pacienteId}"`,
+            sort: "-fecha,-created",
+          });
+          setRecetas(recetasRecords);
+        } catch (error) {
+          console.error("Error al cargar recetas:", error);
+        } finally {
+          setIsLoadingRecetas(false);
         }
         
         let fechaNacimiento = "";
@@ -193,12 +208,20 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     }
   };
 
+  const pacienteNombre = paciente ? patientDisplayName(paciente) : `${formData.apellido}, ${formData.nombre}`;
+  const documentoPaciente = formData.numero_documento || formData.dni || paciente?.numero_documento || paciente?.dni || "";
+  const coberturaPaciente = paciente?.expand?.mutual_id?.nombre || formData.obra_social || "Sin cobertura";
+  const ultimaConsulta = consultas[0];
+  const recetasRecientes = recetas.slice(0, 5);
+  const edadPaciente = getPatientAge(formData.fecha_nacimiento);
+  const antecedentesActivos = getAntecedentesActivos(paciente);
+
   if (!isMounted) return null;
   if (!user) return null;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-6xl mx-auto">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-8">
           <div className="flex items-center gap-4">
             <button
@@ -257,6 +280,148 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                 Abrir paciente principal: {patientDisplayName(paciente.expand.fusionado_en_paciente_id)}
               </button>
             )}
+          </div>
+        )}
+
+        {isViewMode && !isFetching && (
+          <div className="mb-8 space-y-6">
+            <div className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Ficha clinica del paciente</p>
+                  <h2 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{pacienteNombre}</h2>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
+                    <span className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                      {formData.numero_ficha ? `Ficha ${formData.numero_ficha}` : "Sin ficha"}
+                    </span>
+                    <span className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                      {documentoPaciente ? `${formData.tipo_documento || "DNI"} ${documentoPaciente}` : "Sin documento"}
+                    </span>
+                    <span className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                      {edadPaciente || "Edad no registrada"}
+                    </span>
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                      {coberturaPaciente}
+                    </span>
+                  </div>
+                </div>
+                {!isMerged && (
+                  <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/consultas/nueva?paciente_id=${pacienteId}`)}
+                      className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-blue-500/30 transition-colors hover:bg-blue-700"
+                    >
+                      Nueva consulta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/recetas/nueva?paciente_id=${pacienteId}`)}
+                      className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      Nueva receta
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <ClinicalInfoBlock
+                  title="Contacto"
+                  rows={[
+                    ["Telefono", formData.telefono || "-"],
+                    ["Email", formData.email || "-"],
+                    ["Domicilio", formData.domicilio || "-"],
+                  ]}
+                />
+                <ClinicalInfoBlock
+                  title="Cobertura"
+                  rows={[
+                    ["Obra social", coberturaPaciente],
+                    ["Afiliado", formData.numero_afiliado || "-"],
+                    ["Nacimiento", formatDate(formData.fecha_nacimiento)],
+                  ]}
+                />
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                  <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Antecedentes activos</h3>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {antecedentesActivos.length === 0 ? (
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos.</span>
+                    ) : (
+                      antecedentesActivos.map((antecedente) => (
+                        <span key={antecedente} className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                          {antecedente}
+                        </span>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ultima consulta</h3>
+                    {ultimaConsulta ? (
+                      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                        {formatDate(ultimaConsulta.fecha)} - {ultimaConsulta.motivo_consulta || "Sin motivo"}{ultimaConsulta.diagnostico ? ` - ${ultimaConsulta.diagnostico}` : ""}
+                      </p>
+                    ) : (
+                      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
+                    )}
+                  </div>
+                  {ultimaConsulta && (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/consultas/${ultimaConsulta.id}?mode=view`)}
+                      className="rounded-xl border border-zinc-300 px-4 py-2 text-sm font-semibold text-zinc-800 transition-colors hover:bg-white dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                    >
+                      Abrir consulta
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex flex-col gap-3 border-b border-zinc-200 p-6 dark:border-zinc-800 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="font-semibold text-lg text-zinc-800 dark:text-zinc-200">Recetas recientes</h3>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">Indicaciones emitidas para este paciente</p>
+                </div>
+                {!isMerged && (
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/recetas/nueva?paciente_id=${pacienteId}`)}
+                    className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                  >
+                    Nueva receta
+                  </button>
+                )}
+              </div>
+              {isLoadingRecetas ? (
+                <div className="p-6 text-center text-zinc-500 dark:text-zinc-400">Cargando recetas...</div>
+              ) : recetasRecientes.length === 0 ? (
+                <div className="p-6 text-center text-zinc-500 dark:text-zinc-400">No hay recetas registradas para este paciente.</div>
+              ) : (
+                <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                  {recetasRecientes.map((receta) => (
+                    <button
+                      key={receta.id}
+                      type="button"
+                      onClick={() => router.push(`/recetas/${receta.id}?mode=view`)}
+                      className="grid w-full grid-cols-1 gap-2 px-6 py-4 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 md:grid-cols-[140px_1fr]"
+                    >
+                      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{formatDate(receta.fecha)}</span>
+                      <span className="min-w-0 text-sm text-zinc-600 dark:text-zinc-400">
+                        <span className="block truncate">{receta.medicamentos || "Sin medicamentos cargados"}</span>
+                        {receta.indicaciones && <span className="block truncate text-xs text-zinc-500 dark:text-zinc-500">{receta.indicaciones}</span>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -471,4 +636,71 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
       </div>
     </div>
   );
+}
+
+function ClinicalInfoBlock({ title, rows }: { title: string; rows: Array<[string, string]> }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
+      <dl className="mt-3 space-y-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid grid-cols-[90px_1fr] gap-3 text-sm">
+            <dt className="text-zinc-500 dark:text-zinc-400">{label}</dt>
+            <dd className="min-w-0 truncate text-zinc-900 dark:text-zinc-100" title={value}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
+}
+
+function getAntecedentesActivos(paciente: Patient | null) {
+  if (!paciente) return [];
+
+  return [
+    paciente.ant_diabetes ? "Diabetes" : "",
+    paciente.ant_glaucoma ? "Glaucoma" : "",
+    paciente.ant_maculopatia ? "Maculopatia" : "",
+    paciente.ant_asmatico ? "Asmatico" : "",
+    paciente.ant_hipertension ? "Hipertension" : "",
+    paciente.ant_alergico ? "Alergico" : "",
+    paciente.ant_reuma ? "Reuma" : "",
+    paciente.ant_gota ? "Gota" : "",
+    paciente.ant_herpes ? "Herpes" : "",
+    paciente.ant_otra?.trim() || "",
+  ].filter(Boolean);
+}
+
+function getPatientAge(fechaNacimiento: string) {
+  if (!fechaNacimiento) return "";
+
+  const birthDate = new Date(`${fechaNacimiento}T00:00:00`);
+  if (Number.isNaN(birthDate.getTime())) return "";
+
+  const today = new Date();
+  let age = today.getFullYear() - birthDate.getFullYear();
+  const monthDiff = today.getMonth() - birthDate.getMonth();
+
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+    age -= 1;
+  }
+
+  return `${age} anos`;
+}
+
+function formatDate(value?: string) {
+  if (!value) return "-";
+
+  try {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const [year, month, day] = value.split("-");
+      return `${day}/${month}/${year}`;
+    }
+
+    return new Date(value).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+  } catch {
+    return "-";
+  }
 }

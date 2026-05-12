@@ -22,6 +22,16 @@ export interface Patient extends RecordModel {
   numero_afiliado: string;
   domicilio: string;
   numero_ficha?: string;
+  ant_diabetes?: boolean;
+  ant_glaucoma?: boolean;
+  ant_maculopatia?: boolean;
+  ant_asmatico?: boolean;
+  ant_hipertension?: boolean;
+  ant_alergico?: boolean;
+  ant_reuma?: boolean;
+  ant_gota?: boolean;
+  ant_herpes?: boolean;
+  ant_otra?: string;
   mutual_id?: string;
   estado_registro?: string;
   fusionado_en_paciente_id?: string;
