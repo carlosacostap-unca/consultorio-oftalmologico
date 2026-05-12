@@ -758,6 +758,7 @@ test.describe("roles y otorgamiento de turnos", () => {
   });
 
   test("medico inicia consulta desde su jornada diaria", async ({ page, request }) => {
+    test.setTimeout(120_000);
     const env = loadTestEnv();
     assertTestingPocketBase(env);
     const adminToken = await getAdminToken(request, env);
@@ -848,6 +849,15 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByRole("link", { name: "Crear receta" }).first()).toBeVisible();
       await expect(page.getByRole("link", { name: "Imprimir anteojos" }).first()).toBeVisible();
 
+      await page.getByRole("link", { name: "Imprimir anteojos" }).first().click();
+      await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}/imprimir-anteojos`));
+      await expect(page.getByRole("heading", { name: "Receta de anteojos" })).toBeVisible();
+      await expect(page.getByText("Consultorio oftalmologico")).toBeVisible();
+      await expect(page.getByText("Documento:")).toBeVisible();
+      await expect(page.getByText("Ficha:")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Volver a consulta" })).toBeVisible();
+
+      await page.goto(`/consultas/${createdConsultaId}`);
       await page.getByRole("link", { name: "Crear receta" }).first().click();
       await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?consulta_id=${createdConsultaId}`));
       await expect(page.getByText("Contexto de receta")).toBeVisible();

@@ -3,6 +3,8 @@ import fs from "node:fs";
 
 const envFile = process.env.PLAYWRIGHT_ENV_FILE || ".env.local";
 loadEnv(envFile);
+const port = process.env.PLAYWRIGHT_PORT || "3107";
+const baseURL = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: "./tests/playwright",
@@ -11,13 +13,13 @@ export default defineConfig({
     timeout: 10_000,
   },
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL,
     trace: "on-first-retry",
   },
   webServer: {
-    command: "npm.cmd run dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: true,
+    command: `npm.cmd run dev -- --port ${port}`,
+    url: baseURL,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
   projects: [
