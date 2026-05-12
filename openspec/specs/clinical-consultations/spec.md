@@ -123,6 +123,7 @@ El sistema SHALL permitir navegar dentro del historial de consultas del mismo pa
 - **WHEN** se abre una consulta existente
 - **THEN** el sistema permite crear receta vinculada a la consulta y al paciente
 - **AND** permite imprimir anteojos desde la consulta
+- **AND** permite imprimir un informe clinico de la consulta
 - **AND** permite abrir el paciente y crear una nueva consulta para el mismo paciente
 - **AND** mantiene esas acciones visibles en el panel de continuidad
 
@@ -176,4 +177,13 @@ El sistema SHALL conservar el contexto del turno cuando una consulta clinica se 
 - **WHEN** un turno ya tiene una consulta asociada
 - **THEN** el sistema dirige al medico a la consulta existente
 - **AND** no ofrece crear otra consulta para el mismo turno como accion principal
+
+### Requirement: Impresion de informe clinico de consulta
+El sistema SHALL generar una hoja imprimible de la consulta clinica completa.
+
+#### Scenario: Imprimir informe clinico
+- **WHEN** el usuario abre `/consultas/[id]/imprimir`
+- **THEN** el sistema carga la consulta con paciente expandido
+- **AND** muestra paciente, fecha, motivo, antecedentes, examen oftalmologico, refraccion, diagnostico y tratamiento
+- **AND** muestra las recetas asociadas a la consulta cuando existan
 

@@ -578,6 +578,9 @@ function continuityToneClass(tone: string) {
               <Link href={`/recetas/nueva?consulta_id=${consultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg bg-orange-600 px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-orange-700 ${formData.paciente_id ? "" : "pointer-events-none opacity-50"}`}>
                 Crear receta
               </Link>
+              <Link href={`/consultas/${consultaId}/imprimir`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                Imprimir informe
+              </Link>
               <Link href={`/consultas/${consultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                 Imprimir anteojos
               </Link>
@@ -653,6 +656,9 @@ function continuityToneClass(tone: string) {
                 </Link>
                 <Link href={`/recetas/nueva?consulta_id=${consultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                   Crear receta
+                </Link>
+                <Link href={`/consultas/${consultaId}/imprimir`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                  Imprimir informe
                 </Link>
                 <Link href={`/consultas/${consultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                   Imprimir anteojos
