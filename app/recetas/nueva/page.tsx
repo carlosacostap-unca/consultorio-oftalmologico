@@ -233,6 +233,9 @@ function NuevaRecetaForm() {
                   <Link href={`/recetas/${savedPrescription.id}?mode=view`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                     Ver receta
                   </Link>
+                  <Link href={`/recetas/${savedPrescription.id}/imprimir`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                    Imprimir receta
+                  </Link>
                   {savedPrescription.consultaId && (
                     <Link href={`/consultas/${savedPrescription.consultaId}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                       Volver a consulta

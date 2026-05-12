@@ -49,12 +49,13 @@ El sistema SHALL permitir crear recetas para un paciente, con consulta asociada 
 - **AND** permite cargar otra receta para el mismo paciente
 
 ### Requirement: Editar y ver receta
-El sistema SHALL permitir ver o editar una receta existente sin cargar todo el padron de pacientes.
+El sistema SHALL permitir ver o editar una receta existente sin cargar todo el padron de pacientes y con acciones clinicas de continuidad.
 
 #### Scenario: Ver receta
 - **WHEN** la URL contiene `mode=view`
 - **THEN** el sistema carga puntualmente el paciente de la receta
 - **AND** muestra paciente, fecha, consulta relacionada, medicamentos e indicaciones en modo lectura
+- **AND** muestra acciones para imprimir receta medica, abrir el paciente y volver a la consulta vinculada cuando exista
 
 #### Scenario: Editar receta
 - **WHEN** el usuario edita una receta existente
@@ -91,4 +92,16 @@ El sistema SHALL conservar las recetas al fusionar pacientes duplicados.
 - **WHEN** una receta esta vinculada a una consulta tambien reasignada
 - **THEN** el sistema conserva la relacion con la consulta
 - **AND** actualiza el paciente de la receta al paciente principal
+
+### Requirement: Impresion de receta medica
+El sistema SHALL permitir imprimir una receta medica guardada.
+
+#### Scenario: Abrir receta imprimible
+- **WHEN** el usuario abre `/recetas/[id]/imprimir`
+- **THEN** el sistema carga la receta con paciente expandido
+- **AND** muestra paciente, fecha, medicamentos e indicaciones en formato imprimible
+
+#### Scenario: Imprimir desde receta
+- **WHEN** el usuario esta viendo una receta guardada
+- **THEN** el sistema muestra una accion para abrir `/recetas/[id]/imprimir`
 

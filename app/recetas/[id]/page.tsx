@@ -63,6 +63,18 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
     const termFilters = terms.map((term) => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || dni ~ "${term}" || numero_ficha ~ "${term}")`);
     return appendActivePatientFilter(termFilters.join(" && "));
   };
+  const displayValue = (value?: string | null) => {
+    const normalized = String(value ?? "").trim();
+    return normalized || "-";
+  };
+  const selectedConsultaData = consultas.find((consulta) => consulta.id === formData.consulta_id) || null;
+  const patientSummary = selectedPacienteData
+    ? [
+        patientDocument(selectedPacienteData) ? `DNI ${patientDocument(selectedPacienteData)}` : "",
+        selectedPacienteData.numero_ficha ? `Ficha ${selectedPacienteData.numero_ficha}` : "",
+        selectedPacienteData.obra_social || "",
+      ].filter(Boolean)
+    : [];
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -234,6 +246,67 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
             <div className="w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
         ) : (
+          <div className="space-y-6">
+            <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-orange-600 dark:text-orange-400">Resumen de receta</p>
+                  <h2 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-100">
+                    {selectedPacienteData ? `${selectedPacienteData.apellido}, ${selectedPacienteData.nombre}` : "Paciente"}
+                  </h2>
+                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-semibold dark:bg-zinc-800">Receta {formatDate(formData.fecha)}</span>
+                    {patientSummary.map((item) => (
+                      <span key={item} className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium dark:bg-zinc-800">{item}</span>
+                    ))}
+                    <span className="rounded-full bg-orange-50 px-2.5 py-1 font-semibold text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+                      {formData.consulta_id ? "Vinculada a consulta" : "Receta libre"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/recetas/${recetaId}/imprimir`} className="rounded-lg bg-orange-600 px-3 py-2 text-sm font-bold text-white hover:bg-orange-700">
+                    Imprimir receta
+                  </Link>
+                  {formData.consulta_id && (
+                    <Link href={`/consultas/${formData.consulta_id}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      Volver a consulta
+                    </Link>
+                  )}
+                  {formData.consulta_id && (
+                    <Link href={`/consultas/${formData.consulta_id}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      Imprimir anteojos
+                    </Link>
+                  )}
+                  {formData.paciente_id && (
+                    <Link href={`/pacientes/${formData.paciente_id}?mode=view`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      Ver paciente
+                    </Link>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950/60 md:col-span-2">
+                  <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Medicamentos / anteojos</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm font-medium text-zinc-900 dark:text-zinc-100">{displayValue(formData.medicamentos)}</div>
+                </div>
+                <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950/60">
+                  <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Consulta relacionada</div>
+                  <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {selectedConsultaData?.fecha ? formatDate(selectedConsultaData.fecha) : "Sin consulta vinculada"}
+                  </div>
+                  {selectedConsultaData?.diagnostico && (
+                    <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">{selectedConsultaData.diagnostico}</div>
+                  )}
+                </div>
+                <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950/60 md:col-span-3">
+                  <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Indicaciones</div>
+                  <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-100">{displayValue(formData.indicaciones)}</div>
+                </div>
+              </div>
+            </section>
+
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
             <form onSubmit={handleSubmit} className="p-6 sm:p-8">
               <div className="space-y-6">
@@ -409,6 +482,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                 </div>
               )}
             </form>
+          </div>
           </div>
         )}
       </div>

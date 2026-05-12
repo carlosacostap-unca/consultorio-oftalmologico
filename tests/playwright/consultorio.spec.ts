@@ -785,9 +785,21 @@ test.describe("roles y otorgamiento de turnos", () => {
       await page.getByRole("button", { name: "Guardar Receta" }).click();
       await expect(page.getByText("Receta guardada correctamente")).toBeVisible();
       await expect(page.getByRole("link", { name: "Ver receta" })).toBeVisible();
+      await expect(page.getByRole("link", { name: "Imprimir receta" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Volver a consulta" })).toBeVisible();
       const recetaHref = await page.getByRole("link", { name: "Ver receta" }).getAttribute("href");
       createdRecetaId = recetaHref?.match(/\/recetas\/([^?]+)/)?.[1] || "";
+
+      await page.getByRole("link", { name: "Ver receta" }).click();
+      await expect(page).toHaveURL(new RegExp(`/recetas/${createdRecetaId}\\?mode=view`));
+      await expect(page.getByText("Resumen de receta")).toBeVisible();
+      await expect(page.getByText("Receta Playwright desde consulta").first()).toBeVisible();
+      await expect(page.getByRole("link", { name: "Imprimir receta" }).first()).toBeVisible();
+
+      await page.getByRole("link", { name: "Imprimir receta" }).first().click();
+      await expect(page).toHaveURL(new RegExp(`/recetas/${createdRecetaId}/imprimir`));
+      await expect(page.getByRole("heading", { name: "Receta medica" })).toBeVisible();
+      await expect(page.getByText("Receta Playwright desde consulta").first()).toBeVisible();
     } finally {
       if (createdRecetaId) {
         await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${createdRecetaId}`, {
