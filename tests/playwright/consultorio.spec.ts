@@ -783,8 +783,19 @@ test.describe("roles y otorgamiento de turnos", () => {
       await page.locator('main input[type="date"]').fill(DEMO_DATE);
       await expect(page.getByText("Jornada de atencion")).toBeVisible();
       await expect(page.getByText("Pacientes para atender:")).toBeVisible();
+      const doctorPanel = page.getByLabel("Tablero diario del medico");
+      await expect(doctorPanel).toBeVisible();
+      await expect(doctorPanel.getByText("Atencion clinica de hoy")).toBeVisible();
+      await expect(doctorPanel.getByText("Paciente en consulta", { exact: true })).toBeVisible();
+      await expect(doctorPanel.getByText("Proximo paciente", { exact: true })).toBeVisible();
+      await expect(doctorPanel.getByText("Pendientes de atencion", { exact: true })).toBeVisible();
+      await expect(doctorPanel.getByText(motivo)).toBeVisible();
+      await expect(doctorPanel.getByRole("link", { name: "Ficha clinica" }).first()).toBeVisible();
+      await expect(doctorPanel.getByRole("link", { name: "Nueva receta" }).first()).toBeVisible();
 
-      const row = page.getByText(motivo).locator("xpath=ancestor::div[contains(@class,'grid')][1]");
+      const row = page
+        .getByRole("button", { name: `Gestionar turno ${motivo}` })
+        .locator("xpath=ancestor::div[contains(@class,'grid')][1]");
       await expect(row.getByRole("button", { name: "Iniciar consulta" })).toBeVisible();
       await row.getByRole("button", { name: "Iniciar consulta" }).click();
 

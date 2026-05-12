@@ -1816,6 +1816,23 @@ export default function TurnosPage() {
   const dailySearchStats = buildDailyStats(dailySearchedTurnos);
   const dailyTotalStats = buildDailyStats(dailyBaseTurnos);
   const dailyActiveFilterLabel = DAILY_OPERATION_FILTERS.find((option) => option.key === dailyOperationFilter)?.label ?? "Todos";
+  const doctorDailyTurnos = isDoctorRole ? dailyBaseTurnos : [];
+  const doctorCurrentTurno = doctorDailyTurnos.find((turno) => turno.estado === "En consulta") ?? null;
+  const isClinicalPendingTurno = (turno: Turno) =>
+    !TERMINAL_APPOINTMENT_STATES.includes(turno.estado || "") && turno.estado !== "Cancelado";
+  const doctorNextTurno =
+    doctorDailyTurnos.find((turno) =>
+      turno.id !== doctorCurrentTurno?.id &&
+      isClinicalPendingTurno(turno) &&
+      new Date(turno.fecha_hora).getTime() >= Date.now()
+    ) ??
+    doctorDailyTurnos.find((turno) => turno.id !== doctorCurrentTurno?.id && isClinicalPendingTurno(turno)) ??
+    null;
+  const doctorPendingTurnos = doctorDailyTurnos.filter((turno) =>
+    isClinicalPendingTurno(turno) &&
+    turno.id !== doctorCurrentTurno?.id &&
+    turno.id !== doctorNextTurno?.id
+  );
   const nextDailyTurno =
     dailyVisibleTurnos.find((turno) => turno.estado !== "Cancelado" && new Date(turno.fecha_hora).getTime() >= Date.now()) ??
     dailyVisibleTurnos.find((turno) => turno.estado !== "Cancelado") ??
@@ -1926,6 +1943,81 @@ export default function TurnosPage() {
     }
 
     return slots;
+  };
+
+  const renderDoctorCareCard = (
+    title: string,
+    turno: Turno | null,
+    emptyText: string,
+    accent: "blue" | "emerald" | "amber"
+  ) => {
+    const patient = turno?.expand?.paciente_id;
+    const accentClasses = {
+      blue: "border-blue-200 bg-blue-50/70 dark:border-blue-900/50 dark:bg-blue-950/20",
+      emerald: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20",
+      amber: "border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20",
+    };
+
+    return (
+      <div className={`rounded-xl border p-4 ${accentClasses[accent]}`}>
+        <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{title}</div>
+        {turno ? (
+          <div className="mt-3 space-y-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{shortTime(new Date(turno.fecha_hora))}</span>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStateColorClass(turno.estado)}`}>
+                  {turno.estado || "Sin estado"}
+                </span>
+                {turno.es_sobreturno && (
+                  <span className="rounded-full bg-orange-100 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:bg-orange-900/40 dark:text-orange-300">
+                    Sobreturno
+                  </span>
+                )}
+              </div>
+              <div className="mt-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                {patient ? `${patient.apellido.toUpperCase()}, ${patient.nombre.toUpperCase()}` : "Paciente no encontrado"}
+              </div>
+              <div className="mt-1 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                {patientMeta(patient).map((item) => (
+                  <span key={item}>{item}</span>
+                ))}
+                <span>{turno.tipo || "Consulta"}{turno.duracion ? ` (${turno.duracion} min)` : ""}</span>
+              </div>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{turno.motivo || "Sin motivo cargado"}</p>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleConsultationAction(turno)}
+                className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+              >
+                {consultationActionLabel(turno)}
+              </button>
+              {patient && (
+                <>
+                  <Link
+                    href={`/pacientes/${patient.id}?mode=view`}
+                    className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                  >
+                    Ficha clinica
+                  </Link>
+                  <Link
+                    href={`/recetas/nueva?paciente_id=${patient.id}`}
+                    className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                  >
+                    Nueva receta
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">{emptyText}</p>
+        )}
+      </div>
+    );
   };
 
   const rescheduleDisponibilidades = selectedTurno && reschedule.isOpen
@@ -3012,6 +3104,82 @@ export default function TurnosPage() {
                     ))}
                   </div>
                 </div>
+
+                {isDoctorRole && (
+                  <section
+                    aria-label="Tablero diario del medico"
+                    className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Tablero diario del medico</p>
+                        <h3 className="mt-1 text-xl font-bold text-zinc-900 dark:text-zinc-100">Atencion clinica de hoy</h3>
+                        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                          {doctorDailyTurnos.filter(isClinicalPendingTurno).length} pacientes requieren seguimiento clinico en esta jornada.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                        <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                          En consulta: {dailyTotalStats.inConsultation}
+                        </span>
+                        <span className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                          En espera: {dailyTotalStats.waiting}
+                        </span>
+                        <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                          Atendidos: {dailyTotalStats.attended}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-4 lg:grid-cols-3">
+                      {renderDoctorCareCard("Paciente en consulta", doctorCurrentTurno, "No hay ningun paciente en consulta.", "blue")}
+                      {renderDoctorCareCard("Proximo paciente", doctorNextTurno, "No hay pacientes pendientes por ahora.", "emerald")}
+                      <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Pendientes de atencion</div>
+                          <span className="rounded-full bg-zinc-200 px-2.5 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
+                            {doctorPendingTurnos.length}
+                          </span>
+                        </div>
+                        {doctorPendingTurnos.length === 0 ? (
+                          <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No quedan pacientes pendientes fuera del proximo turno.</p>
+                        ) : (
+                          <div className="mt-3 space-y-2">
+                            {doctorPendingTurnos.slice(0, 4).map((turno) => {
+                              const patient = turno.expand?.paciente_id;
+                              return (
+                                <div key={turno.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                      <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                        {shortTime(new Date(turno.fecha_hora))} - {patient ? `${patient.apellido.toUpperCase()}, ${patient.nombre.toUpperCase()}` : "Paciente no encontrado"}
+                                      </div>
+                                      <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                                        {turno.estado || "Sin estado"} - {turno.motivo || "Sin motivo"}
+                                      </div>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleConsultationAction(turno)}
+                                      className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-700"
+                                    >
+                                      {consultationActionLabel(turno)}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {doctorPendingTurnos.length > 4 && (
+                              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                                Y {doctorPendingTurnos.length - 4} pacientes pendientes mas en la lista.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
+                )}
 
                 {dailyDoctorSections.length === 0 ? (
                   <div className="text-center text-zinc-500 dark:text-zinc-400 py-12 bg-white dark:bg-zinc-900 rounded-xl border border-dashed border-zinc-200 dark:border-zinc-800">
