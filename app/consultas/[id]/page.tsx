@@ -377,6 +377,36 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     formData.ant_otra?.trim() || "",
   ].filter(Boolean);
 
+  const hasDiagnosis = Boolean(formData.diagnostico?.trim());
+  const hasTreatment = Boolean(formData.tratamiento?.trim());
+  const hasOpticalPrescription = refractionHasValues(formData);
+  const continuityCards = [
+    {
+      title: "Diagnostico",
+      value: hasDiagnosis ? "Registrado" : "Pendiente",
+      detail: hasDiagnosis ? formData.diagnostico : "Sin diagnostico cargado.",
+      tone: hasDiagnosis ? "emerald" : "amber",
+    },
+    {
+      title: "Tratamiento",
+      value: hasTreatment ? "Registrado" : "Pendiente",
+      detail: hasTreatment ? formData.tratamiento : "Sin tratamiento cargado.",
+      tone: hasTreatment ? "emerald" : "amber",
+    },
+    {
+      title: "Recetas",
+      value: `${recetasAsociadas.length}`,
+      detail: recetasAsociadas.length === 1 ? "1 receta emitida en esta consulta." : `${recetasAsociadas.length} recetas emitidas en esta consulta.`,
+      tone: recetasAsociadas.length > 0 ? "emerald" : "zinc",
+    },
+    {
+      title: "Anteojos",
+      value: hasOpticalPrescription ? "Con datos" : "Sin datos",
+      detail: hasOpticalPrescription ? "Hay refraccion cargada para imprimir." : "No hay refraccion cargada.",
+      tone: hasOpticalPrescription ? "emerald" : "zinc",
+    },
+  ];
+
   const refractionRows = [
     {
       label: "Lejos OD",
@@ -431,9 +461,37 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     return consultaDate >= minDate;
   }
 
-  function startOfDay(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function refractionHasValues(formData: Record<string, unknown>) {
+  return [
+    formData.ref_lejos_od_esf,
+    formData.ref_lejos_od_cil,
+    formData.ref_lejos_od_eje,
+    formData.ref_lejos_oi_esf,
+    formData.ref_lejos_oi_cil,
+    formData.ref_lejos_oi_eje,
+    formData.ref_cerca_od_esf,
+    formData.ref_cerca_od_cil,
+    formData.ref_cerca_od_eje,
+    formData.ref_cerca_oi_esf,
+    formData.ref_cerca_oi_cil,
+    formData.ref_cerca_oi_eje,
+  ].some((value) => String(value ?? "").trim() !== "");
+}
+
+function continuityToneClass(tone: string) {
+  switch (tone) {
+    case "emerald":
+      return "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20";
+    case "amber":
+      return "border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20";
+    default:
+      return "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60";
   }
+}
 
   if (!isMounted) return null;
   if (!user) return null;
@@ -505,6 +563,70 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             Esta consulta ya no se puede editar porque excede el plazo configurado de {consultaEditLimitDays} dias.
           </div>
         )}
+
+        <section aria-label="Continuidad clinica" className="mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Continuidad clinica</p>
+              <h2 className="mt-1 text-xl font-bold text-zinc-900 dark:text-zinc-100">Estado de la atencion</h2>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Resumen para continuar el flujo clinico sin perder el contexto de la consulta.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
+              <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
+                Ficha clinica
+              </Link>
+              <Link href={`/recetas/nueva?consulta_id=${consultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg bg-orange-600 px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-orange-700 ${formData.paciente_id ? "" : "pointer-events-none opacity-50"}`}>
+                Crear receta
+              </Link>
+              <Link href={`/consultas/${consultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                Imprimir anteojos
+              </Link>
+              <Link href={formData.paciente_id ? `/consultas/nueva?paciente_id=${formData.paciente_id}` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
+                Nueva consulta
+              </Link>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {continuityCards.map((card) => (
+              <div key={card.title} className={`rounded-xl border p-4 ${continuityToneClass(card.tone)}`}>
+                <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{card.title}</div>
+                <div className="mt-2 text-lg font-bold text-zinc-900 dark:text-zinc-100">{card.value}</div>
+                <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">{card.detail}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Paciente</h3>
+              <p className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">{pacienteNombre}</p>
+              <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                {patientSummaryItems.length > 0 ? patientSummaryItems.map((item) => (
+                  <span key={item} className="rounded-full bg-white px-2.5 py-1 font-medium dark:bg-zinc-900">{item}</span>
+                )) : (
+                  <span>Datos del paciente en carga</span>
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Antecedentes activos</h3>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
+                  <span key={item} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                )) : (
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos</span>
+                )}
+              </div>
+            </div>
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/60">
+              <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Proximo paso</h3>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                {recetasAsociadas.length > 0 ? "Revisar recetas emitidas o imprimir indicaciones." : hasTreatment ? "Emitir receta si el tratamiento lo requiere." : "Completar diagnostico y tratamiento para cerrar la consulta."}
+              </p>
+            </div>
+          </div>
+        </section>
 
         {/* Contenedor del Formulario (Diseño estilo Legacy) */}
         <section className="mb-6 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -964,6 +1086,11 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
                         <p className="text-sm text-zinc-700 dark:text-zinc-300 line-clamp-2">
                           <span className="font-medium">Medicamentos:</span> {receta.medicamentos}
                         </p>
+                        {receta.indicaciones && (
+                          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400 line-clamp-2">
+                            <span className="font-medium">Indicaciones:</span> {receta.indicaciones}
+                          </p>
+                        )}
                       </div>
                     ))}
                   </div>

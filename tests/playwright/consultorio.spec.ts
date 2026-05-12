@@ -839,6 +839,11 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}`));
       await expect(page.getByText("Detalle clinico")).toBeVisible();
       await expect(page.getByText("Resumen clinico")).toBeVisible();
+      const continuityPanel = page.getByLabel("Continuidad clinica");
+      await expect(continuityPanel).toBeVisible();
+      await expect(continuityPanel.getByText("Estado de la atencion")).toBeVisible();
+      await expect(continuityPanel.getByRole("link", { name: "Ficha clinica" })).toBeVisible();
+      await expect(continuityPanel.getByRole("link", { name: "Crear receta" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Crear receta" }).first()).toBeVisible();
       await expect(page.getByRole("link", { name: "Imprimir anteojos" }).first()).toBeVisible();
 
@@ -856,7 +861,12 @@ test.describe("roles y otorgamiento de turnos", () => {
       const recetaHref = await page.getByRole("link", { name: "Ver receta" }).getAttribute("href");
       createdRecetaId = recetaHref?.match(/\/recetas\/([^?]+)/)?.[1] || "";
 
-      await page.getByRole("link", { name: "Ver receta" }).click();
+      await page.getByRole("link", { name: "Volver a consulta" }).click();
+      await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}`));
+      await expect(page.getByLabel("Continuidad clinica").getByText("1 receta emitida en esta consulta.")).toBeVisible();
+      await expect(page.getByText("Usar segun indicacion medica.")).toBeVisible();
+
+      await page.goto(`/recetas/${createdRecetaId}?mode=view`);
       await expect(page).toHaveURL(new RegExp(`/recetas/${createdRecetaId}\\?mode=view`));
       await expect(page.getByText("Resumen de receta")).toBeVisible();
       await expect(page.getByText("Receta Playwright desde consulta").first()).toBeVisible();
