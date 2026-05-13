@@ -7,6 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { formatDate } from "@/lib/utils";
 import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import type { ConsultaEvento } from "@/lib/consulta-eventos";
 
 interface Paciente {
   id: string;
@@ -102,6 +103,9 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [consultaAnterior, setConsultaAnterior] = useState<ConsultaNavigationItem | null>(null);
   const [consultaPosterior, setConsultaPosterior] = useState<ConsultaNavigationItem | null>(null);
   const [consultaEditLimitDays, setConsultaEditLimitDays] = useState(7);
+  const [consultaEventos, setConsultaEventos] = useState<ConsultaEvento[]>([]);
+  const [isLoadingConsultaEventos, setIsLoadingConsultaEventos] = useState(true);
+  const [consultaEventosError, setConsultaEventosError] = useState("");
 
   // Estado para la búsqueda de pacientes
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
@@ -160,6 +164,23 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           }));
           
           currentPacienteId = consultaRecord.paciente_id;
+
+          try {
+            setIsLoadingConsultaEventos(true);
+            setConsultaEventosError("");
+            const eventosRecords = await pb.collection("consulta_eventos").getFullList<ConsultaEvento>({
+              filter: `consulta_id = "${consultaId}"`,
+              sort: "-created",
+              requestKey: null,
+            });
+            setConsultaEventos(eventosRecords);
+          } catch (e) {
+            console.error("Error al cargar auditoria de consulta:", e);
+            setConsultaEventos([]);
+            setConsultaEventosError("No se pudo cargar la auditoria de esta consulta.");
+          } finally {
+            setIsLoadingConsultaEventos(false);
+          }
 
           if (currentPacienteId) {
             const consultasPaciente = await pb.collection("consultas").getFullList<ConsultaNavigationItem>({
@@ -350,6 +371,18 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         year: "numeric",
       })
     : "-";
+  const formatAuditDate = (value?: string) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   const pacienteNombre = selectedPacienteData
     ? `${selectedPacienteData.apellido}, ${selectedPacienteData.nombre}`
@@ -757,6 +790,49 @@ function continuityToneClass(tone: string) {
               </div>
             </div>
           </div>
+        </section>
+
+        <section aria-label="Auditoria de consulta" className="mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Auditoria</p>
+              <h2 className="mt-1 text-xl font-bold text-zinc-900 dark:text-zinc-100">Historial de la consulta</h2>
+              <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Registro operativo de creacion y cambios sobre esta consulta.</p>
+            </div>
+            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              {consultaEventos.length} eventos
+            </span>
+          </div>
+
+          {isLoadingConsultaEventos ? (
+            <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Cargando auditoria...</div>
+          ) : consultaEventosError ? (
+            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-200">
+              {consultaEventosError}
+            </div>
+          ) : consultaEventos.length === 0 ? (
+            <div className="mt-4 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-400">
+              Todavia no hay historial de auditoria para esta consulta.
+            </div>
+          ) : (
+            <div className="mt-4 space-y-3">
+              {consultaEventos.map((evento) => (
+                <div key={evento.id} className="grid grid-cols-1 gap-3 border-l-2 border-blue-300 bg-zinc-50 p-4 dark:border-blue-800 dark:bg-zinc-950 sm:grid-cols-[150px_minmax(0,1fr)]">
+                  <div>
+                    <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">{formatAuditDate(evento.created)}</div>
+                    <span className="mt-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                      {evento.tipo === "created" ? "Creacion" : "Edicion"}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">{evento.titulo}</div>
+                    <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{evento.detalle || "-"}</p>
+                    <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">Actor: {evento.actor_nombre || "Usuario no identificado"}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">

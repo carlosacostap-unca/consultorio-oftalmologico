@@ -1085,6 +1085,12 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}`));
       await expect(page.getByText("Detalle clinico")).toBeVisible();
       await expect(page.getByText("Resumen clinico")).toBeVisible();
+      const consultationAudit = page.getByLabel("Auditoria de consulta");
+      await expect(consultationAudit).toBeVisible();
+      await expect(consultationAudit.getByRole("heading", { name: "Historial de la consulta" })).toBeVisible();
+      await expect(consultationAudit.getByText("Consulta creada", { exact: true })).toBeVisible();
+      await expect(consultationAudit.getByText("Consulta creada desde un turno.")).toBeVisible();
+      await expect(consultationAudit.getByText("Actor:")).toBeVisible();
       await expect(page.getByText("Diagnostico Playwright desde nueva consulta.").first()).toBeVisible();
       await expect(page.getByText("Tratamiento Playwright con controles.").first()).toBeVisible();
       const continuityPanel = page.getByLabel("Continuidad clinica");
@@ -1164,6 +1170,7 @@ test.describe("roles y otorgamiento de turnos", () => {
         });
       }
       if (createdConsultaId) {
+        await cleanupConsultationEvents(request, env, adminToken, createdConsultaId);
         await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
           headers: { Authorization: `Bearer ${adminToken}` },
         });
@@ -1377,6 +1384,20 @@ async function createDemoConsultation(
   });
   expect(response.ok()).toBeTruthy();
   return response.json() as Promise<Record<string, string>>;
+}
+
+async function cleanupConsultationEvents(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  consultationId: string
+) {
+  const events = await pbList(request, env, token, "consulta_eventos", `consulta_id = "${consultationId}"`).catch(() => ({ items: [] }));
+  for (const event of events.items) {
+    await request.delete(`${pocketBaseUrl(env)}/api/collections/consulta_eventos/records/${event.id}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+  }
 }
 
 async function createDemoPrescription(

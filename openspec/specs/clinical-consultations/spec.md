@@ -21,7 +21,7 @@ El sistema SHALL listar consultas con filtros por paciente, letra inicial y fech
 - **THEN** el sistema muestra consultas entre el inicio y fin de ese dia
 
 ### Requirement: Nueva consulta clinica
-El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado con campos narrativos multilínea, contexto clinico previo del paciente y acciones de cierre asistidas al finalizar el guardado.
+El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado con campos narrativos multilínea, contexto clinico previo del paciente, auditoria de creacion y acciones de cierre asistidas al finalizar el guardado.
 
 #### Scenario: Crear consulta desde paciente
 - **WHEN** la URL incluye `paciente_id`
@@ -57,6 +57,7 @@ El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftal
 - **WHEN** el usuario guarda la consulta con paciente seleccionado
 - **THEN** el sistema crea un registro en `consultas`
 - **AND** guarda la fecha en formato ISO
+- **AND** registra un evento de auditoria de creacion de consulta
 - **AND** muestra una confirmacion de consulta guardada sin redirigir automaticamente
 
 #### Scenario: Acciones posteriores al guardado
@@ -204,4 +205,26 @@ El sistema SHALL generar una hoja imprimible de la consulta clinica completa.
 - **THEN** el sistema carga la consulta con paciente expandido
 - **AND** muestra paciente, fecha, motivo, antecedentes, examen oftalmologico, refraccion, diagnostico y tratamiento
 - **AND** muestra las recetas asociadas a la consulta cuando existan
+
+### Requirement: Auditoria de consultas
+El sistema SHALL registrar y mostrar eventos de auditoria asociados a cada consulta clinica.
+
+#### Scenario: Crear evento de consulta
+- **WHEN** se crea una consulta
+- **THEN** el sistema registra un evento asociado a la consulta
+- **AND** guarda actor, tipo, titulo, detalle y fecha de creacion
+
+#### Scenario: Editar consulta
+- **WHEN** se actualiza una consulta existente
+- **THEN** el sistema registra un evento de edicion asociado a la consulta
+- **AND** conserva la consulta actualizada aunque el registro de auditoria falle
+
+#### Scenario: Ver historial de auditoria
+- **WHEN** el usuario abre el detalle de una consulta
+- **THEN** el sistema carga los eventos de auditoria de esa consulta
+- **AND** los muestra ordenados por fecha descendente
+
+#### Scenario: Consulta sin eventos
+- **WHEN** una consulta no tiene eventos registrados
+- **THEN** el sistema informa que aun no hay historial de auditoria para esa consulta
 

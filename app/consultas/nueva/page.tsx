@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { appendActivePatientFilter } from "@/lib/patient-merge";
+import { createConsultaEvento } from "@/lib/consulta-eventos";
 
 interface Paciente {
   id: string;
@@ -480,6 +481,19 @@ function NuevaConsultaForm() {
       };
       
       const nuevaConsulta = await pb.collection("consultas").create(dataToSave);
+      await createConsultaEvento({
+        consulta_id: nuevaConsulta.id,
+        paciente_id: dataToSave.paciente_id,
+        tipo: "created",
+        titulo: "Consulta creada",
+        detalle: turnoId ? "Consulta creada desde un turno." : "Consulta creada manualmente.",
+        actor: user,
+        metadata: {
+          turno_id: turnoId || null,
+          origen: turnoId ? "turno" : "manual",
+          fecha: dataToSave.fecha,
+        },
+      });
       let turnoUpdated = false;
       
       // Si venimos desde un turno, lo actualizamos para enlazarlo y marcarlo como Atendido
