@@ -820,6 +820,21 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalTimeline.getByRole("button", { name: "Abrir consulta" }).first()).toBeVisible();
       await expect(clinicalTimeline.getByRole("button", { name: "Ver receta" }).first()).toBeVisible();
       await expect(clinicalTimeline.getByRole("button", { name: "Consulta vinculada" }).first()).toBeVisible();
+      await expect(clinicalTimeline.getByRole("button", { name: /Todo \d+/ })).toHaveAttribute("aria-pressed", "true");
+
+      await clinicalTimeline.getByRole("button", { name: /Consultas \d+/ }).click();
+      await expect(clinicalTimeline.getByRole("button", { name: /Consultas \d+/ })).toHaveAttribute("aria-pressed", "true");
+      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeHidden();
+
+      await clinicalTimeline.getByRole("button", { name: /Recetas \d+/ }).click();
+      await expect(clinicalTimeline.getByRole("button", { name: /Recetas \d+/ })).toHaveAttribute("aria-pressed", "true");
+      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeHidden();
+
+      await clinicalTimeline.getByRole("button", { name: /Todo \d+/ }).click();
+      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
 
       const recentRecipes = page
         .getByRole("heading", { name: "Recetas recientes" })

@@ -1,8 +1,5 @@
-# patient-clinical-timeline Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change add-patient-clinical-timeline. Update Purpose after archive.
-## Requirements
 ### Requirement: Linea de tiempo clinica del paciente
 El sistema SHALL mostrar una historia clinica unificada en la ficha de lectura del paciente, combinando consultas y recetas recientes en orden cronologico descendente, y SHALL permitir filtrar los eventos por tipo.
 
@@ -30,4 +27,3 @@ El sistema SHALL mostrar una historia clinica unificada en la ficha de lectura d
 #### Scenario: Filtro sin eventos
 - **WHEN** el usuario selecciona un filtro que no tiene eventos disponibles
 - **THEN** el sistema informa que no hay eventos para ese filtro
-

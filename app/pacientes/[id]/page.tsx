@@ -24,6 +24,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [isLoadingRecetas, setIsLoadingRecetas] = useState(true);
   const [paciente, setPaciente] = useState<Patient | null>(null);
+  const [clinicalTimelineFilter, setClinicalTimelineFilter] = useState<ClinicalTimelineFilter>("all");
   const isMerged = isMergedPatient(paciente);
 
   const [formData, setFormData] = useState({
@@ -217,7 +218,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const recetasRecientes = recetas.slice(0, 5);
   const edadPaciente = getPatientAge(formData.fecha_nacimiento);
   const antecedentesActivos = getAntecedentesActivos(paciente);
-  const clinicalTimelineEvents = buildClinicalTimeline(consultas, recetas).slice(0, 8);
+  const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas);
+  const clinicalTimelineCounts = {
+    all: clinicalTimelineAllEvents.length,
+    consulta: clinicalTimelineAllEvents.filter((event) => event.type === "consulta").length,
+    receta: clinicalTimelineAllEvents.filter((event) => event.type === "receta").length,
+  };
+  const clinicalTimelineEvents = clinicalTimelineAllEvents
+    .filter((event) => clinicalTimelineFilter === "all" || event.type === clinicalTimelineFilter)
+    .slice(0, 8);
   const isLoadingClinicalTimeline = isLoadingConsultas || isLoadingRecetas;
 
   if (!isMounted) return null;
@@ -461,15 +470,38 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Historia clinica</h3>
                     <p className="text-sm text-zinc-500 dark:text-zinc-400">Linea de tiempo con consultas y recetas recientes</p>
                   </div>
-                  <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                    {clinicalTimelineEvents.length} eventos
-                  </span>
+                  <div className="print:hidden flex flex-wrap gap-2">
+                    {[
+                      { key: "all" as const, label: "Todo", count: clinicalTimelineCounts.all },
+                      { key: "consulta" as const, label: "Consultas", count: clinicalTimelineCounts.consulta },
+                      { key: "receta" as const, label: "Recetas", count: clinicalTimelineCounts.receta },
+                    ].map((filter) => {
+                      const isActive = clinicalTimelineFilter === filter.key;
+                      return (
+                        <button
+                          key={filter.key}
+                          type="button"
+                          aria-pressed={isActive}
+                          onClick={() => setClinicalTimelineFilter(filter.key)}
+                          className={isActive
+                            ? "rounded-full bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm shadow-blue-500/30"
+                            : "rounded-full border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"}
+                        >
+                          {filter.label} <span className="ml-1 opacity-80">{filter.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {isLoadingClinicalTimeline ? (
                   <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Cargando historia clinica...</div>
                 ) : clinicalTimelineEvents.length === 0 ? (
-                  <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No hay eventos clinicos recientes para mostrar.</div>
+                  <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
+                    {clinicalTimelineFilter === "all"
+                      ? "No hay eventos clinicos recientes para mostrar."
+                      : `No hay ${clinicalTimelineFilter === "consulta" ? "consultas" : "recetas"} recientes para mostrar.`}
+                  </div>
                 ) : (
                   <div className="mt-4 space-y-3">
                     {clinicalTimelineEvents.map((event) => (
@@ -840,6 +872,8 @@ type ClinicalTimelineEvent = {
   printHref?: string;
   linkedConsultaHref?: string;
 };
+
+type ClinicalTimelineFilter = "all" | ClinicalTimelineEvent["type"];
 
 function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): ClinicalTimelineEvent[] {
   const consultaEvents = consultas.map((consulta) => {
