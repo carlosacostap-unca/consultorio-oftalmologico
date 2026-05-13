@@ -25,6 +25,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [isLoadingRecetas, setIsLoadingRecetas] = useState(true);
   const [paciente, setPaciente] = useState<Patient | null>(null);
   const [clinicalTimelineFilter, setClinicalTimelineFilter] = useState<ClinicalTimelineFilter>("all");
+  const [clinicalTimelineSearch, setClinicalTimelineSearch] = useState("");
   const isMerged = isMergedPatient(paciente);
 
   const [formData, setFormData] = useState({
@@ -224,8 +225,10 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     consulta: clinicalTimelineAllEvents.filter((event) => event.type === "consulta").length,
     receta: clinicalTimelineAllEvents.filter((event) => event.type === "receta").length,
   };
+  const clinicalTimelineSearchTerm = normalizeSearchText(clinicalTimelineSearch);
   const clinicalTimelineEvents = clinicalTimelineAllEvents
     .filter((event) => clinicalTimelineFilter === "all" || event.type === clinicalTimelineFilter)
+    .filter((event) => !clinicalTimelineSearchTerm || event.searchText.includes(clinicalTimelineSearchTerm))
     .slice(0, 8);
   const isLoadingClinicalTimeline = isLoadingConsultas || isLoadingRecetas;
 
@@ -494,11 +497,33 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   </div>
                 </div>
 
+                <div className="mt-4 flex flex-col gap-2 print:hidden sm:flex-row">
+                  <input
+                    type="search"
+                    value={clinicalTimelineSearch}
+                    onChange={(event) => setClinicalTimelineSearch(event.target.value)}
+                    placeholder="Buscar en historia clinica"
+                    aria-label="Buscar en historia clinica"
+                    className="min-h-10 flex-1 rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
+                  />
+                  {clinicalTimelineSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setClinicalTimelineSearch("")}
+                      className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      Limpiar
+                    </button>
+                  )}
+                </div>
+
                 {isLoadingClinicalTimeline ? (
                   <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Cargando historia clinica...</div>
                 ) : clinicalTimelineEvents.length === 0 ? (
                   <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">
-                    {clinicalTimelineFilter === "all"
+                    {clinicalTimelineSearchTerm
+                      ? "No hay eventos clinicos que coincidan con la busqueda."
+                      : clinicalTimelineFilter === "all"
                       ? "No hay eventos clinicos recientes para mostrar."
                       : `No hay ${clinicalTimelineFilter === "consulta" ? "consultas" : "recetas"} recientes para mostrar.`}
                   </div>
@@ -871,6 +896,7 @@ type ClinicalTimelineEvent = {
   primaryHref: string;
   printHref?: string;
   linkedConsultaHref?: string;
+  searchText: string;
 };
 
 type ClinicalTimelineFilter = "all" | ClinicalTimelineEvent["type"];
@@ -878,32 +904,56 @@ type ClinicalTimelineFilter = "all" | ClinicalTimelineEvent["type"];
 function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): ClinicalTimelineEvent[] {
   const consultaEvents = consultas.map((consulta) => {
     const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
+    const title = consulta.motivo_consulta || "Consulta sin motivo cargado";
+    const description = consulta.diagnostico ? `Diagnostico: ${consulta.diagnostico}` : "Sin diagnostico cargado.";
+    const secondary = tratamiento ? `Tratamiento: ${tratamiento}` : undefined;
     return {
       key: `consulta-${consulta.id}`,
       type: "consulta" as const,
       date: consulta.fecha,
-      title: consulta.motivo_consulta || "Consulta sin motivo cargado",
-      description: consulta.diagnostico ? `Diagnostico: ${consulta.diagnostico}` : "Sin diagnostico cargado.",
-      secondary: tratamiento ? `Tratamiento: ${tratamiento}` : undefined,
+      title,
+      description,
+      secondary,
       primaryHref: `/consultas/${consulta.id}?mode=view`,
+      searchText: buildEventSearchText(["consulta", formatDate(consulta.fecha), title, description, secondary]),
     };
   });
 
-  const recetaEvents = recetas.map((receta) => ({
-    key: `receta-${receta.id}`,
-    type: "receta" as const,
-    date: receta.fecha || receta.created,
-    title: receta.medicamentos || "Receta sin medicamentos cargados",
-    description: receta.indicaciones || "Sin indicaciones cargadas.",
-    secondary: receta.consulta_id
+  const recetaEvents = recetas.map((receta) => {
+    const date = receta.fecha || receta.created;
+    const title = receta.medicamentos || "Receta sin medicamentos cargados";
+    const description = receta.indicaciones || "Sin indicaciones cargadas.";
+    const secondary = receta.consulta_id
       ? `Vinculada a consulta${receta.expand?.consulta_id?.fecha ? ` del ${formatDate(receta.expand.consulta_id.fecha)}` : ""}`
-      : "Receta libre",
-    primaryHref: `/recetas/${receta.id}?mode=view`,
-    printHref: `/recetas/${receta.id}/imprimir`,
-    linkedConsultaHref: receta.consulta_id ? `/consultas/${receta.consulta_id}?mode=view` : undefined,
-  }));
+      : "Receta libre";
+
+    return {
+      key: `receta-${receta.id}`,
+      type: "receta" as const,
+      date,
+      title,
+      description,
+      secondary,
+      primaryHref: `/recetas/${receta.id}?mode=view`,
+      printHref: `/recetas/${receta.id}/imprimir`,
+      linkedConsultaHref: receta.consulta_id ? `/consultas/${receta.consulta_id}?mode=view` : undefined,
+      searchText: buildEventSearchText(["receta", formatDate(date), title, description, secondary]),
+    };
+  });
 
   return [...consultaEvents, ...recetaEvents].sort((a, b) => getDateTime(b.date) - getDateTime(a.date));
+}
+
+function buildEventSearchText(parts: Array<string | undefined>) {
+  return normalizeSearchText(parts.filter(Boolean).join(" "));
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function getDateTime(value?: string) {

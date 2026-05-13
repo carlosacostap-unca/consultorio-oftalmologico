@@ -836,6 +836,18 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
       await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
 
+      const timelineSearch = clinicalTimeline.getByLabel("Buscar en historia clinica");
+      await timelineSearch.fill(`receta ${suffix}`);
+      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeHidden();
+
+      await clinicalTimeline.getByRole("button", { name: /Consultas \d+/ }).click();
+      await expect(clinicalTimeline.getByText("No hay eventos clinicos que coincidan con la busqueda.")).toBeVisible();
+
+      await clinicalTimeline.getByRole("button", { name: "Limpiar" }).click();
+      await expect(timelineSearch).toHaveValue("");
+      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+
       const recentRecipes = page
         .getByRole("heading", { name: "Recetas recientes" })
         .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
