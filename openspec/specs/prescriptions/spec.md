@@ -4,16 +4,27 @@
 Define la gestion de recetas medicas y recetas de anteojos vinculadas opcionalmente a consultas.
 ## Requirements
 ### Requirement: Listado de recetas
-El sistema SHALL listar recetas con paciente y consulta expandidos, filtros de paciente y fecha, y actualizacion en tiempo real.
+El sistema SHALL listar recetas con paciente y consulta expandidos, filtros operativos y actualizacion en tiempo real.
 
 #### Scenario: Cargar recetas
 - **WHEN** el usuario abre `/recetas`
 - **THEN** el sistema consulta `recetas` ordenadas por fecha descendente
 - **AND** expande `paciente_id` y `consulta_id`
+- **AND** muestra por cada receta la fecha, paciente, documento, medicamento resumido y estado de vinculacion con consulta
 
 #### Scenario: Filtrar recetas
-- **WHEN** el usuario ingresa paciente o fecha
-- **THEN** el sistema filtra recetas visibles por nombre/apellido de paciente y por dia de receta
+- **WHEN** el usuario ingresa texto de busqueda
+- **THEN** el sistema filtra recetas visibles por nombre, apellido, documento, ficha, medicamento o indicacion
+- **WHEN** el usuario ingresa fecha
+- **THEN** el sistema filtra recetas visibles por dia de receta
+- **WHEN** el usuario selecciona vinculacion
+- **THEN** el sistema filtra recetas vinculadas a consulta o recetas libres segun corresponda
+
+#### Scenario: Acciones rapidas de recetas
+- **WHEN** una receta se muestra en el listado
+- **THEN** el sistema permite ver, imprimir y editar la receta
+- **AND** permite abrir el paciente relacionado
+- **AND** permite volver a la consulta vinculada cuando exista
 
 #### Scenario: Cambios en recetas
 - **WHEN** PocketBase emite cambios en `recetas`

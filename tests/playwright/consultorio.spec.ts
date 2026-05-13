@@ -710,6 +710,69 @@ test.describe("roles y otorgamiento de turnos", () => {
     expect(patientSearchErrors).toEqual([]);
   });
 
+  test("medico usa filtros y acciones del listado de recetas", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const suffix = Date.now();
+    const medicamentos = `Playwright listado receta ${suffix}`;
+    let consultaId = "";
+    let recetaId = "";
+
+    try {
+      const consulta = await createDemoConsultation(request, env, adminToken, patient!.id as string, `Playwright listado consulta ${suffix}`);
+      consultaId = consulta.id as string;
+      const receta = await createDemoPrescription(request, env, adminToken, patient!.id as string, consultaId, medicamentos);
+      recetaId = receta.id as string;
+
+      await login(page, "medico.demo@consultorio.local");
+      await page.goto("/recetas");
+
+      await expect(page.getByRole("heading", { name: "Recetas" })).toBeVisible();
+      const search = page.getByPlaceholder("Paciente, documento, ficha, medicamento o indicacion...");
+      await search.fill(medicamentos);
+
+      const table = page.locator("table");
+      await expect(table.getByText(medicamentos)).toBeVisible();
+      await expect(table.getByText("Con consulta")).toBeVisible();
+      await expect(table.getByText("Control de fusion Playwright")).toBeVisible();
+      await expect(page.getByRole("link", { name: /Imprimir receta de Libre Demo, Paciente/ })).toHaveAttribute(
+        "href",
+        `/recetas/${recetaId}/imprimir`
+      );
+      await expect(page.getByRole("link", { name: /Volver a consulta de Libre Demo, Paciente/ })).toHaveAttribute(
+        "href",
+        `/consultas/${consultaId}`
+      );
+      await expect(page.getByRole("link", { name: /Ver paciente de Libre Demo, Paciente/ })).toHaveAttribute(
+        "href",
+        `/pacientes/${patient!.id}?mode=view`
+      );
+
+      await search.fill(DEMO_PATIENT_DOCUMENT);
+      await expect(table.getByText(medicamentos)).toBeVisible();
+
+      await page.locator("select").selectOption("linked");
+      await expect(table.getByText(medicamentos)).toBeVisible();
+      await page.locator("select").selectOption("free");
+      await expect(table.getByText(medicamentos)).toHaveCount(0);
+      await expect(page.getByText("No se encontraron recetas con los filtros aplicados.")).toBeVisible();
+    } finally {
+      if (recetaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${recetaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      if (consultaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${consultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+    }
+  });
+
   test("medico ve ficha clinica del paciente con acciones y recetas", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);

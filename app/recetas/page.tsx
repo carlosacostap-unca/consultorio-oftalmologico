@@ -8,15 +8,17 @@ import { formatDate } from "@/lib/utils";
 import type { Receta } from "@/lib/types";
 import { patientDocument } from "@/lib/patient-merge";
 
+type RelationFilter = "all" | "linked" | "free";
+
 export default function RecetasPage() {
   const router = useRouter();
   const [isMounted, setIsMounted] = useState(false);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Estados para los filtros
-  const [filterPatient, setFilterPatient] = useState("");
+  const [filterQuery, setFilterQuery] = useState("");
   const [filterDate, setFilterDate] = useState("");
+  const [filterRelation, setFilterRelation] = useState<RelationFilter>("all");
 
   useEffect(() => {
     setIsMounted(true);
@@ -69,31 +71,55 @@ export default function RecetasPage() {
     }
   };
 
-  const filteredRecetas = recetas.filter((receta) => {
-    let matchesPatient = true;
-    let matchesDate = true;
+  const patientName = (receta: Receta) => {
+    const paciente = receta.expand?.paciente_id;
+    if (!paciente) return "Paciente no encontrado";
+    return `${paciente.apellido || ""}, ${paciente.nombre || ""}`.replace(/^,\s*/, "").trim() || "Paciente";
+  };
 
-    if (filterPatient) {
+  const recetaDate = (receta: Receta) => {
+    if (!receta.fecha) return "";
+    return receta.fecha.includes("T") ? receta.fecha.split("T")[0] : receta.fecha.split(" ")[0];
+  };
+
+  const filteredRecetas = recetas.filter((receta) => {
+    let matchesQuery = true;
+    let matchesDate = true;
+    let matchesRelation = true;
+
+    if (filterQuery) {
       const paciente = receta.expand?.paciente_id;
-      const patientName = paciente
-        ? `${paciente.nombre} ${paciente.apellido} ${patientDocument(paciente)} ${paciente.numero_ficha || ""}`.toLowerCase()
-        : "";
-      matchesPatient = patientName.includes(filterPatient.toLowerCase());
+      const searchable = [
+        paciente?.nombre,
+        paciente?.apellido,
+        patientDocument(paciente),
+        paciente?.numero_ficha,
+        receta.medicamentos,
+        receta.indicaciones,
+      ].filter(Boolean).join(" ").toLowerCase();
+      matchesQuery = searchable.includes(filterQuery.toLowerCase());
     }
 
     if (filterDate) {
-      const recetaDate = receta.fecha ? receta.fecha.split(" ")[0] : "";
-      matchesDate = recetaDate === filterDate;
+      matchesDate = recetaDate(receta) === filterDate;
     }
 
-    return matchesPatient && matchesDate;
+    if (filterRelation === "linked") {
+      matchesRelation = Boolean(receta.consulta_id);
+    } else if (filterRelation === "free") {
+      matchesRelation = !receta.consulta_id;
+    }
+
+    return matchesQuery && matchesDate && matchesRelation;
   });
+
+  const hasActiveFilters = Boolean(filterQuery || filterDate || filterRelation !== "all");
 
   if (!isMounted) return null;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
           <div className="flex items-center gap-4">
             <Link 
@@ -121,19 +147,18 @@ export default function RecetasPage() {
           </Link>
         </div>
 
-        {/* Filtros */}
-        <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-6 flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Buscar por paciente</label>
+        <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-6 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.4fr)_minmax(180px,0.45fr)_minmax(190px,0.45fr)_auto]">
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Buscar</label>
             <input
               type="text"
-              placeholder="Nombre o apellido..."
-              value={filterPatient}
-              onChange={(e) => setFilterPatient(e.target.value)}
+              placeholder="Paciente, documento, ficha, medicamento o indicacion..."
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
               className="w-full px-4 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all"
             />
           </div>
-          <div className="flex-1">
+          <div>
             <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Filtrar por fecha</label>
             <input
               type="date"
@@ -142,14 +167,27 @@ export default function RecetasPage() {
               className="w-full px-4 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:[color-scheme:dark]"
             />
           </div>
-          {(filterPatient || filterDate) && (
+          <div>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Vinculacion</label>
+            <select
+              value={filterRelation}
+              onChange={(event) => setFilterRelation(event.target.value as RelationFilter)}
+              className="w-full px-4 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"
+            >
+              <option value="all">Todas</option>
+              <option value="linked">Con consulta</option>
+              <option value="free">Recetas libres</option>
+            </select>
+          </div>
+          {hasActiveFilters && (
             <div className="flex items-end">
               <button
                 onClick={() => {
-                  setFilterPatient("");
+                  setFilterQuery("");
                   setFilterDate("");
+                  setFilterRelation("all");
                 }}
-                className="px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
+                className="w-full whitespace-nowrap px-4 py-2 text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200 transition-colors"
               >
                 Limpiar filtros
               </button>
@@ -172,6 +210,18 @@ export default function RecetasPage() {
             <p className="text-zinc-500 dark:text-zinc-400">
               {recetas.length === 0 ? "Aun no has registrado ninguna receta medica." : "No se encontraron recetas con los filtros aplicados."}
             </p>
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setFilterQuery("");
+                  setFilterDate("");
+                  setFilterRelation("all");
+                }}
+                className="mt-4 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+              >
+                Quitar filtros
+              </button>
+            )}
           </div>
         ) : (
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
@@ -182,6 +232,7 @@ export default function RecetasPage() {
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Fecha</th>
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Paciente</th>
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Medicamentos</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Consulta</th>
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-right">Acciones</th>
                   </tr>
                 </thead>
@@ -193,46 +244,97 @@ export default function RecetasPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
-                          {receta.expand?.paciente_id?.nombre} {receta.expand?.paciente_id?.apellido}
+                          {patientName(receta)}
                         </div>
                         <div className="text-xs text-zinc-500">
                           DNI: {patientDocument(receta.expand?.paciente_id) || "-"}
+                          {receta.expand?.paciente_id?.numero_ficha ? ` - Ficha ${receta.expand.paciente_id.numero_ficha}` : ""}
                         </div>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="text-sm text-zinc-600 dark:text-zinc-400 max-w-xs truncate">
+                        <div className="max-w-xs truncate text-sm text-zinc-700 dark:text-zinc-200">
                           {receta.medicamentos || "Sin especificar"}
                         </div>
+                        {receta.indicaciones && (
+                          <div className="mt-1 max-w-xs truncate text-xs text-zinc-500 dark:text-zinc-400">
+                            {receta.indicaciones}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {receta.consulta_id ? (
+                          <div>
+                            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              Con consulta
+                            </span>
+                            <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                              {receta.expand?.consulta_id?.fecha ? formatDate(receta.expand.consulta_id.fecha) : "Consulta vinculada"}
+                            </div>
+                            {receta.expand?.consulta_id?.diagnostico && (
+                              <div className="mt-1 max-w-48 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                                {receta.expand.consulta_id.diagnostico}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                            Receta libre
+                          </span>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           <Link
                             href={`/recetas/${receta.id}?mode=view`}
-                            className="p-2 text-zinc-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                            aria-label={`Ver receta de ${patientName(receta)}`}
+                            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
                             title="Ver"
                           >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
+                            Ver
+                          </Link>
+                          <Link
+                            href={`/recetas/${receta.id}/imprimir`}
+                            aria-label={`Imprimir receta de ${patientName(receta)}`}
+                            className="rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-orange-700"
+                            title="Imprimir"
+                          >
+                            Imprimir
                           </Link>
                           <Link
                             href={`/recetas/${receta.id}`}
-                            className="p-2 text-zinc-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-lg transition-colors"
+                            aria-label={`Editar receta de ${patientName(receta)}`}
+                            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
                             title="Editar"
                           >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
+                            Editar
                           </Link>
+                          {receta.paciente_id && (
+                            <Link
+                              href={`/pacientes/${receta.paciente_id}?mode=view`}
+                              aria-label={`Ver paciente de ${patientName(receta)}`}
+                              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                              title="Ver paciente"
+                            >
+                              Paciente
+                            </Link>
+                          )}
+                          {receta.consulta_id && (
+                            <Link
+                              href={`/consultas/${receta.consulta_id}`}
+                              aria-label={`Volver a consulta de ${patientName(receta)}`}
+                              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                              title="Volver a consulta"
+                            >
+                              Consulta
+                            </Link>
+                          )}
                           <button
                             onClick={() => handleDelete(receta.id)}
-                            className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                            aria-label={`Eliminar receta de ${patientName(receta)}`}
+                            className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-900/50 dark:bg-zinc-950 dark:text-red-400 dark:hover:bg-red-950/30"
                             title="Eliminar"
                           >
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                            Eliminar
                           </button>
                         </div>
                       </td>
