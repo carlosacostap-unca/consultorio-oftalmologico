@@ -826,7 +826,22 @@ test.describe("roles y otorgamiento de turnos", () => {
       const reloadedSummary = page
         .getByText("Ficha clinica del paciente")
         .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
-      await reloadedSummary.getByRole("button", { name: "Nueva receta" }).click();
+      await reloadedSummary.getByRole("button", { name: "Imprimir ficha" }).click();
+      await expect(page).toHaveURL(new RegExp(`/pacientes/${patient!.id}/imprimir`));
+      await expect(page.getByRole("heading", { name: "Ficha clinica del paciente" })).toBeVisible();
+      await expect(page.getByText("Consultorio oftalmologico")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Antecedentes activos" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Ultimas consultas" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Recetas recientes" })).toBeVisible();
+      await expect(page.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(page.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: "Volver a ficha" })).toBeVisible();
+
+      await page.goto(`/pacientes/${patient!.id}?mode=view`);
+      const printableReturnSummary = page
+        .getByText("Ficha clinica del paciente")
+        .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+      await printableReturnSummary.getByRole("button", { name: "Nueva receta" }).click();
       await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?paciente_id=${patient!.id}`));
     } finally {
       if (recetaId) {

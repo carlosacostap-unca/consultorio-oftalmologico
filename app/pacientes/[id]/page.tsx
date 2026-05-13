@@ -334,7 +334,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     )}
                     <button
                       type="button"
-                      onClick={() => window.print()}
+                      onClick={() => router.push(`/pacientes/${pacienteId}/imprimir`)}
                       className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
                     >
                       Imprimir ficha

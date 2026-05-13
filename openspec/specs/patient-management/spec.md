@@ -50,16 +50,25 @@ El sistema SHALL permitir crear una mutual durante el alta de paciente si no exi
 - **AND** selecciona automaticamente la mutual creada para el paciente
 
 ### Requirement: Detalle, edicion y vista de paciente
-El sistema SHALL permitir ver, editar y eliminar pacientes desde `/pacientes/[id]`, y SHALL mostrar una ficha clinica optimizada para el medico en modo lectura.
+El sistema SHALL permitir ver, editar, eliminar e imprimir pacientes desde `/pacientes/[id]`, y SHALL mostrar una ficha clinica optimizada para el medico en modo lectura.
 
 #### Scenario: Ver paciente
 - **WHEN** el usuario abre `/pacientes/[id]?mode=view`
 - **THEN** el sistema muestra una ficha clinica de lectura con identificacion del paciente, documento, numero de ficha, contacto, cobertura y antecedentes activos
 - **AND** muestra metricas de consultas, recetas y ultima atencion
-- **AND** muestra acciones directas para crear una nueva consulta, crear una nueva receta, imprimir la ficha y abrir la ultima consulta cuando exista
+- **AND** muestra acciones directas para crear una nueva consulta, crear una nueva receta, abrir la ficha imprimible y abrir la ultima consulta cuando exista
 - **AND** conserva los datos personales, documento, ficha, contacto y cobertura en modo lectura
 - **AND** muestra el historial de consultas del paciente
 - **AND** muestra las recetas recientes del paciente con acciones para ver e imprimir
+
+#### Scenario: Imprimir ficha clinica
+- **WHEN** el usuario abre `/pacientes/[id]/imprimir`
+- **THEN** el sistema carga el paciente, consultas y recetas recientes
+- **AND** muestra datos del paciente, documento, ficha, contacto, cobertura y antecedentes activos
+- **AND** muestra ultimas consultas con fecha, motivo, diagnostico y tratamiento cuando existan
+- **AND** muestra recetas recientes con fecha, medicamentos, indicaciones y vinculacion a consulta cuando exista
+- **AND** permite imprimir la hoja sin mostrar controles de navegacion en la impresion
+- **AND** permite volver a la ficha clinica del paciente desde la vista imprimible
 
 #### Scenario: Editar paciente
 - **WHEN** el usuario guarda cambios de un paciente
