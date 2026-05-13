@@ -798,12 +798,26 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalSummary).toBeVisible();
       await expect(clinicalSummary.getByText(/Libre Demo, Paciente/i)).toBeVisible();
       await expect(clinicalSummary.getByText(`DNI ${DEMO_PATIENT_DOCUMENT}`)).toBeVisible();
+      await expect(clinicalSummary.getByText("Consultas", { exact: true })).toBeVisible();
+      await expect(clinicalSummary.getByText("Recetas", { exact: true })).toBeVisible();
+      await expect(clinicalSummary.getByText("Ultima atencion", { exact: true })).toBeVisible();
       await expect(clinicalSummary.getByRole("heading", { name: "Antecedentes activos" })).toBeVisible();
       await expect(clinicalSummary.getByRole("heading", { name: "Ultima consulta" })).toBeVisible();
-      await expect(clinicalSummary.getByText(`Playwright ficha consulta ${suffix}`)).toBeVisible();
+      await expect(clinicalSummary.getByRole("heading", { name: "Continuidad clinica" })).toBeVisible();
+      await expect(clinicalSummary.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalSummary.getByText("Control de fusion Playwright").first()).toBeVisible();
+      await expect(clinicalSummary.getByRole("button", { name: "Abrir ultima consulta" })).toBeVisible();
+      await expect(clinicalSummary.getByRole("button", { name: "Imprimir ficha" })).toBeVisible();
 
-      await expect(page.getByText("Recetas recientes")).toBeVisible();
-      await expect(page.getByText(`Playwright ficha receta ${suffix}`)).toBeVisible();
+      const recentRecipes = page
+        .getByText("Recetas recientes")
+        .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
+      await expect(recentRecipes).toBeVisible();
+      await expect(recentRecipes.getByText(`Playwright ficha receta ${suffix}`)).toBeVisible();
+      await expect(recentRecipes.getByText("Vinculada a consulta")).toBeVisible();
+      await expect(recentRecipes.getByRole("button", { name: "Ver" }).first()).toBeVisible();
+      await expect(recentRecipes.getByRole("button", { name: "Imprimir" }).first()).toBeVisible();
+      await expect(recentRecipes.getByRole("button", { name: "Consulta" }).first()).toBeVisible();
 
       await clinicalSummary.getByRole("button", { name: "Nueva consulta" }).click();
       await expect(page).toHaveURL(new RegExp(`/consultas/nueva\\?paciente_id=${patient!.id}`));

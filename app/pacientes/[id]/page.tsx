@@ -87,6 +87,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           const recetasRecords = await pb.collection("recetas").getFullList<Receta>({
             filter: `paciente_id = "${pacienteId}"`,
             sort: "-fecha,-created",
+            expand: "consulta_id",
           });
           setRecetas(recetasRecords);
         } catch (error) {
@@ -212,6 +213,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const documentoPaciente = formData.numero_documento || formData.dni || paciente?.numero_documento || paciente?.dni || "";
   const coberturaPaciente = paciente?.expand?.mutual_id?.nombre || formData.obra_social || "Sin cobertura";
   const ultimaConsulta = consultas[0];
+  const consultasRecientes = consultas.slice(0, 3);
   const recetasRecientes = recetas.slice(0, 5);
   const edadPaciente = getPatientAge(formData.fecha_nacimiento);
   const antecedentesActivos = getAntecedentesActivos(paciente);
@@ -306,7 +308,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   </div>
                 </div>
                 {!isMerged && (
-                  <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+                  <div className="flex flex-col gap-2 print:hidden sm:flex-row lg:justify-end">
                     <button
                       type="button"
                       onClick={() => router.push(`/consultas/nueva?paciente_id=${pacienteId}`)}
@@ -321,8 +323,30 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     >
                       Nueva receta
                     </button>
+                    {ultimaConsulta && (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/consultas/${ultimaConsulta.id}?mode=view`)}
+                        className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        Abrir ultima consulta
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => window.print()}
+                      className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      Imprimir ficha
+                    </button>
                   </div>
                 )}
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <ClinicalMetric label="Consultas" value={`${consultas.length}`} detail={consultas.length === 1 ? "1 consulta registrada" : `${consultas.length} consultas registradas`} />
+                <ClinicalMetric label="Recetas" value={`${recetas.length}`} detail={recetas.length === 1 ? "1 receta emitida" : `${recetas.length} recetas emitidas`} />
+                <ClinicalMetric label="Ultima atencion" value={ultimaConsulta?.fecha ? formatDate(ultimaConsulta.fecha) : "-"} detail={ultimaConsulta?.motivo_consulta || "Sin consultas registradas"} />
               </div>
 
               <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -381,6 +405,53 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   )}
                 </div>
               </div>
+
+              <div aria-label="Continuidad clinica del paciente" className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Continuidad clinica</h3>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Ultimas consultas para orientar la atencion actual</p>
+                  </div>
+                  {!isMerged && (
+                    <button
+                      type="button"
+                      onClick={() => router.push(`/consultas/nueva?paciente_id=${pacienteId}`)}
+                      className="print:hidden rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                    >
+                      Agregar consulta
+                    </button>
+                  )}
+                </div>
+
+                {isLoadingConsultas ? (
+                  <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Cargando continuidad...</div>
+                ) : consultasRecientes.length === 0 ? (
+                  <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas para mostrar continuidad.</div>
+                ) : (
+                  <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                    {consultasRecientes.map((consulta) => {
+                      const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
+                      return (
+                        <div key={consulta.id} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+                          <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatDate(consulta.fecha)}</div>
+                          <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo"}</div>
+                          <div className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Diagnostico:</span> {consulta.diagnostico || "-"}</p>
+                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Tratamiento:</span> {tratamiento || "-"}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/consultas/${consulta.id}?mode=view`)}
+                            className="mt-4 print:hidden rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                          >
+                            Abrir consulta
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
@@ -406,18 +477,52 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
               ) : (
                 <div className="divide-y divide-zinc-200 dark:divide-zinc-800">
                   {recetasRecientes.map((receta) => (
-                    <button
+                    <div
                       key={receta.id}
-                      type="button"
-                      onClick={() => router.push(`/recetas/${receta.id}?mode=view`)}
-                      className="grid w-full grid-cols-1 gap-2 px-6 py-4 text-left transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 md:grid-cols-[140px_1fr]"
+                      className="grid grid-cols-1 gap-3 px-6 py-4 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/50 lg:grid-cols-[130px_minmax(0,1fr)_auto]"
                     >
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{formatDate(receta.fecha)}</span>
-                      <span className="min-w-0 text-sm text-zinc-600 dark:text-zinc-400">
-                        <span className="block truncate">{receta.medicamentos || "Sin medicamentos cargados"}</span>
-                        {receta.indicaciones && <span className="block truncate text-xs text-zinc-500 dark:text-zinc-500">{receta.indicaciones}</span>}
-                      </span>
-                    </button>
+                      <div className="min-w-0 text-sm text-zinc-600 dark:text-zinc-400">
+                        <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{receta.medicamentos || "Sin medicamentos cargados"}</div>
+                        {receta.indicaciones && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-500">{receta.indicaciones}</div>}
+                        <div className="mt-2 text-xs">
+                          {receta.consulta_id ? (
+                            <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              Vinculada a consulta {receta.expand?.consulta_id?.fecha ? formatDate(receta.expand.consulta_id.fecha) : ""}
+                            </span>
+                          ) : (
+                            <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-semibold text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                              Receta libre
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-start gap-2 print:hidden lg:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/recetas/${receta.id}?mode=view`)}
+                          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                        >
+                          Ver
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => router.push(`/recetas/${receta.id}/imprimir`)}
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-blue-700"
+                        >
+                          Imprimir
+                        </button>
+                        {receta.consulta_id && (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/consultas/${receta.consulta_id}?mode=view`)}
+                            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                          >
+                            Consulta
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ))}
                 </div>
               )}
@@ -652,6 +757,16 @@ function ClinicalInfoBlock({ title, rows }: { title: string; rows: Array<[string
           </div>
         ))}
       </dl>
+    </div>
+  );
+}
+
+function ClinicalMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">{label}</div>
+      <div className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{value}</div>
+      <div className="mt-1 truncate text-sm text-zinc-500 dark:text-zinc-400" title={detail}>{detail}</div>
     </div>
   );
 }
