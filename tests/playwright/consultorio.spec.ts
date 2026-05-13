@@ -964,12 +964,20 @@ test.describe("roles y otorgamiento de turnos", () => {
     const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
     expect(patient).toBeTruthy();
     const motivo = `Playwright medico consulta ${Date.now()}`;
+    const contextoPrevio = `Playwright contexto previo ${Date.now()}`;
+    const recetaPrevia = `Receta contexto previo ${Date.now()}`;
     const slot = "09:45";
     let createdConsultaId = "";
     let createdRecetaId = "";
+    let priorConsultaId = "";
+    let priorRecetaId = "";
     await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, slot);
 
     try {
+      const priorConsulta = await createDemoConsultation(request, env, adminToken, patient!.id as string, contextoPrevio);
+      priorConsultaId = priorConsulta.id as string;
+      const priorReceta = await createDemoPrescription(request, env, adminToken, patient!.id as string, priorConsultaId, recetaPrevia);
+      priorRecetaId = priorReceta.id as string;
       const turno = await createDemoAppointment(request, env, adminToken, medicoId, patient!.id as string, motivo, slot, "En espera");
 
       await login(page, "medico.demo@consultorio.local");
@@ -1002,6 +1010,21 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page).toHaveURL(new RegExp(`turno_id=${turno.id}`));
       await expect(page.getByText("Resumen del paciente")).toBeVisible();
       await expect(page.getByText("Consulta desde turno")).toBeVisible();
+      const clinicalContext = page.getByLabel("Contexto clinico del paciente");
+      await expect(clinicalContext).toBeVisible();
+      await expect(clinicalContext.getByRole("heading", { name: "Continuidad para la atencion actual" })).toBeVisible();
+      await expect(clinicalContext.getByRole("heading", { name: "Ultimas consultas" })).toBeVisible();
+      await expect(clinicalContext.getByRole("heading", { name: "Recetas recientes" })).toBeVisible();
+      await expect(clinicalContext.getByText(contextoPrevio).first()).toBeVisible();
+      await expect(clinicalContext.getByText("Control de fusion Playwright").first()).toBeVisible();
+      await expect(clinicalContext.getByText("Tratamiento de prueba").first()).toBeVisible();
+      await expect(clinicalContext.getByText(recetaPrevia).first()).toBeVisible();
+      await expect(clinicalContext.getByText("Uso de prueba").first()).toBeVisible();
+      const priorConsultationCard = clinicalContext.getByText(contextoPrevio).locator("xpath=ancestor::article[1]");
+      await expect(priorConsultationCard.getByRole("link", { name: "Abrir" })).toHaveAttribute("href", `/consultas/${priorConsultaId}?mode=view`);
+      const priorPrescriptionCard = clinicalContext.getByText(recetaPrevia).locator("xpath=ancestor::article[1]");
+      await expect(priorPrescriptionCard.getByRole("link", { name: "Abrir" })).toHaveAttribute("href", `/recetas/${priorRecetaId}?mode=view`);
+      await expect(priorPrescriptionCard.getByRole("link", { name: "Consulta" })).toHaveAttribute("href", `/consultas/${priorConsultaId}?mode=view`);
       await expect(page.getByText("Examen y cierre clinico")).toBeVisible();
       await expect(page.getByText("Motivo de consulta", { exact: true })).toBeVisible();
       await expect(page.getByText("Examen oftalmologico", { exact: true })).toBeVisible();
@@ -1118,8 +1141,18 @@ test.describe("roles y otorgamiento de turnos", () => {
           headers: { Authorization: `Bearer ${adminToken}` },
         });
       }
+      if (priorRecetaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${priorRecetaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
       if (createdConsultaId) {
         await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      if (priorConsultaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${priorConsultaId}`, {
           headers: { Authorization: `Bearer ${adminToken}` },
         });
       }
@@ -1322,6 +1355,7 @@ async function createDemoConsultation(
       fecha,
       motivo_consulta: motivo,
       diagnostico: "Control de fusion Playwright",
+      tratamiento: "Tratamiento de prueba",
     },
   });
   expect(response.ok()).toBeTruthy();

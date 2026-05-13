@@ -57,6 +57,24 @@ interface SavedConsultation {
   turnoUpdated: boolean;
 }
 
+interface ClinicalContextConsulta {
+  id: string;
+  fecha?: string;
+  created?: string;
+  motivo_consulta?: string;
+  diagnostico?: string;
+  tratamiento?: string;
+}
+
+interface ClinicalContextReceta {
+  id: string;
+  fecha?: string;
+  created?: string;
+  consulta_id?: string;
+  medicamentos?: string;
+  indicaciones?: string;
+}
+
 export default function NuevaConsultaPage() {
   return (
     <Suspense fallback={<div>Cargando...</div>}>
@@ -80,6 +98,10 @@ function NuevaConsultaForm() {
   const [selectedPacienteData, setSelectedPacienteData] = useState<Paciente | null>(null);
   const [selectedTurnoData, setSelectedTurnoData] = useState<TurnoContext | null>(null);
   const [savedConsultation, setSavedConsultation] = useState<SavedConsultation | null>(null);
+  const [recentConsultas, setRecentConsultas] = useState<ClinicalContextConsulta[]>([]);
+  const [recentRecetas, setRecentRecetas] = useState<ClinicalContextReceta[]>([]);
+  const [isLoadingClinicalContext, setIsLoadingClinicalContext] = useState(false);
+  const [clinicalContextError, setClinicalContextError] = useState("");
 
   // Extraer parámetros de la URL
   const initialPacienteId = searchParams.get('paciente_id') || "";
@@ -137,6 +159,16 @@ function NuevaConsultaForm() {
     if (Number.isNaN(date.getTime())) return "";
     const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
     return localDate.toISOString().split("T")[0];
+  };
+  const formatClinicalDate = (value?: string) => {
+    if (!value) return "Sin fecha";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Sin fecha";
+    return date.toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
   };
 
   const buildReturnAction = () => {
@@ -347,6 +379,59 @@ function NuevaConsultaForm() {
       setSelectedPacienteData(null);
     }
   }, [formData.paciente_id, pacientes]);
+
+  useEffect(() => {
+    if (!isMounted || !pb.authStore.isValid || !formData.paciente_id) {
+      setRecentConsultas([]);
+      setRecentRecetas([]);
+      setClinicalContextError("");
+      setIsLoadingClinicalContext(false);
+      return;
+    }
+
+    let shouldIgnore = false;
+    const loadClinicalContext = async () => {
+      setIsLoadingClinicalContext(true);
+      setClinicalContextError("");
+      try {
+        const filter = `paciente_id = "${formData.paciente_id}"`;
+        const [consultasResult, recetasResult] = await Promise.all([
+          pb.collection("consultas").getList<ClinicalContextConsulta>(1, 3, {
+            filter,
+            sort: "-fecha,-created",
+            requestKey: null,
+          }),
+          pb.collection("recetas").getList<ClinicalContextReceta>(1, 3, {
+            filter,
+            sort: "-fecha,-created",
+            requestKey: null,
+          }),
+        ]);
+
+        if (!shouldIgnore) {
+          setRecentConsultas(consultasResult.items);
+          setRecentRecetas(recetasResult.items);
+        }
+      } catch (error) {
+        console.error("Error al cargar contexto clinico:", error);
+        if (!shouldIgnore) {
+          setRecentConsultas([]);
+          setRecentRecetas([]);
+          setClinicalContextError("No se pudo cargar el contexto clinico previo.");
+        }
+      } finally {
+        if (!shouldIgnore) {
+          setIsLoadingClinicalContext(false);
+        }
+      }
+    };
+
+    loadClinicalContext();
+
+    return () => {
+      shouldIgnore = true;
+    };
+  }, [isMounted, formData.paciente_id]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
@@ -616,6 +701,114 @@ function NuevaConsultaForm() {
                 </div>
               </aside>
             </div>
+
+            {/* Sección: CONTEXTO CLINICO */}
+            <section aria-label="Contexto clinico del paciente" className="mb-6 rounded-xl border border-zinc-300 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Contexto clinico del paciente</p>
+                  <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">Continuidad para la atencion actual</h3>
+                </div>
+                {formData.paciente_id && (
+                  <Link
+                    href={`/pacientes/${formData.paciente_id}?mode=view`}
+                    className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-900"
+                  >
+                    Ver ficha completa
+                  </Link>
+                )}
+              </div>
+
+              {!formData.paciente_id ? (
+                <div className="mt-4 rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-4 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">
+                  Selecciona un paciente para ver sus consultas y recetas recientes.
+                </div>
+              ) : isLoadingClinicalContext ? (
+                <div className="mt-4 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                  <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
+                  Cargando contexto clinico previo...
+                </div>
+              ) : clinicalContextError ? (
+                <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                  {clinicalContextError}
+                </div>
+              ) : (
+                <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Ultimas consultas</h4>
+                      <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{recentConsultas.length}</span>
+                    </div>
+                    {recentConsultas.length === 0 ? (
+                      <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
+                    ) : (
+                      <div className="mt-3 space-y-3">
+                        {recentConsultas.map((consulta) => (
+                          <article key={consulta.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatClinicalDate(consulta.fecha || consulta.created)}</div>
+                                <div className="mt-1 font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo registrado"}</div>
+                              </div>
+                              <Link href={`/consultas/${consulta.id}?mode=view`} className="text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
+                                Abrir
+                              </Link>
+                            </div>
+                            <dl className="mt-3 grid grid-cols-1 gap-2 text-sm text-zinc-600 dark:text-zinc-400 sm:grid-cols-2">
+                              <div>
+                                <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-500">Diagnostico</dt>
+                                <dd className="mt-1">{consulta.diagnostico || "-"}</dd>
+                              </div>
+                              <div>
+                                <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-500">Tratamiento</dt>
+                                <dd className="mt-1">{consulta.tratamiento || "-"}</dd>
+                              </div>
+                            </dl>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900">
+                    <div className="flex items-center justify-between gap-3">
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Recetas recientes</h4>
+                      <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{recentRecetas.length}</span>
+                    </div>
+                    {recentRecetas.length === 0 ? (
+                      <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No hay recetas registradas.</p>
+                    ) : (
+                      <div className="mt-3 space-y-3">
+                        {recentRecetas.map((receta) => (
+                          <article key={receta.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                              <div>
+                                <div className="text-xs font-semibold uppercase text-emerald-600 dark:text-emerald-400">{formatClinicalDate(receta.fecha || receta.created)}</div>
+                                <div className="mt-1 font-semibold text-zinc-900 dark:text-zinc-100">{receta.medicamentos || "Sin medicamentos registrados"}</div>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                <Link href={`/recetas/${receta.id}?mode=view`} className="text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
+                                  Abrir
+                                </Link>
+                                {receta.consulta_id && (
+                                  <Link href={`/consultas/${receta.consulta_id}?mode=view`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200">
+                                    Consulta
+                                  </Link>
+                                )}
+                              </div>
+                            </div>
+                            <div className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+                              <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-500">Indicaciones</div>
+                              <p className="mt-1">{receta.indicaciones || "-"}</p>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </section>
 
             {/* Sección: DATOS DEL PACIENTE */}
             <div className="mb-6">
