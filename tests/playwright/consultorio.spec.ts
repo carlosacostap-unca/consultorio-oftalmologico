@@ -893,7 +893,18 @@ test.describe("roles y otorgamiento de turnos", () => {
       await page.getByRole("link", { name: "Imprimir receta" }).first().click();
       await expect(page).toHaveURL(new RegExp(`/recetas/${createdRecetaId}/imprimir`));
       await expect(page.getByRole("heading", { name: "Receta medica" })).toBeVisible();
+      await expect(page.getByText("Consultorio oftalmologico")).toBeVisible();
+      await expect(page.getByText("Documento:")).toBeVisible();
+      await expect(page.getByText("Ficha:")).toBeVisible();
+      await expect(page.getByText("Obra social:")).toBeVisible();
+      await expect(page.getByText("Afiliado:")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Consulta vinculada" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Contexto clinico" })).toBeVisible();
+      await expect(page.getByText(motivo).first()).toBeVisible();
       await expect(page.getByText("Receta Playwright desde consulta").first()).toBeVisible();
+      await expect(page.getByText("Usar segun indicacion medica.").first()).toBeVisible();
+      await expect(page.getByRole("button", { name: "Volver a receta" })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Volver a consulta" })).toBeVisible();
     } finally {
       if (createdRecetaId) {
         await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${createdRecetaId}`, {
