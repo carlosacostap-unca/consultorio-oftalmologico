@@ -782,12 +782,24 @@ test.describe("roles y otorgamiento de turnos", () => {
     const suffix = Date.now();
     let consultaId = "";
     let recetaId = "";
+    const extraConsultaIds: string[] = [];
 
     try {
       const consulta = await createDemoConsultation(request, env, adminToken, patient!.id as string, `Playwright ficha consulta ${suffix}`);
       consultaId = consulta.id as string;
       const receta = await createDemoPrescription(request, env, adminToken, patient!.id as string, consultaId, `Playwright ficha receta ${suffix}`);
       recetaId = receta.id as string;
+      for (let index = 0; index < 9; index += 1) {
+        const extraConsulta = await createDemoConsultation(
+          request,
+          env,
+          adminToken,
+          patient!.id as string,
+          `Playwright ficha evento oculto ${suffix}-${index}`,
+          new Date(`${DEMO_DATE}T0${index}:00:00`).toISOString()
+        );
+        extraConsultaIds.push(extraConsulta.id as string);
+      }
 
       await login(page, "medico.demo@consultorio.local");
       await page.goto(`/pacientes/${patient!.id}?mode=view`);
@@ -816,6 +828,11 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalTimeline.getByText("Receta").first()).toBeVisible();
       await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
       await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText(`Playwright ficha evento oculto ${suffix}-0`).first()).toBeHidden();
+      await clinicalTimeline.getByRole("button", { name: /Mostrar mas \(\d+\)/ }).click();
+      await expect(clinicalTimeline.getByText(`Playwright ficha evento oculto ${suffix}-0`).first()).toBeVisible();
+      await clinicalTimeline.getByRole("button", { name: "Mostrar menos" }).click();
+      await expect(clinicalTimeline.getByText(`Playwright ficha evento oculto ${suffix}-0`).first()).toBeHidden();
       await expect(clinicalTimeline.getByText("Vinculada a consulta").first()).toBeVisible();
       await expect(clinicalTimeline.getByRole("button", { name: "Abrir consulta" }).first()).toBeVisible();
       await expect(clinicalTimeline.getByRole("button", { name: "Ver receta" }).first()).toBeVisible();
@@ -922,6 +939,11 @@ test.describe("roles y otorgamiento de turnos", () => {
     } finally {
       if (recetaId) {
         await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${recetaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      for (const id of extraConsultaIds) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${id}`, {
           headers: { Authorization: `Bearer ${adminToken}` },
         });
       }
@@ -1281,13 +1303,14 @@ async function createDemoConsultation(
   env: Record<string, string>,
   token: string,
   patientId: string,
-  motivo: string
+  motivo: string,
+  fecha = new Date(`${DEMO_DATE}T12:00:00`).toISOString()
 ) {
   const response = await request.post(`${pocketBaseUrl(env)}/api/collections/consultas/records`, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       paciente_id: patientId,
-      fecha: new Date(`${DEMO_DATE}T12:00:00`).toISOString(),
+      fecha,
       motivo_consulta: motivo,
       diagnostico: "Control de fusion Playwright",
     },
