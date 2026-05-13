@@ -809,8 +809,20 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalSummary.getByRole("button", { name: "Abrir ultima consulta" })).toBeVisible();
       await expect(clinicalSummary.getByRole("button", { name: "Imprimir ficha" })).toBeVisible();
 
+      const clinicalTimeline = page.locator('[aria-label="Historia clinica del paciente"]');
+      await expect(clinicalTimeline).toBeVisible();
+      await expect(clinicalTimeline.getByRole("heading", { name: "Historia clinica" })).toBeVisible();
+      await expect(clinicalTimeline.getByText("Consulta").first()).toBeVisible();
+      await expect(clinicalTimeline.getByText("Receta").first()).toBeVisible();
+      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText("Vinculada a consulta").first()).toBeVisible();
+      await expect(clinicalTimeline.getByRole("button", { name: "Abrir consulta" }).first()).toBeVisible();
+      await expect(clinicalTimeline.getByRole("button", { name: "Ver receta" }).first()).toBeVisible();
+      await expect(clinicalTimeline.getByRole("button", { name: "Consulta vinculada" }).first()).toBeVisible();
+
       const recentRecipes = page
-        .getByText("Recetas recientes")
+        .getByRole("heading", { name: "Recetas recientes" })
         .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
       await expect(recentRecipes).toBeVisible();
       await expect(recentRecipes.getByText(`Playwright ficha receta ${suffix}`)).toBeVisible();
