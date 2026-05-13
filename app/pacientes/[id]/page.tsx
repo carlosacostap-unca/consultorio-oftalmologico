@@ -26,6 +26,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [paciente, setPaciente] = useState<Patient | null>(null);
   const [clinicalTimelineFilter, setClinicalTimelineFilter] = useState<ClinicalTimelineFilter>("all");
   const [clinicalTimelineSearch, setClinicalTimelineSearch] = useState("");
+  const [expandedClinicalTimelineEvent, setExpandedClinicalTimelineEvent] = useState<string | null>(null);
   const isMerged = isMergedPatient(paciente);
 
   const [formData, setFormData] = useState({
@@ -529,60 +530,81 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   </div>
                 ) : (
                   <div className="mt-4 space-y-3">
-                    {clinicalTimelineEvents.map((event) => (
-                      <div
-                        key={event.key}
-                        className="grid grid-cols-1 gap-3 border-l-2 border-zinc-300 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 sm:grid-cols-[120px_minmax(0,1fr)_auto]"
-                      >
-                        <div>
-                          <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">{formatDate(event.date)}</div>
-                          <span className={event.type === "consulta" ? "mt-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300" : "mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"}>
-                            {event.type === "consulta" ? "Consulta" : "Receta"}
-                          </span>
-                        </div>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-zinc-900 dark:text-zinc-100">{event.title}</div>
-                          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{event.description}</p>
-                          {event.secondary && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">{event.secondary}</p>}
-                        </div>
-                        <div className="flex flex-wrap items-start gap-2 print:hidden sm:justify-end">
-                          <button
-                            type="button"
-                            onClick={() => router.push(event.primaryHref)}
-                            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
-                          >
-                            {event.type === "consulta" ? "Abrir consulta" : "Ver receta"}
-                          </button>
-                          {event.printHref && (
+                    {clinicalTimelineEvents.map((event) => {
+                      const isExpanded = expandedClinicalTimelineEvent === event.key;
+                      return (
+                        <div
+                          key={event.key}
+                          className="grid grid-cols-1 gap-3 border-l-2 border-zinc-300 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900 sm:grid-cols-[120px_minmax(0,1fr)_auto]"
+                        >
+                          <div>
+                            <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">{formatDate(event.date)}</div>
+                            <span className={event.type === "consulta" ? "mt-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300" : "mt-2 inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300"}>
+                              {event.type === "consulta" ? "Consulta" : "Receta"}
+                            </span>
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-zinc-900 dark:text-zinc-100">{event.title}</div>
+                            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{event.description}</p>
+                            {event.secondary && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">{event.secondary}</p>}
+                            {isExpanded && (
+                              <dl className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950 sm:grid-cols-2">
+                                {event.detailRows.map((row) => (
+                                  <div key={row.label} className="min-w-0">
+                                    <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">{row.label}</dt>
+                                    <dd className="mt-1 text-sm text-zinc-900 dark:text-zinc-100">{row.value}</dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap items-start gap-2 print:hidden sm:justify-end">
                             <button
                               type="button"
-                              onClick={() => router.push(event.printHref!)}
-                              className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-blue-700"
-                            >
-                              Imprimir
-                            </button>
-                          )}
-                          {event.newPrescriptionHref && (
-                            <button
-                              type="button"
-                              onClick={() => router.push(event.newPrescriptionHref!)}
-                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
-                            >
-                              Nueva receta
-                            </button>
-                          )}
-                          {event.linkedConsultaHref && (
-                            <button
-                              type="button"
-                              onClick={() => router.push(event.linkedConsultaHref!)}
+                              onClick={() => setExpandedClinicalTimelineEvent(isExpanded ? null : event.key)}
+                              aria-expanded={isExpanded}
                               className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
                             >
-                              Consulta vinculada
+                              {isExpanded ? "Ocultar detalle" : "Ver detalle"}
                             </button>
-                          )}
+                            <button
+                              type="button"
+                              onClick={() => router.push(event.primaryHref)}
+                              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                            >
+                              {event.type === "consulta" ? "Abrir consulta" : "Ver receta"}
+                            </button>
+                            {event.printHref && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(event.printHref!)}
+                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-blue-700"
+                              >
+                                Imprimir
+                              </button>
+                            )}
+                            {event.newPrescriptionHref && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(event.newPrescriptionHref!)}
+                                className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
+                              >
+                                Nueva receta
+                              </button>
+                            )}
+                            {event.linkedConsultaHref && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(event.linkedConsultaHref!)}
+                                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                              >
+                                Consulta vinculada
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -906,6 +928,7 @@ type ClinicalTimelineEvent = {
   printHref?: string;
   newPrescriptionHref?: string;
   linkedConsultaHref?: string;
+  detailRows: Array<{ label: string; value: string }>;
   searchText: string;
 };
 
@@ -927,6 +950,12 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       primaryHref: `/consultas/${consulta.id}?mode=view`,
       printHref: `/consultas/${consulta.id}/imprimir`,
       newPrescriptionHref: `/recetas/nueva?consulta_id=${consulta.id}`,
+      detailRows: [
+        { label: "Fecha", value: formatDate(consulta.fecha) },
+        { label: "Motivo", value: title },
+        { label: "Diagnostico", value: consulta.diagnostico || "-" },
+        { label: "Tratamiento", value: tratamiento || "-" },
+      ],
       searchText: buildEventSearchText(["consulta", formatDate(consulta.fecha), title, description, secondary]),
     };
   });
@@ -949,6 +978,12 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       primaryHref: `/recetas/${receta.id}?mode=view`,
       printHref: `/recetas/${receta.id}/imprimir`,
       linkedConsultaHref: receta.consulta_id ? `/consultas/${receta.consulta_id}?mode=view` : undefined,
+      detailRows: [
+        { label: "Fecha", value: formatDate(date) },
+        { label: "Medicamentos", value: title },
+        { label: "Indicaciones", value: receta.indicaciones || "-" },
+        { label: "Vinculacion", value: secondary },
+      ],
       searchText: buildEventSearchText(["receta", formatDate(date), title, description, secondary]),
     };
   });

@@ -825,6 +825,13 @@ test.describe("roles y otorgamiento de turnos", () => {
       const consultationEvent = clinicalTimeline
         .getByText(`Playwright ficha consulta ${suffix}`)
         .locator("xpath=ancestor::div[contains(@class,'border-l-2')][1]");
+      await consultationEvent.getByRole("button", { name: "Ver detalle" }).click();
+      await expect(consultationEvent.getByText("Motivo", { exact: true })).toBeVisible();
+      await expect(consultationEvent.getByText("Diagnostico", { exact: true })).toBeVisible();
+      await expect(consultationEvent.getByText("Tratamiento", { exact: true })).toBeVisible();
+      await expect(consultationEvent.getByText("Control de fusion Playwright", { exact: true })).toBeVisible();
+      await consultationEvent.getByRole("button", { name: "Ocultar detalle" }).click();
+      await expect(consultationEvent.getByText("Tratamiento", { exact: true })).toBeHidden();
       await expect(consultationEvent.getByRole("button", { name: "Abrir consulta" })).toBeVisible();
       await expect(consultationEvent.getByRole("button", { name: "Imprimir" })).toBeVisible();
       await expect(consultationEvent.getByRole("button", { name: "Nueva receta" })).toBeVisible();
@@ -841,6 +848,16 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       await page.goto(`/pacientes/${patient!.id}?mode=view`);
       const clinicalTimelineAfterActions = page.locator('[aria-label="Historia clinica del paciente"]');
+      const prescriptionEvent = clinicalTimelineAfterActions
+        .getByText(`Playwright ficha receta ${suffix}`)
+        .locator("xpath=ancestor::div[contains(@class,'border-l-2')][1]");
+      await prescriptionEvent.getByRole("button", { name: "Ver detalle" }).click();
+      await expect(prescriptionEvent.getByText("Medicamentos", { exact: true })).toBeVisible();
+      await expect(prescriptionEvent.getByText("Indicaciones", { exact: true })).toBeVisible();
+      await expect(prescriptionEvent.getByText("Vinculacion", { exact: true })).toBeVisible();
+      await expect(prescriptionEvent.getByRole("definition").filter({ hasText: "Uso de prueba" })).toBeVisible();
+      await prescriptionEvent.getByRole("button", { name: "Ocultar detalle" }).click();
+      await expect(prescriptionEvent.getByText("Indicaciones", { exact: true })).toBeHidden();
 
       await clinicalTimelineAfterActions.getByRole("button", { name: /Consultas \d+/ }).click();
       await expect(clinicalTimelineAfterActions.getByRole("button", { name: /Consultas \d+/ })).toHaveAttribute("aria-pressed", "true");
