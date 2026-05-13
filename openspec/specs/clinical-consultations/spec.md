@@ -21,7 +21,7 @@ El sistema SHALL listar consultas con filtros por paciente, letra inicial y fech
 - **THEN** el sistema muestra consultas entre el inicio y fin de ese dia
 
 ### Requirement: Nueva consulta clinica
-El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado y ofreciendo acciones de cierre al finalizar el guardado.
+El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado con campos narrativos multilínea y ofreciendo acciones de cierre al finalizar el guardado.
 
 #### Scenario: Crear consulta desde paciente
 - **WHEN** la URL incluye `paciente_id`
@@ -39,6 +39,7 @@ El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftal
 - **WHEN** el usuario abre una nueva consulta
 - **THEN** el sistema muestra secciones distinguibles para paciente, antecedentes, motivo, examen oftalmologico, refraccion y cierre clinico
 - **AND** mantiene disponibles todos los campos clinicos actuales
+- **AND** permite cargar biomicroscopia, fondo de ojo, diagnostico y tratamiento como texto multilínea
 
 #### Scenario: Guardar consulta
 - **WHEN** el usuario guarda la consulta con paciente seleccionado

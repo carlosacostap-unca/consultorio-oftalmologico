@@ -777,17 +777,36 @@ function NuevaConsultaForm() {
 
               <div className="bg-white dark:bg-zinc-800 p-4 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm space-y-4">
                 
-                {/* Fecha y Motivo */}
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                  <div className="md:col-span-3 flex items-center border-2 border-zinc-400 dark:border-zinc-600 p-1 bg-zinc-100 dark:bg-zinc-900 shadow-inner">
-                    <label className="font-bold mr-2 ml-1 text-sm tracking-wide">FECHA:</label>
-                    <input required type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} className="w-full px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 font-bold text-center focus:outline-none dark:[color-scheme:dark]" />
+                <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                  <div className="mb-4">
+                    <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Motivo de consulta</h4>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Fecha de atencion y motivo principal referido por el paciente.</p>
                   </div>
-                  <div className="md:col-span-9 flex items-center gap-2">
-                    <label className="font-bold text-sm whitespace-nowrap">MOTIVO DE CONSULTA:</label>
-                    <input type="text" name="motivo_consulta" value={formData.motivo_consulta} onChange={handleInputChange} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+                    <label className="block text-sm font-bold">
+                      Fecha
+                      <input
+                        required
+                        type="date"
+                        name="fecha"
+                        value={formData.fecha}
+                        onChange={handleInputChange}
+                        className="mt-1 w-full rounded-lg border border-zinc-400 bg-white px-3 py-2 font-bold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:[color-scheme:dark]"
+                      />
+                    </label>
+                    <label className="block text-sm font-bold">
+                      Motivo
+                      <textarea
+                        name="motivo_consulta"
+                        value={formData.motivo_consulta}
+                        onChange={handleInputChange}
+                        rows={3}
+                        placeholder="Motivo principal de la atencion..."
+                        className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                      />
+                    </label>
                   </div>
-                </div>
+                </section>
 
                 <div className="grid grid-cols-1 gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.75fr)_minmax(620px,1.25fr)]">
                   <div className="space-y-4">
@@ -1032,23 +1051,64 @@ function NuevaConsultaForm() {
                   </>
                 )}
 
-                <div className="space-y-3 pt-2 border-t border-zinc-200 dark:border-zinc-700">
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">BIOMICROSCOPIA:</label>
-                    <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
-                  </div>
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">FONDO DE OJO:</label>
-                    <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
-                  </div>
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">DIAGNOSTICO:</label>
-                    <input type="text" name="diagnostico" value={formData.diagnostico} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
-                  </div>
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">TRATAMIENTO:</label>
-                    <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
-                  </div>
+                <div className="grid grid-cols-1 gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700 xl:grid-cols-2">
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <div className="mb-3">
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Examen oftalmologico</h4>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Hallazgos del segmento anterior y posterior.</p>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="block text-sm font-bold">
+                        Biomicroscopia
+                        <textarea
+                          name="biomicroscopia"
+                          value={formData.biomicroscopia}
+                          onChange={handleInputChange}
+                          rows={4}
+                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm font-bold">
+                        Fondo de ojo
+                        <textarea
+                          name="fondo_ojo"
+                          value={formData.fondo_ojo}
+                          onChange={handleInputChange}
+                          rows={4}
+                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                    </div>
+                  </section>
+
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <div className="mb-3">
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Cierre clinico</h4>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Conclusion diagnostica y conducta indicada.</p>
+                    </div>
+                    <div className="space-y-3">
+                      <label className="block text-sm font-bold">
+                        Diagnostico
+                        <textarea
+                          name="diagnostico"
+                          value={formData.diagnostico}
+                          onChange={handleInputChange}
+                          rows={4}
+                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                      <label className="block text-sm font-bold">
+                        Tratamiento
+                        <textarea
+                          name="tratamiento"
+                          value={formData.tratamiento}
+                          onChange={handleInputChange}
+                          rows={4}
+                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                        />
+                      </label>
+                    </div>
+                  </section>
                 </div>
               </div>
             </div>

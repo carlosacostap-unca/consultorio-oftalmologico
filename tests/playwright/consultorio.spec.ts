@@ -1003,10 +1003,17 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByText("Resumen del paciente")).toBeVisible();
       await expect(page.getByText("Consulta desde turno")).toBeVisible();
       await expect(page.getByText("Examen y cierre clinico")).toBeVisible();
+      await expect(page.getByText("Motivo de consulta", { exact: true })).toBeVisible();
+      await expect(page.getByText("Examen oftalmologico", { exact: true })).toBeVisible();
+      await expect(page.getByText("Cierre clinico", { exact: true })).toBeVisible();
       await expect(page.getByText("Agudeza visual")).toBeVisible();
       await expect(page.getByText("Presion ocular")).toBeVisible();
       await expect(page.getByText("Refraccion de lejos")).toBeVisible();
       await expect(page.getByText("Refraccion de cerca")).toBeVisible();
+      await page.getByLabel("Biomicroscopia").fill("Biomicroscopia Playwright sin particularidades.");
+      await page.getByLabel("Fondo de ojo").fill("Fondo de ojo Playwright conservado.");
+      await page.getByLabel("Diagnostico").fill("Diagnostico Playwright desde nueva consulta.");
+      await page.getByLabel("Tratamiento").fill("Tratamiento Playwright con controles.");
       await expect
         .poll(() => findDemoAppointment(request, env, adminToken, medicoId, motivo, slot, "En consulta"), {
           timeout: 10_000,
@@ -1038,6 +1045,8 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}`));
       await expect(page.getByText("Detalle clinico")).toBeVisible();
       await expect(page.getByText("Resumen clinico")).toBeVisible();
+      await expect(page.getByText("Diagnostico Playwright desde nueva consulta.").first()).toBeVisible();
+      await expect(page.getByText("Tratamiento Playwright con controles.").first()).toBeVisible();
       const continuityPanel = page.getByLabel("Continuidad clinica");
       await expect(continuityPanel).toBeVisible();
       await expect(continuityPanel.getByText("Estado de la atencion")).toBeVisible();
