@@ -690,6 +690,13 @@ test.describe("roles y otorgamiento de turnos", () => {
   });
 
   test("medico busca paciente al crear receta libre", async ({ page }) => {
+    const patientSearchErrors: string[] = [];
+    page.on("console", (message) => {
+      if (message.text().includes("Error al buscar pacientes")) {
+        patientSearchErrors.push(message.text());
+      }
+    });
+
     await login(page, "medico.demo@consultorio.local");
 
     await page.goto("/recetas/nueva");
@@ -700,6 +707,7 @@ test.describe("roles y otorgamiento de turnos", () => {
     await expect(patientSearch).toHaveValue(/Libre Demo, Paciente/);
     await expect(page.getByText("Contexto de receta")).toBeVisible();
     await expect(page.getByText("Sin consulta vinculada")).toBeVisible();
+    expect(patientSearchErrors).toEqual([]);
   });
 
   test("medico ve ficha clinica del paciente con acciones y recetas", async ({ page, request }) => {

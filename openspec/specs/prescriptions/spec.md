@@ -20,12 +20,13 @@ El sistema SHALL listar recetas con paciente y consulta expandidos, filtros de p
 - **THEN** el sistema recarga el listado manteniendo fecha descendente
 
 ### Requirement: Crear receta
-El sistema SHALL permitir crear recetas para un paciente, con consulta asociada opcional, preservando el contexto clinico cuando la receta nace desde una consulta y sin cargar todo el padron de pacientes.
+El sistema SHALL permitir crear recetas para un paciente, con consulta asociada opcional, preservando el contexto clinico cuando la receta nace desde una consulta y sin cargar todo el padron de pacientes ni enviar filtros invalidos a PocketBase.
 
 #### Scenario: Nueva receta libre
 - **WHEN** el usuario abre `/recetas/nueva`
 - **THEN** el sistema permite buscar pacientes por apellido, nombre, documento o ficha
 - **AND** lista resultados paginados sin cargar todo el padron
+- **AND** no usa campos inexistentes del esquema PocketBase para construir el filtro remoto
 - **AND** permite seleccionar paciente, fecha, medicamentos/anteojos e indicaciones
 
 #### Scenario: Nueva receta desde consulta
@@ -49,7 +50,7 @@ El sistema SHALL permitir crear recetas para un paciente, con consulta asociada 
 - **AND** permite cargar otra receta para el mismo paciente
 
 ### Requirement: Editar y ver receta
-El sistema SHALL permitir ver o editar una receta existente sin cargar todo el padron de pacientes y con acciones clinicas de continuidad.
+El sistema SHALL permitir ver o editar una receta existente sin cargar todo el padron de pacientes, sin enviar filtros invalidos a PocketBase y con acciones clinicas de continuidad.
 
 #### Scenario: Ver receta
 - **WHEN** la URL contiene `mode=view`
@@ -60,6 +61,7 @@ El sistema SHALL permitir ver o editar una receta existente sin cargar todo el p
 #### Scenario: Editar receta
 - **WHEN** el usuario edita una receta existente
 - **THEN** el sistema permite buscar pacientes por apellido, nombre, documento o ficha
+- **AND** no usa campos inexistentes del esquema PocketBase para construir el filtro remoto
 - **AND** actualiza paciente, consulta opcional, fecha, medicamentos e indicaciones
 
 #### Scenario: Consultas del paciente

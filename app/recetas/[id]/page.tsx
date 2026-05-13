@@ -7,7 +7,7 @@ import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { use } from "react";
 import type { Consulta, Patient, Receta } from "@/lib/types";
-import { appendActivePatientFilter } from "@/lib/patient-merge";
+import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
 
 export default function EditarRecetaPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -51,17 +51,6 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
   };
   const upsertPatient = (patient: Patient) => {
     setPacientes((prev) => [patient, ...prev.filter((item) => item.id !== patient.id)]);
-  };
-  const buildPatientFilter = (query: string) => {
-    const searchVal = query.toLowerCase().replace(/"/g, '\\"');
-    const terms = searchVal.split(/\s+/).filter((term) => term.length > 0);
-
-    if (terms.length === 0) {
-      return appendActivePatientFilter("");
-    }
-
-    const termFilters = terms.map((term) => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || dni ~ "${term}" || numero_ficha ~ "${term}")`);
-    return appendActivePatientFilter(termFilters.join(" && "));
   };
   const displayValue = (value?: string | null) => {
     const normalized = String(value ?? "").trim();
@@ -174,7 +163,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
       try {
         const result = await pb.collection("pacientes").getList<Patient>(1, 20, {
           sort: "apellido,nombre",
-          filter: buildPatientFilter(debouncedPatientSearchQuery),
+          filter: buildActivePatientSearchFilter(debouncedPatientSearchQuery),
           requestKey: null,
         });
         setPacientes(result.items);
@@ -236,7 +225,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
               {isViewMode ? "Ver Receta" : "Editar Receta"}
             </h1>
             <p className="text-zinc-500 dark:text-zinc-400 mt-1">
-              {isViewMode ? "Detalles de la receta médica" : "Modificá los datos de la receta"}
+              {isViewMode ? "Detalles de la receta medica" : "Modifica los datos de la receta"}
             </p>
           </div>
         </div>
@@ -366,7 +355,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
 
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                      Fecha de Receta *
+                      Fecha de receta *
                     </label>
                     <input
                       type="date"
@@ -382,7 +371,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                 {formData.paciente_id && (
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
-                      Consulta Relacionada (Opcional)
+                      Consulta relacionada (opcional)
                     </label>
                     <div className="flex gap-2">
                       <select
@@ -394,7 +383,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                         <option value="">Ninguna o crear sin consulta</option>
                         {consultas.map((consulta) => (
                           <option key={consulta.id} value={consulta.id}>
-                            {formatDate(consulta.fecha)} - {consulta.diagnostico ? consulta.diagnostico.substring(0, 50) + "..." : "Sin diagnóstico"}
+                            {formatDate(consulta.fecha)} - {consulta.diagnostico ? consulta.diagnostico.substring(0, 50) + "..." : "Sin diagnostico"}
                           </option>
                         ))}
                       </select>
@@ -408,7 +397,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                           </svg>
-                          Imprimir Anteojos
+                          Imprimir anteojos
                         </button>
                       )}
                     </div>
@@ -427,7 +416,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                     value={formData.medicamentos}
                     onChange={(e) => setFormData({ ...formData, medicamentos: e.target.value })}
                     rows={4}
-                    placeholder="Ej. Lentes de contacto, Gotas oftálmicas..."
+                    placeholder="Ej. Lentes de contacto, gotas oftalmicas..."
                     className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100 resize-none disabled:opacity-70 disabled:bg-zinc-100 dark:disabled:bg-zinc-800"
                   />
                 </div>
@@ -441,7 +430,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                     disabled={isViewMode}
                     onChange={(e) => setFormData({ ...formData, indicaciones: e.target.value })}
                     rows={4}
-                    placeholder="Ej. Aplicar 2 gotas cada 8 horas por 7 días..."
+                    placeholder="Ej. Aplicar 2 gotas cada 8 horas por 7 dias..."
                     className="w-full px-4 py-3 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100 resize-none disabled:opacity-70 disabled:bg-zinc-100 dark:disabled:bg-zinc-800"
                   />
                 </div>

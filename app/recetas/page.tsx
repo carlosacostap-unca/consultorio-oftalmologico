@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { Receta } from "@/lib/types";
+import { patientDocument } from "@/lib/patient-merge";
 
 export default function RecetasPage() {
   const router = useRouter();
@@ -51,7 +52,7 @@ export default function RecetasPage() {
         setRecetas(records);
       })
       .then((unsub) => { unsubscribe = unsub; })
-      .catch((err) => console.log("Suscripción fallida a recetas:", err));
+      .catch((err) => console.log("Suscripcion fallida a recetas:", err));
 
     return () => {
       if (unsubscribe) unsubscribe();
@@ -59,7 +60,7 @@ export default function RecetasPage() {
   }, [router]);
 
   const handleDelete = async (id: string) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar esta receta?")) {
+    if (window.confirm("Estas seguro de que deseas eliminar esta receta?")) {
       try {
         await pb.collection("recetas").delete(id);
       } catch (error) {
@@ -73,8 +74,9 @@ export default function RecetasPage() {
     let matchesDate = true;
 
     if (filterPatient) {
-      const patientName = receta.expand?.paciente_id 
-        ? `${receta.expand.paciente_id.nombre} ${receta.expand.paciente_id.apellido}`.toLowerCase()
+      const paciente = receta.expand?.paciente_id;
+      const patientName = paciente
+        ? `${paciente.nombre} ${paciente.apellido} ${patientDocument(paciente)} ${paciente.numero_ficha || ""}`.toLowerCase()
         : "";
       matchesPatient = patientName.includes(filterPatient.toLowerCase());
     }
@@ -104,7 +106,7 @@ export default function RecetasPage() {
             </Link>
             <div>
               <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100">Recetas</h1>
-              <p className="text-zinc-500 dark:text-zinc-400 mt-1">Gestión de recetas médicas</p>
+              <p className="text-zinc-500 dark:text-zinc-400 mt-1">Gestion de recetas medicas</p>
             </div>
           </div>
           
@@ -115,14 +117,14 @@ export default function RecetasPage() {
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Nueva Receta
+            Nueva receta
           </Link>
         </div>
 
         {/* Filtros */}
         <div className="bg-white dark:bg-zinc-900 p-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-6 flex flex-col sm:flex-row gap-4">
           <div className="flex-1">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Buscar por Paciente</label>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Buscar por paciente</label>
             <input
               type="text"
               placeholder="Nombre o apellido..."
@@ -132,7 +134,7 @@ export default function RecetasPage() {
             />
           </div>
           <div className="flex-1">
-            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Filtrar por Fecha</label>
+            <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">Filtrar por fecha</label>
             <input
               type="date"
               value={filterDate}
@@ -168,7 +170,7 @@ export default function RecetasPage() {
             </div>
             <h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-1">No hay recetas</h3>
             <p className="text-zinc-500 dark:text-zinc-400">
-              {recetas.length === 0 ? "Aún no has registrado ninguna receta médica." : "No se encontraron recetas con los filtros aplicados."}
+              {recetas.length === 0 ? "Aun no has registrado ninguna receta medica." : "No se encontraron recetas con los filtros aplicados."}
             </p>
           </div>
         ) : (
@@ -194,7 +196,7 @@ export default function RecetasPage() {
                           {receta.expand?.paciente_id?.nombre} {receta.expand?.paciente_id?.apellido}
                         </div>
                         <div className="text-xs text-zinc-500">
-                          DNI: {receta.expand?.paciente_id?.dni}
+                          DNI: {patientDocument(receta.expand?.paciente_id) || "-"}
                         </div>
                       </td>
                       <td className="px-6 py-4">
