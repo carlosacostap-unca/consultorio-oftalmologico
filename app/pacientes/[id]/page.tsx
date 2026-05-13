@@ -562,6 +562,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                               Imprimir
                             </button>
                           )}
+                          {event.newPrescriptionHref && (
+                            <button
+                              type="button"
+                              onClick={() => router.push(event.newPrescriptionHref!)}
+                              className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700"
+                            >
+                              Nueva receta
+                            </button>
+                          )}
                           {event.linkedConsultaHref && (
                             <button
                               type="button"
@@ -895,6 +904,7 @@ type ClinicalTimelineEvent = {
   secondary?: string;
   primaryHref: string;
   printHref?: string;
+  newPrescriptionHref?: string;
   linkedConsultaHref?: string;
   searchText: string;
 };
@@ -915,6 +925,8 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       description,
       secondary,
       primaryHref: `/consultas/${consulta.id}?mode=view`,
+      printHref: `/consultas/${consulta.id}/imprimir`,
+      newPrescriptionHref: `/recetas/nueva?consulta_id=${consulta.id}`,
       searchText: buildEventSearchText(["consulta", formatDate(consulta.fecha), title, description, secondary]),
     };
   });

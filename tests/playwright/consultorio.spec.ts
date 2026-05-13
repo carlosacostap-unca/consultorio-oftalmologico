@@ -822,31 +822,51 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalTimeline.getByRole("button", { name: "Consulta vinculada" }).first()).toBeVisible();
       await expect(clinicalTimeline.getByRole("button", { name: /Todo \d+/ })).toHaveAttribute("aria-pressed", "true");
 
-      await clinicalTimeline.getByRole("button", { name: /Consultas \d+/ }).click();
-      await expect(clinicalTimeline.getByRole("button", { name: /Consultas \d+/ })).toHaveAttribute("aria-pressed", "true");
-      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
-      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeHidden();
+      const consultationEvent = clinicalTimeline
+        .getByText(`Playwright ficha consulta ${suffix}`)
+        .locator("xpath=ancestor::div[contains(@class,'border-l-2')][1]");
+      await expect(consultationEvent.getByRole("button", { name: "Abrir consulta" })).toBeVisible();
+      await expect(consultationEvent.getByRole("button", { name: "Imprimir" })).toBeVisible();
+      await expect(consultationEvent.getByRole("button", { name: "Nueva receta" })).toBeVisible();
 
-      await clinicalTimeline.getByRole("button", { name: /Recetas \d+/ }).click();
-      await expect(clinicalTimeline.getByRole("button", { name: /Recetas \d+/ })).toHaveAttribute("aria-pressed", "true");
-      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
-      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeHidden();
+      await consultationEvent.getByRole("button", { name: "Imprimir" }).click();
+      await expect(page).toHaveURL(new RegExp(`/consultas/${consultaId}/imprimir`));
+      await page.goto(`/pacientes/${patient!.id}?mode=view`);
+      const reloadedClinicalTimeline = page.locator('[aria-label="Historia clinica del paciente"]');
+      const reloadedConsultationEvent = reloadedClinicalTimeline
+        .getByText(`Playwright ficha consulta ${suffix}`)
+        .locator("xpath=ancestor::div[contains(@class,'border-l-2')][1]");
+      await reloadedConsultationEvent.getByRole("button", { name: "Nueva receta" }).click();
+      await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?consulta_id=${consultaId}`));
 
-      await clinicalTimeline.getByRole("button", { name: /Todo \d+/ }).click();
-      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
-      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await page.goto(`/pacientes/${patient!.id}?mode=view`);
+      const clinicalTimelineAfterActions = page.locator('[aria-label="Historia clinica del paciente"]');
 
-      const timelineSearch = clinicalTimeline.getByLabel("Buscar en historia clinica");
+      await clinicalTimelineAfterActions.getByRole("button", { name: /Consultas \d+/ }).click();
+      await expect(clinicalTimelineAfterActions.getByRole("button", { name: /Consultas \d+/ })).toHaveAttribute("aria-pressed", "true");
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha receta ${suffix}`).first()).toBeHidden();
+
+      await clinicalTimelineAfterActions.getByRole("button", { name: /Recetas \d+/ }).click();
+      await expect(clinicalTimelineAfterActions.getByRole("button", { name: /Recetas \d+/ })).toHaveAttribute("aria-pressed", "true");
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeHidden();
+
+      await clinicalTimelineAfterActions.getByRole("button", { name: /Todo \d+/ }).click();
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+
+      const timelineSearch = clinicalTimelineAfterActions.getByLabel("Buscar en historia clinica");
       await timelineSearch.fill(`receta ${suffix}`);
-      await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
-      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeHidden();
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeHidden();
 
-      await clinicalTimeline.getByRole("button", { name: /Consultas \d+/ }).click();
-      await expect(clinicalTimeline.getByText("No hay eventos clinicos que coincidan con la busqueda.")).toBeVisible();
+      await clinicalTimelineAfterActions.getByRole("button", { name: /Consultas \d+/ }).click();
+      await expect(clinicalTimelineAfterActions.getByText("No hay eventos clinicos que coincidan con la busqueda.")).toBeVisible();
 
-      await clinicalTimeline.getByRole("button", { name: "Limpiar" }).click();
+      await clinicalTimelineAfterActions.getByRole("button", { name: "Limpiar" }).click();
       await expect(timelineSearch).toHaveValue("");
-      await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimelineAfterActions.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
 
       const recentRecipes = page
         .getByRole("heading", { name: "Recetas recientes" })
@@ -880,7 +900,7 @@ test.describe("roles y otorgamiento de turnos", () => {
       const printableReturnSummary = page
         .getByText("Ficha clinica del paciente")
         .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
-      await printableReturnSummary.getByRole("button", { name: "Nueva receta" }).click();
+      await printableReturnSummary.getByRole("button", { name: "Nueva receta" }).first().click();
       await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?paciente_id=${patient!.id}`));
     } finally {
       if (recetaId) {
