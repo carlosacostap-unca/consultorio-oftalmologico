@@ -1047,9 +1047,15 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByText("Consulta guardada correctamente")).toBeVisible();
       await expect(page.getByText("Consulta guardada y turno marcado como atendido")).toBeVisible();
       await expect(page.getByText("El turno fue marcado como Atendido.")).toBeVisible();
-      await expect(page.getByRole("link", { name: "Abrir consulta" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Crear receta" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Imprimir anteojos" })).toBeVisible();
+      const completionPanel = page.getByLabel("Cierre de consulta");
+      await expect(completionPanel).toBeVisible();
+      await expect(completionPanel.getByText("Accion recomendada")).toBeVisible();
+      await expect(completionPanel.getByText("Tratamiento cargado")).toBeVisible();
+      await expect(completionPanel.getByText("La consulta tiene tratamiento indicado.")).toBeVisible();
+      await expect(completionPanel.getByRole("link", { name: "Abrir consulta" })).toBeVisible();
+      await expect(completionPanel.getByRole("link", { name: "Crear receta" })).toBeVisible();
+      await expect(completionPanel.getByRole("link", { name: "Imprimir anteojos" })).toBeVisible();
+      await expect(completionPanel.getByRole("link", { name: "Ficha del paciente" })).toHaveAttribute("href", `/pacientes/${patient!.id}?mode=view`);
       await expect
         .poll(async () => {
           const updatedTurno = await pbGet(request, env, adminToken, "turnos", turno.id as string);

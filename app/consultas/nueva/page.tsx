@@ -582,6 +582,45 @@ function NuevaConsultaForm() {
       })
     : "";
 
+  const hasTreatmentForCompletion = formData.tratamiento.trim() !== "";
+  const hasRefractionForCompletion = [
+    formData.ref_lejos_od_esf,
+    formData.ref_lejos_od_cil,
+    formData.ref_lejos_od_eje,
+    formData.ref_lejos_oi_esf,
+    formData.ref_lejos_oi_cil,
+    formData.ref_lejos_oi_eje,
+    formData.ref_cerca_od_esf,
+    formData.ref_cerca_od_cil,
+    formData.ref_cerca_od_eje,
+    formData.ref_cerca_oi_esf,
+    formData.ref_cerca_oi_cil,
+    formData.ref_cerca_oi_eje,
+    formData.add_value,
+  ].some((value) => value.trim() !== "");
+  const completionRecommendation = savedConsultation
+    ? hasTreatmentForCompletion
+      ? {
+          label: "Crear receta",
+          href: `/recetas/nueva?consulta_id=${savedConsultation.id}&paciente_id=${savedConsultation.pacienteId}`,
+          title: "Tratamiento cargado",
+          detail: "La consulta tiene tratamiento indicado. Conviene emitir la receta o indicacion correspondiente.",
+        }
+      : hasRefractionForCompletion
+        ? {
+            label: "Imprimir anteojos",
+            href: `/consultas/${savedConsultation.id}/imprimir-anteojos`,
+            title: "Refraccion cargada",
+            detail: "Hay datos de refraccion disponibles para entregar la receta de anteojos.",
+          }
+        : {
+            label: savedConsultation.returnLabel,
+            href: savedConsultation.returnHref,
+            title: "Atencion finalizada",
+            detail: "No hay tratamiento ni refraccion cargada. Podes volver al contexto de trabajo.",
+          }
+    : null;
+
   if (!isMounted) return null;
   if (!user) return null;
 
@@ -616,10 +655,10 @@ function NuevaConsultaForm() {
           </div>
           
           <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
-            {savedConsultation && (
-              <section className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
+            {savedConsultation && completionRecommendation && (
+              <section aria-label="Cierre de consulta" className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                  <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Consulta guardada correctamente</p>
                     <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
                       {savedConsultation.turnoUpdated
@@ -632,19 +671,41 @@ function NuevaConsultaForm() {
                         : "Podes continuar con una accion relacionada o volver al contexto anterior."}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Link href={`/consultas/${savedConsultation.id}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                      Abrir consulta
-                    </Link>
-                    <Link href={`/recetas/nueva?consulta_id=${savedConsultation.id}&paciente_id=${savedConsultation.pacienteId}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                      Crear receta
-                    </Link>
-                    <Link href={`/consultas/${savedConsultation.id}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
-                      Imprimir anteojos
-                    </Link>
-                    <Link href={savedConsultation.returnHref} className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#1f6b6b]">
-                      {savedConsultation.returnLabel}
-                    </Link>
+
+                  <div className="grid w-full gap-3 xl:max-w-3xl xl:grid-cols-[minmax(240px,0.9fr)_minmax(280px,1.1fr)]">
+                    <div className="rounded-xl border border-emerald-200 bg-white p-4 dark:border-emerald-800 dark:bg-zinc-950">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Accion recomendada</p>
+                      <h4 className="mt-1 font-bold text-zinc-900 dark:text-zinc-100">{completionRecommendation.title}</h4>
+                      <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">{completionRecommendation.detail}</p>
+                      <Link href={completionRecommendation.href} className="mt-4 inline-flex rounded-lg bg-[#2d8f8f] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#1f6b6b]">
+                        {completionRecommendation.label}
+                      </Link>
+                    </div>
+
+                    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-950">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Otras acciones</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Link href={`/consultas/${savedConsultation.id}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                          Abrir consulta
+                        </Link>
+                        <Link href={`/pacientes/${savedConsultation.pacienteId}?mode=view`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                          Ficha del paciente
+                        </Link>
+                        {!hasTreatmentForCompletion && (
+                          <Link href={`/recetas/nueva?consulta_id=${savedConsultation.id}&paciente_id=${savedConsultation.pacienteId}`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                            Crear receta
+                          </Link>
+                        )}
+                        {!hasRefractionForCompletion && (
+                          <Link href={`/consultas/${savedConsultation.id}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                            Imprimir anteojos
+                          </Link>
+                        )}
+                        <Link href={savedConsultation.returnHref} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold text-zinc-900 hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                          {savedConsultation.returnLabel}
+                        </Link>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </section>
