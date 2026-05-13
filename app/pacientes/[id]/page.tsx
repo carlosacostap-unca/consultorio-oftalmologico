@@ -219,6 +219,27 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const ultimaConsulta = consultas[0];
   const consultasRecientes = consultas.slice(0, 3);
   const recetasRecientes = recetas.slice(0, 5);
+  const ultimaReceta = recetasRecientes[0];
+  const ultimoTratamiento = ultimaConsulta ? (ultimaConsulta as Consulta & { tratamiento?: string }).tratamiento || "" : "";
+  const continuitySuggestedAction = !isMerged
+    ? !ultimaConsulta
+      ? {
+          label: "Iniciar primera consulta",
+          detail: "No hay atenciones registradas para este paciente.",
+          onClick: () => router.push(`/consultas/nueva?paciente_id=${pacienteId}`),
+        }
+      : ultimoTratamiento
+        ? {
+            label: "Crear receta",
+            detail: "La ultima consulta tiene tratamiento indicado.",
+            onClick: () => router.push(`/recetas/nueva?consulta_id=${ultimaConsulta.id}&paciente_id=${pacienteId}`),
+          }
+        : {
+            label: "Abrir ultima consulta",
+            detail: "Revisar la ultima atencion antes de continuar.",
+            onClick: () => router.push(`/consultas/${ultimaConsulta.id}?mode=view`),
+          }
+    : null;
   const edadPaciente = getPatientAge(formData.fecha_nacimiento);
   const antecedentesActivos = getAntecedentesActivos(paciente);
   const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas);
@@ -366,6 +387,56 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                 <ClinicalMetric label="Consultas" value={`${consultas.length}`} detail={consultas.length === 1 ? "1 consulta registrada" : `${consultas.length} consultas registradas`} />
                 <ClinicalMetric label="Recetas" value={`${recetas.length}`} detail={recetas.length === 1 ? "1 receta emitida" : `${recetas.length} recetas emitidas`} />
                 <ClinicalMetric label="Ultima atencion" value={ultimaConsulta?.fecha ? formatDate(ultimaConsulta.fecha) : "-"} detail={ultimaConsulta?.motivo_consulta || "Sin consultas registradas"} />
+              </div>
+
+              <div aria-label="Continuidad actual del paciente" className="mt-6 rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900/60 dark:bg-blue-950/20">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Continuidad actual</p>
+                    <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">Lectura rapida para la proxima accion</h3>
+                    {continuitySuggestedAction && (
+                      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{continuitySuggestedAction.detail}</p>
+                    )}
+                  </div>
+                  {continuitySuggestedAction && (
+                    <button
+                      type="button"
+                      onClick={continuitySuggestedAction.onClick}
+                      className="print:hidden rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-blue-500/30 transition-colors hover:bg-blue-700"
+                    >
+                      {continuitySuggestedAction.label}
+                    </button>
+                  )}
+                </div>
+
+                <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl border border-blue-100 bg-white p-4 dark:border-blue-900/60 dark:bg-zinc-950">
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ultima consulta</h4>
+                    {ultimaConsulta ? (
+                      <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+                        <div className="font-semibold text-blue-700 dark:text-blue-300">{formatDate(ultimaConsulta.fecha)}</div>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Motivo:</span> {ultimaConsulta.motivo_consulta || "-"}</p>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Diagnostico:</span> {ultimaConsulta.diagnostico || "-"}</p>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Tratamiento:</span> {ultimoTratamiento || "-"}</p>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
+                    )}
+                  </div>
+
+                  <div className="rounded-xl border border-blue-100 bg-white p-4 dark:border-blue-900/60 dark:bg-zinc-950">
+                    <h4 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ultima receta</h4>
+                    {ultimaReceta ? (
+                      <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
+                        <div className="font-semibold text-emerald-700 dark:text-emerald-300">{formatDate(ultimaReceta.fecha || ultimaReceta.created)}</div>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medicamentos:</span> {ultimaReceta.medicamentos || "-"}</p>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Indicaciones:</span> {ultimaReceta.indicaciones || "-"}</p>
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No hay recetas recientes registradas.</p>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
