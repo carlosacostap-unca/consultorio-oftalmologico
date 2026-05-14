@@ -1046,6 +1046,7 @@ test.describe("roles y otorgamiento de turnos", () => {
       if (isCompactDesktop) {
         const desktopContextPanel = page.getByLabel("Panel de contexto de la consulta");
         await expect(desktopContextPanel.getByText("Paciente", { exact: true })).toBeVisible();
+        await expect(desktopContextPanel.getByText("Domicilio", { exact: true })).toBeVisible();
         await expect(desktopContextPanel.getByText("Turno asociado")).toBeVisible();
       }
       await expect(clinicalContext.getByRole("heading", { name: "Ultimas consultas" })).toBeVisible();
@@ -1060,6 +1061,10 @@ test.describe("roles y otorgamiento de turnos", () => {
       const priorPrescriptionCard = clinicalContext.getByText(recetaPrevia).locator("xpath=ancestor::article[1]");
       await expect(priorPrescriptionCard.getByRole("link", { name: "Abrir" })).toHaveAttribute("href", `/recetas/${priorRecetaId}?mode=view`);
       await expect(priorPrescriptionCard.getByRole("link", { name: "Consulta" })).toHaveAttribute("href", `/consultas/${priorConsultaId}?mode=view`);
+      if (isCompactDesktop) {
+        await page.getByRole("button", { name: "Cerrar" }).click();
+        await expect(page.getByLabel("Panel de contexto de la consulta")).toBeHidden();
+      }
       await expect(page.getByText("Examen y cierre clinico")).toBeVisible();
       await expect(page.getByText("Motivo de consulta", { exact: true })).toBeVisible();
       await expect(page.getByText("Examen oftalmologico", { exact: true })).toBeVisible();

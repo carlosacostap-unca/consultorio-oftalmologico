@@ -76,6 +76,29 @@ interface ClinicalContextReceta {
   indicaciones?: string;
 }
 
+type AntecedenteKey =
+  | "ant_diabetes"
+  | "ant_glaucoma"
+  | "ant_maculopatia"
+  | "ant_asmatico"
+  | "ant_hipertension"
+  | "ant_alergico"
+  | "ant_reuma"
+  | "ant_gota"
+  | "ant_herpes";
+
+const antecedentesFijos: Array<{ key: AntecedenteKey; label: string }> = [
+  { key: "ant_diabetes", label: "DIABETES" },
+  { key: "ant_glaucoma", label: "GLAUCOMA" },
+  { key: "ant_maculopatia", label: "MACULOPATIA" },
+  { key: "ant_asmatico", label: "ASMA" },
+  { key: "ant_hipertension", label: "HIPERTENSION" },
+  { key: "ant_alergico", label: "ALERGIA" },
+  { key: "ant_reuma", label: "REUMA" },
+  { key: "ant_gota", label: "GOTA" },
+  { key: "ant_herpes", label: "HERPES" },
+];
+
 export default function NuevaConsultaPage() {
   return (
     <Suspense fallback={<div>Cargando...</div>}>
@@ -546,6 +569,10 @@ function NuevaConsultaForm() {
     focusables[nextIdx].focus();
   };
 
+  const toggleAntecedente = (name: AntecedenteKey) => {
+    setFormData((prev) => ({ ...prev, [name]: !prev[name] }));
+  };
+
   // Función auxiliar para calcular edad
   const calcularEdad = (fechaNacimiento: string) => {
     if (!fechaNacimiento) return "-";
@@ -751,10 +778,6 @@ function NuevaConsultaForm() {
                       )}
                     </div>
                   </div>
-                  <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">Domicilio</div>
-                    <div className="mt-1">{selectedPacienteData?.domicilio || "Sin domicilio cargado"}</div>
-                  </div>
                 </div>
               </section>
 
@@ -793,6 +816,10 @@ function NuevaConsultaForm() {
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Contexto clinico del paciente</p>
                   <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">Continuidad para la atencion actual</h3>
+                  <div className="mt-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">Domicilio</div>
+                    <div className="mt-1">{selectedPacienteData?.domicilio || "Sin domicilio cargado"}</div>
+                  </div>
                 </div>
                 {formData.paciente_id && (
                   <Link
@@ -906,6 +933,10 @@ function NuevaConsultaForm() {
                   )) : (
                     <span className="rounded-full bg-white px-2 py-1 font-medium dark:bg-zinc-900">Busca o selecciona un paciente</span>
                   )}
+                </div>
+                <div className="mt-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                  <div className="font-semibold text-zinc-900 dark:text-zinc-100">Domicilio</div>
+                  <div className="mt-1">{selectedPacienteData?.domicilio || "Sin domicilio cargado"}</div>
                 </div>
               </section>
 
@@ -1134,10 +1165,6 @@ function NuevaConsultaForm() {
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
-                <div className="col-span-12">
-                  <label className="block text-xs font-semibold mb-1">Domicilio</label>
-                  <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
-                </div>
               </div>
             </div>
 
@@ -1147,44 +1174,27 @@ function NuevaConsultaForm() {
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Antecedentes Fijos</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
-              <div className="flex flex-wrap items-center gap-4 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_diabetes" checked={formData.ant_diabetes} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">DIABETES</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_glaucoma" checked={formData.ant_glaucoma} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">GLAUCOMA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_maculopatia" checked={formData.ant_maculopatia} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">MACULOPATIA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_asmatico" checked={formData.ant_asmatico} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">ASMA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_hipertension" checked={formData.ant_hipertension} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">HIPERTENSION</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_alergico" checked={formData.ant_alergico} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">ALERGIA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_reuma" checked={formData.ant_reuma} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">REUMA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_gota" checked={formData.ant_gota} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">GOTA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_herpes" checked={formData.ant_herpes} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">HERPES</span>
-                </label>
-                <div className="flex items-center gap-2 flex-grow">
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
+                {antecedentesFijos.map((antecedente) => {
+                  const isSelected = formData[antecedente.key];
+
+                  return (
+                    <button
+                      key={antecedente.key}
+                      type="button"
+                      aria-pressed={isSelected}
+                      onClick={() => toggleAntecedente(antecedente.key)}
+                      className={`rounded-full border px-3 py-1.5 text-sm font-bold transition ${
+                        isSelected
+                          ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                          : "border-zinc-300 bg-white text-zinc-700 hover:border-[#2d8f8f] hover:text-[#1f6b6b] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-500 dark:hover:text-emerald-300"
+                      }`}
+                    >
+                      {antecedente.label}
+                    </button>
+                  );
+                })}
+                <div className="flex min-w-[260px] flex-grow items-center gap-2">
                   <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
                   <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
                 </div>
