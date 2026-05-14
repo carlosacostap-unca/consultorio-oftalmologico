@@ -21,15 +21,15 @@ El sistema SHALL listar consultas con filtros por paciente, letra inicial y fech
 - **THEN** el sistema muestra consultas entre el inicio y fin de ese dia
 
 ### Requirement: Nueva consulta clinica
-El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado con campos narrativos multilínea, contexto clinico previo del paciente, auditoria de creacion, acciones de cierre asistidas al finalizar el guardado y una disposicion compacta de escritorio para monitores Full HD.
+El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado con campos narrativos multilínea, contexto clinico previo del paciente disponible bajo demanda, auditoria de creacion, acciones de cierre asistidas al finalizar el guardado y una disposicion compacta de escritorio para monitores Full HD.
 
 #### Scenario: Mostrar contexto clinico previo
 - **WHEN** el usuario selecciona o abre una nueva consulta con paciente
-- **THEN** el sistema muestra contexto clinico del paciente
-- **AND** incluye ultimas consultas con fecha, motivo, diagnostico y tratamiento cuando existan
+- **THEN** el sistema permite abrir el contexto clinico previo desde una accion visible
+- **AND** el contexto incluye ultimas consultas con fecha, motivo, diagnostico y tratamiento cuando existan
 - **AND** incluye recetas recientes con fecha, medicamentos e indicaciones cuando existan
 - **AND** permite abrir consultas y recetas previas desde esa seccion
-- **AND** en escritorio ubica el contexto en un panel lateral con altura controlada
+- **AND** en escritorio el contexto no ocupa ancho permanente ni aumenta la altura del documento cuando esta oculto
 
 #### Scenario: Formulario clinico organizado
 - **WHEN** el usuario abre una nueva consulta

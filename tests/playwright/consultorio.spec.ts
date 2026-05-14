@@ -1020,19 +1020,22 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       await expect(page).toHaveURL(/\/consultas\/nueva/);
       await expect(page).toHaveURL(new RegExp(`turno_id=${turno.id}`));
-      const desktopContextPanel = page.getByLabel("Panel de contexto de la consulta");
-      await expect.poll(async () => {
-        const compactVisible = await desktopContextPanel.isVisible().catch(() => false);
-        const classicVisible = await page.getByText("Resumen del paciente").isVisible().catch(() => false);
-        return compactVisible || classicVisible;
-      }).toBe(true);
-      const isCompactDesktop = await desktopContextPanel.isVisible();
-      if (isCompactDesktop) {
-        await expect(desktopContextPanel.getByText("Paciente", { exact: true })).toBeVisible();
-        await expect(desktopContextPanel.getByText("Turno asociado")).toBeVisible();
-      } else {
+      const contextToggle = page.getByRole("button", { name: "Ver contexto" });
+      const isCompactDesktop = await contextToggle.isVisible().catch(() => false);
+      if (!isCompactDesktop) {
         await expect(page.getByText("Resumen del paciente")).toBeVisible();
         await expect(page.getByText("Turno asociado")).toBeVisible();
+      }
+      await expect.poll(() =>
+        page.evaluate(() => {
+          const scrollingElement = document.scrollingElement || document.documentElement;
+          return scrollingElement.scrollHeight <= window.innerHeight + 1;
+        })
+      ).toBe(true);
+
+      if (isCompactDesktop) {
+        await expect(page.getByLabel("Panel de contexto de la consulta")).toBeHidden();
+        await contextToggle.click();
       }
 
       const clinicalContext = isCompactDesktop
@@ -1040,6 +1043,11 @@ test.describe("roles y otorgamiento de turnos", () => {
         : page.getByLabel("Contexto clinico del paciente");
       await expect(clinicalContext).toBeVisible();
       await expect(clinicalContext.getByRole("heading", { name: isCompactDesktop ? "Continuidad" : "Continuidad para la atencion actual" })).toBeVisible();
+      if (isCompactDesktop) {
+        const desktopContextPanel = page.getByLabel("Panel de contexto de la consulta");
+        await expect(desktopContextPanel.getByText("Paciente", { exact: true })).toBeVisible();
+        await expect(desktopContextPanel.getByText("Turno asociado")).toBeVisible();
+      }
       await expect(clinicalContext.getByRole("heading", { name: "Ultimas consultas" })).toBeVisible();
       await expect(clinicalContext.getByRole("heading", { name: "Recetas recientes" })).toBeVisible();
       await expect(clinicalContext.getByText(contextoPrevio).first()).toBeVisible();
@@ -1047,12 +1055,6 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalContext.getByText("Tratamiento de prueba").first()).toBeVisible();
       await expect(clinicalContext.getByText(recetaPrevia).first()).toBeVisible();
       await expect(clinicalContext.getByText("Uso de prueba").first()).toBeVisible();
-      await expect.poll(() =>
-        page.evaluate(() => {
-          const scrollingElement = document.scrollingElement || document.documentElement;
-          return scrollingElement.scrollHeight <= window.innerHeight + 1;
-        })
-      ).toBe(true);
       const priorConsultationCard = clinicalContext.getByText(contextoPrevio).locator("xpath=ancestor::article[1]");
       await expect(priorConsultationCard.getByRole("link", { name: "Abrir" })).toHaveAttribute("href", `/consultas/${priorConsultaId}?mode=view`);
       const priorPrescriptionCard = clinicalContext.getByText(recetaPrevia).locator("xpath=ancestor::article[1]");

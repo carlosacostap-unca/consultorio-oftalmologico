@@ -103,6 +103,7 @@ function NuevaConsultaForm() {
   const [recentRecetas, setRecentRecetas] = useState<ClinicalContextReceta[]>([]);
   const [isLoadingClinicalContext, setIsLoadingClinicalContext] = useState(false);
   const [clinicalContextError, setClinicalContextError] = useState("");
+  const [isClinicalContextOpen, setIsClinicalContextOpen] = useState(false);
 
   // Extraer parámetros de la URL
   const initialPacienteId = searchParams.get('paciente_id') || "";
@@ -662,13 +663,22 @@ function NuevaConsultaForm() {
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
           {/* Header del Formulario */}
-          <div className="border-b-4 border-[#1f6b6b] bg-[#2d8f8f] p-2 text-white shadow-inner dark:border-emerald-950 dark:bg-emerald-800">
+          <div className="relative border-b-4 border-[#1f6b6b] bg-[#2d8f8f] p-2 text-white shadow-inner dark:border-emerald-950 dark:bg-emerald-800">
             <h2 className="w-full text-center text-xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
               Historia clinica de atencion
             </h2>
+            <button
+              type="button"
+              onClick={() => setIsClinicalContextOpen((prev) => !prev)}
+              className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition hover:bg-white/20 2xl:inline-flex"
+              aria-expanded={isClinicalContextOpen}
+              aria-controls="clinical-context-overlay"
+            >
+              {isClinicalContextOpen ? "Ocultar contexto" : "Ver contexto"}
+            </button>
           </div>
           
-          <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-3 font-sans text-sm text-zinc-900 dark:text-zinc-100 2xl:pr-[400px]">
+          <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-3 font-sans text-sm text-zinc-900 dark:text-zinc-100">
             {savedConsultation && completionRecommendation && (
               <section aria-label="Cierre de consulta" className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -885,7 +895,8 @@ function NuevaConsultaForm() {
               )}
             </section>
 
-            <aside className="fixed right-4 top-[116px] z-10 hidden w-[372px] overflow-y-auto rounded-xl border border-zinc-300 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 2xl:block 2xl:max-h-[calc(100vh-140px)]" aria-label="Panel de contexto de la consulta">
+            {isClinicalContextOpen && (
+            <aside id="clinical-context-overlay" className="fixed right-6 top-[112px] z-30 hidden w-[430px] overflow-y-auto rounded-xl border border-zinc-300 bg-white p-3 shadow-2xl dark:border-zinc-700 dark:bg-zinc-900 2xl:block 2xl:max-h-[calc(100vh-136px)]" aria-label="Panel de contexto de la consulta">
               <section className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-950">
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Paciente</p>
                 <h3 className="mt-1 text-base font-bold text-zinc-900 dark:text-zinc-100">{pacienteNombre}</h3>
@@ -899,7 +910,16 @@ function NuevaConsultaForm() {
               </section>
 
               <section className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-950">
-                <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Atencion actual</p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Atencion actual</p>
+                  <button
+                    type="button"
+                    onClick={() => setIsClinicalContextOpen(false)}
+                    className="rounded-md border border-zinc-300 px-2 py-1 text-xs font-bold text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    Cerrar
+                  </button>
+                </div>
                 {selectedTurnoData ? (
                   <div className="mt-2 text-sm">
                     <div className="font-semibold text-zinc-900 dark:text-zinc-100">Turno asociado</div>
@@ -1018,6 +1038,7 @@ function NuevaConsultaForm() {
                 )}
               </section>
             </aside>
+            )}
 
             {/* Sección: DATOS DEL PACIENTE */}
             <div className="mb-3">
@@ -1177,9 +1198,9 @@ function NuevaConsultaForm() {
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
 
-              <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+              <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:grid 2xl:grid-cols-[360px_minmax(540px,1fr)_minmax(520px,1fr)] 2xl:gap-3 2xl:space-y-0">
                 
-                <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-1 2xl:row-start-1">
                   <div className="mb-2">
                     <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Motivo de consulta</h4>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">Fecha de atencion y motivo principal referido por el paciente.</p>
@@ -1204,14 +1225,14 @@ function NuevaConsultaForm() {
                         onChange={handleInputChange}
                         rows={2}
                         placeholder="Motivo principal de la atencion..."
-                        className="mt-1 min-h-20 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[64px] 2xl:resize-none"
+                        className="mt-1 min-h-20 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
                       />
                     </label>
                   </div>
                 </section>
 
-                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.72fr)_minmax(620px,1.28fr)]">
-                  <div className="space-y-3">
+                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.72fr)_minmax(620px,1.28fr)] 2xl:contents">
+                  <div className="space-y-3 2xl:col-start-1 2xl:row-start-2">
                     <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
@@ -1263,7 +1284,7 @@ function NuevaConsultaForm() {
                     </section>
                   </div>
 
-                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1">
                     <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div>
                         <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Refraccion</h4>
@@ -1453,7 +1474,7 @@ function NuevaConsultaForm() {
                   </>
                 )}
 
-                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-2">
+                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-2 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1 2xl:grid-cols-1 2xl:border-t-0 2xl:pt-0">
                   <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
                     <div className="mb-2">
                       <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Examen oftalmologico</h4>
@@ -1466,8 +1487,8 @@ function NuevaConsultaForm() {
                           name="biomicroscopia"
                           value={formData.biomicroscopia}
                           onChange={handleInputChange}
-                          rows={3}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
+                          rows={2}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
                         />
                       </label>
                       <label className="block text-sm font-bold">
@@ -1476,8 +1497,8 @@ function NuevaConsultaForm() {
                           name="fondo_ojo"
                           value={formData.fondo_ojo}
                           onChange={handleInputChange}
-                          rows={3}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
+                          rows={2}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
                         />
                       </label>
                     </div>
@@ -1495,8 +1516,8 @@ function NuevaConsultaForm() {
                           name="diagnostico"
                           value={formData.diagnostico}
                           onChange={handleInputChange}
-                          rows={3}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
+                          rows={2}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
                         />
                       </label>
                       <label className="block text-sm font-bold">
@@ -1505,8 +1526,8 @@ function NuevaConsultaForm() {
                           name="tratamiento"
                           value={formData.tratamiento}
                           onChange={handleInputChange}
-                          rows={3}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
+                          rows={2}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
                         />
                       </label>
                     </div>
