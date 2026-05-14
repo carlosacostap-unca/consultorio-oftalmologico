@@ -7,6 +7,7 @@ import React from "react";
 import type { AppUser, Consulta, Mutual, Patient, Receta } from "@/lib/types";
 import { isMergedPatient, patientDisplayName } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
+import { doctorLabel } from "@/lib/doctor-attribution";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -79,6 +80,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
             filter: `paciente_id = "${pacienteId}"`,
             sort: "-fecha",
+            expand: "medico_id",
           });
           setConsultas(consultasRecords);
         } catch (error) {
@@ -92,7 +94,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           const recetasRecords = await pb.collection("recetas").getFullList<Receta>({
             filter: `paciente_id = "${pacienteId}"`,
             sort: "-fecha,-created",
-            expand: "consulta_id",
+            expand: "consulta_id,medico_id",
           });
           setRecetas(recetasRecords);
         } catch (error) {
@@ -416,6 +418,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     {ultimaConsulta ? (
                       <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
                         <div className="font-semibold text-blue-700 dark:text-blue-300">{formatDate(ultimaConsulta.fecha)}</div>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(ultimaConsulta.expand?.medico_id)}</p>
                         <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Motivo:</span> {ultimaConsulta.motivo_consulta || "-"}</p>
                         <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Diagnostico:</span> {ultimaConsulta.diagnostico || "-"}</p>
                         <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Tratamiento:</span> {ultimoTratamiento || "-"}</p>
@@ -532,6 +535,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                           </div>
                           <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo"}</div>
                           <div className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(consulta.expand?.medico_id)}</p>
                             <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Diagnostico:</span> {consulta.diagnostico || "-"}</p>
                             <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Tratamiento:</span> {tratamiento || "-"}</p>
                           </div>
@@ -626,6 +630,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                           </div>
                           <div className="min-w-0">
                             <div className="font-semibold text-zinc-900 dark:text-zinc-100">{event.title}</div>
+                            <p className="mt-1 text-xs font-semibold text-zinc-500 dark:text-zinc-500">Medico: {event.doctor}</p>
                             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{event.description}</p>
                             {event.secondary && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">{event.secondary}</p>}
                             {isExpanded && (
@@ -734,6 +739,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{formatDate(receta.fecha)}</span>
                       <div className="min-w-0 text-sm text-zinc-600 dark:text-zinc-400">
                         <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{receta.medicamentos || "Sin medicamentos cargados"}</div>
+                        <div className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-500">Medico: {doctorLabel(receta.expand?.medico_id)}</div>
                         {receta.indicaciones && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-500">{receta.indicaciones}</div>}
                         <div className="mt-2 text-xs">
                           {receta.consulta_id ? (
@@ -943,6 +949,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   <thead>
                     <tr className="bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Fecha</th>
+                      <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Medico</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Estado</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Motivo</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Diagnóstico</th>
@@ -973,6 +980,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
                             {fechaStr}
+                          </td>
+                          <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
+                            {doctorLabel(consulta.expand?.medico_id)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
@@ -1024,6 +1034,7 @@ type ClinicalTimelineEvent = {
   title: string;
   description: string;
   secondary?: string;
+  doctor: string;
   primaryHref: string;
   printHref?: string;
   newPrescriptionHref?: string;
@@ -1040,6 +1051,7 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
     const title = consulta.motivo_consulta || "Consulta sin motivo cargado";
     const description = consulta.diagnostico ? `Diagnostico: ${consulta.diagnostico}` : "Sin diagnostico cargado.";
     const secondary = tratamiento ? `Tratamiento: ${tratamiento}` : undefined;
+    const doctor = doctorLabel(consulta.expand?.medico_id);
     return {
       key: `consulta-${consulta.id}`,
       type: "consulta" as const,
@@ -1047,17 +1059,19 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       title,
       description,
       secondary,
+      doctor,
       primaryHref: `/consultas/${consulta.id}?mode=view`,
       printHref: `/consultas/${consulta.id}/imprimir`,
-      newPrescriptionHref: `/recetas/nueva?consulta_id=${consulta.id}`,
+      newPrescriptionHref: `/recetas/nueva?consulta_id=${consulta.id}&paciente_id=${consulta.paciente_id}`,
       detailRows: [
         { label: "Fecha", value: formatDate(consulta.fecha) },
+        { label: "Medico", value: doctor },
         { label: "Estado", value: consultaEstadoLabel(consulta.estado) },
         { label: "Motivo", value: title },
         { label: "Diagnostico", value: consulta.diagnostico || "-" },
         { label: "Tratamiento", value: tratamiento || "-" },
       ],
-      searchText: buildEventSearchText(["consulta", consultaEstadoLabel(consulta.estado), formatDate(consulta.fecha), title, description, secondary]),
+      searchText: buildEventSearchText(["consulta", doctor, consultaEstadoLabel(consulta.estado), formatDate(consulta.fecha), title, description, secondary]),
     };
   });
 
@@ -1068,6 +1082,7 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
     const secondary = receta.consulta_id
       ? `Vinculada a consulta${receta.expand?.consulta_id?.fecha ? ` del ${formatDate(receta.expand.consulta_id.fecha)}` : ""}`
       : "Receta libre";
+    const doctor = doctorLabel(receta.expand?.medico_id);
 
     return {
       key: `receta-${receta.id}`,
@@ -1076,16 +1091,18 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       title,
       description,
       secondary,
+      doctor,
       primaryHref: `/recetas/${receta.id}?mode=view`,
       printHref: `/recetas/${receta.id}/imprimir`,
       linkedConsultaHref: receta.consulta_id ? `/consultas/${receta.consulta_id}?mode=view` : undefined,
       detailRows: [
         { label: "Fecha", value: formatDate(date) },
+        { label: "Medico", value: doctor },
         { label: "Medicamentos", value: title },
         { label: "Indicaciones", value: receta.indicaciones || "-" },
         { label: "Vinculacion", value: secondary },
       ],
-      searchText: buildEventSearchText(["receta", formatDate(date), title, description, secondary]),
+      searchText: buildEventSearchText(["receta", doctor, formatDate(date), title, description, secondary]),
     };
   });
 

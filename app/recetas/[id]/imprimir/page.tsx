@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
+import { doctorLabel } from "@/lib/doctor-attribution";
 
 interface PrintablePatient {
   nombre?: string;
@@ -23,16 +24,23 @@ interface PrintableConsulta {
   tratamiento?: string;
 }
 
+interface PrintableDoctor {
+  name?: string;
+  email?: string;
+}
+
 interface PrintableReceta {
   id: string;
   paciente_id: string;
   consulta_id?: string;
+  medico_id?: string;
   fecha?: string;
   medicamentos?: string;
   indicaciones?: string;
   expand?: {
     paciente_id?: PrintablePatient;
     consulta_id?: PrintableConsulta;
+    medico_id?: PrintableDoctor;
   };
 }
 
@@ -45,7 +53,7 @@ export default function ImprimirRecetaPage({ params }: { params: Promise<{ id: s
     const loadData = async () => {
       try {
         const record = await pb.collection("recetas").getOne<PrintableReceta>(resolvedParams.id, {
-          expand: "paciente_id,consulta_id",
+          expand: "paciente_id,consulta_id,medico_id",
         });
         setReceta(record);
       } catch (error) {
@@ -78,6 +86,7 @@ export default function ImprimirRecetaPage({ params }: { params: Promise<{ id: s
         <section className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Info label="Paciente" value={pacienteNombre} />
           <Info label="Fecha" value={receta.fecha ? formatDate(receta.fecha) : "-"} />
+          <Info label="Medico" value={doctorLabel(receta.expand?.medico_id)} />
           <Info label="Documento" value={documento || "-"} />
           <Info label="Ficha" value={paciente?.numero_ficha || "-"} />
           <Info label="Obra social" value={paciente?.obra_social || "-"} />

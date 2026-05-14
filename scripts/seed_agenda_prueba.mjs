@@ -76,6 +76,25 @@ await upsertTurno({
   es_sobreturno: false,
 });
 
+const consultaDemo = await upsertConsulta({
+  medico_id: medico.id,
+  paciente_id: pacienteLibre.id,
+  fecha: localIso(DEMO_DATE, "08:30"),
+  motivo_consulta: "Consulta atribuida demo",
+  diagnostico: "Diagnostico demo con medico",
+  tratamiento: "Tratamiento demo",
+  estado: "finalizada",
+});
+
+await upsertReceta({
+  medico_id: medico.id,
+  paciente_id: pacienteLibre.id,
+  consulta_id: consultaDemo.id,
+  fecha: localIso(DEMO_DATE, "08:45"),
+  medicamentos: "Receta atribuida demo",
+  indicaciones: "Indicaciones demo",
+});
+
 await upsertDisponibilidad({
   medico_id: medicoDos.id,
   fecha_hora_inicio: localIso(DEMO_DATE, "10:00"),
@@ -125,6 +144,7 @@ console.log(`- Bloqueo general demo: 13:00 - 13:30`);
 console.log(`- Horario ocupado: 09:15 (${pacienteOcupado.apellido}, ${pacienteOcupado.nombre})`);
 console.log(`- Paciente libre para pruebas: ${pacienteLibre.apellido}, ${pacienteLibre.nombre} DNI ${pacienteLibre.numero_documento}`);
 console.log(`- Pacientes duplicados demo: ${pacienteDuplicadoPrincipal.numero_documento} y ${pacienteDuplicadoSecundario.numero_documento}`);
+console.log(`- Consulta y receta demo atribuidas a: ${medico.email}`);
 
 async function upsertPaciente(data) {
   console.log(`Preparando paciente demo ${data.numero_documento}...`);
@@ -233,6 +253,46 @@ async function upsertTurno(data) {
   }
 
   return pb("/api/collections/turnos/records", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+async function upsertConsulta(data) {
+  console.log("Preparando consulta atribuida demo...");
+  const existing = await findFirstRecord(
+    "consultas",
+    `paciente_id = "${data.paciente_id}" && motivo_consulta = "${data.motivo_consulta}"`
+  );
+
+  if (existing) {
+    return pb(`/api/collections/consultas/records/${encodeURIComponent(existing.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  return pb("/api/collections/consultas/records", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+async function upsertReceta(data) {
+  console.log("Preparando receta atribuida demo...");
+  const existing = await findFirstRecord(
+    "recetas",
+    `paciente_id = "${data.paciente_id}" && medicamentos = "${data.medicamentos}"`
+  );
+
+  if (existing) {
+    return pb(`/api/collections/recetas/records/${encodeURIComponent(existing.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  return pb("/api/collections/recetas/records", {
     method: "POST",
     body: JSON.stringify(data),
   });

@@ -5,7 +5,10 @@ import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
-import type { Consulta, Patient } from "@/lib/types";
+import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
+import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
+import type { UserRole } from "@/lib/permissions";
+import type { Consulta, Medico, Patient } from "@/lib/types";
 import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
 
 interface SavedPrescription {
@@ -27,9 +30,12 @@ function NuevaRecetaForm() {
   const searchParams = useSearchParams();
   
   const [isMounted, setIsMounted] = useState(false);
+  const [user, setUser] = useState<any>(null);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   
   const [pacientes, setPacientes] = useState<Patient[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedPacienteData, setSelectedPacienteData] = useState<Patient | null>(null);
   const [selectedConsultaData, setSelectedConsultaData] = useState<Consulta | null>(null);
@@ -41,14 +47,17 @@ function NuevaRecetaForm() {
   
   const initialConsultaId = searchParams.get('consulta_id') || "";
   const initialPacienteId = searchParams.get('paciente_id') || "";
+  const initialMedicoId = searchParams.get('medico_id') || "";
 
   const [formData, setFormData] = useState({
     paciente_id: initialPacienteId,
     consulta_id: initialConsultaId,
+    medico_id: initialMedicoId,
     fecha: new Date().toISOString().split('T')[0],
     medicamentos: "",
     indicaciones: "",
   });
+  const [isDoctorManuallySelected, setIsDoctorManuallySelected] = useState(Boolean(initialMedicoId));
 
   const patientDocument = (patient?: Patient | null) => patient?.numero_documento || patient?.dni || "";
   const patientLabel = (patient?: Patient | null) => {
@@ -67,6 +76,9 @@ function NuevaRecetaForm() {
   const upsertPatient = (patient: Patient) => {
     setPacientes((prev) => [patient, ...prev.filter((item) => item.id !== patient.id)]);
   };
+  const canChooseDoctor = canAssignAnyDoctor(activeRole);
+  const assignableDoctors = canChooseDoctor ? medicos : medicos.filter((medico) => medico.id === user?.id);
+  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || null;
   useEffect(() => {
     const handler = setTimeout(() => {
       setDebouncedPatientSearchQuery(patientSearchQuery);
@@ -77,14 +89,29 @@ function NuevaRecetaForm() {
 
   useEffect(() => {
     setIsMounted(true);
+    const authUser = pb.authStore.record;
+    const resolvedRole = resolveActiveRole(authUser, ["medico"]);
+    setUser(authUser);
+    setActiveRole(resolvedRole);
 
     if (!pb.authStore.isValid) {
       router.push("/");
       return;
     }
+    if (resolvedRole === "medico" && authUser?.id) {
+      setFormData((prev) => ({ ...prev, medico_id: prev.medico_id || authUser.id }));
+    }
 
     const loadInitialContext = async () => {
       try {
+        const medicosResponse = await fetch("/api/medicos", {
+          headers: { Authorization: `Bearer ${pb.authStore.token}` },
+        });
+        if (medicosResponse.ok) {
+          const data = await medicosResponse.json();
+          setMedicos(Array.isArray(data.medicos) ? data.medicos : []);
+        }
+
         if (formData.paciente_id) {
           const paciente = await pb.collection("pacientes").getOne<Patient>(formData.paciente_id);
           setSelectedPacienteData(paciente);
@@ -115,9 +142,14 @@ function NuevaRecetaForm() {
         const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
           filter: `paciente_id = "${formData.paciente_id}"`,
           sort: "-fecha",
+          expand: "medico_id",
         });
+        const selectedConsulta = consultasRecords.find((consulta) => consulta.id === formData.consulta_id) || null;
         setConsultas(consultasRecords);
-        setSelectedConsultaData(consultasRecords.find((consulta) => consulta.id === formData.consulta_id) || null);
+        setSelectedConsultaData(selectedConsulta);
+        if (selectedConsulta?.medico_id && !isDoctorManuallySelected && !formData.medico_id) {
+          setFormData((prev) => ({ ...prev, medico_id: selectedConsulta.medico_id || prev.medico_id }));
+        }
       } catch (error) {
         console.error("Error al cargar consultas del paciente:", error);
         setConsultas([]);
@@ -126,7 +158,7 @@ function NuevaRecetaForm() {
     };
 
     loadConsultas();
-  }, [isMounted, formData.paciente_id, formData.consulta_id]);
+  }, [isMounted, formData.paciente_id, formData.consulta_id, formData.medico_id, isDoctorManuallySelected]);
 
   useEffect(() => {
     if (!isMounted || !pb.authStore.isValid || formData.paciente_id) {
@@ -159,19 +191,35 @@ function NuevaRecetaForm() {
       alert("Selecciona un paciente de la lista.");
       return;
     }
+    if (!formData.medico_id) {
+      alert("Selecciona el medico emisor de la receta.");
+      return;
+    }
 
     setIsLoading(true);
 
     try {
       const fechaConHora = `${formData.fecha} 12:00:00.000Z`;
 
-      const nuevaReceta = await pb.collection("recetas").create({
+      const response = await fetch("/api/recetas", {
+        method: "POST",
+        headers: activeRoleJsonHeaders(pb.authStore.token, activeRole),
+        body: JSON.stringify({
         paciente_id: formData.paciente_id,
         consulta_id: formData.consulta_id || null, // Opcional
+        medico_id: formData.medico_id,
         fecha: fechaConHora,
         medicamentos: formData.medicamentos,
         indicaciones: formData.indicaciones,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Error al guardar la receta");
+      }
+
+      const nuevaReceta = await response.json();
 
       setSavedPrescription({
         id: nuevaReceta.id,
@@ -285,7 +333,7 @@ function NuevaRecetaForm() {
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
           <form onSubmit={handleSubmit} className="p-6 sm:p-8">
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                     Paciente *
@@ -352,6 +400,35 @@ function NuevaRecetaForm() {
                     className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:[color-scheme:dark] dark:text-zinc-100"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                    Medico emisor *
+                  </label>
+                  {canChooseDoctor ? (
+                    <select
+                      required
+                      value={formData.medico_id}
+                      onChange={(e) => {
+                        setFormData({ ...formData, medico_id: e.target.value });
+                        setIsDoctorManuallySelected(true);
+                        setSavedPrescription(null);
+                      }}
+                      className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"
+                    >
+                      <option value="">Seleccionar medico</option>
+                      {assignableDoctors.map((medico) => (
+                        <option key={medico.id} value={medico.id}>
+                          {doctorLabel(medico)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-900 dark:text-zinc-100">
+                      {doctorLabel(selectedDoctor)}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {formData.paciente_id && (
@@ -363,7 +440,16 @@ function NuevaRecetaForm() {
                       <select
                         value={formData.consulta_id}
                         onChange={(e) => {
-                          setFormData({ ...formData, consulta_id: e.target.value });
+                          const consulta = consultas.find((item) => item.id === e.target.value) || null;
+                          setSelectedConsultaData(consulta);
+                          setFormData({
+                            ...formData,
+                            consulta_id: e.target.value,
+                            medico_id:
+                              consulta?.medico_id && !isDoctorManuallySelected
+                                ? consulta.medico_id
+                                : formData.medico_id,
+                          });
                           setSavedPrescription(null);
                         }}
                         className="flex-grow px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"

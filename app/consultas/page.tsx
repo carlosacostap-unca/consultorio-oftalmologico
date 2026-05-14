@@ -5,13 +5,15 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-import type { AppUser, Patient } from "@/lib/types";
+import type { AppUser, Medico, Patient } from "@/lib/types";
 import { appendActivePatientFilter } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
+import { doctorLabel } from "@/lib/doctor-attribution";
 
 interface Consulta {
   id: string;
   paciente_id: string;
+  medico_id?: string;
   fecha: string;
   estado?: string;
   motivo_consulta: string;
@@ -19,6 +21,7 @@ interface Consulta {
   numero_ficha?: string;
   expand?: {
     paciente_id: Patient;
+    medico_id?: Medico;
   };
 }
 
@@ -99,7 +102,7 @@ export default function ConsultasPage() {
 
       const result = await pb.collection("consultas").getList<Consulta>(page, 20, {
         sort: "-fecha",
-        expand: "paciente_id",
+        expand: "paciente_id,medico_id",
         filter: filterString,
       });
       setConsultas(result.items);
@@ -242,6 +245,7 @@ export default function ConsultasPage() {
                 <tr>
                   <th className="px-6 py-4 font-medium">Fecha</th>
                   <th className="px-6 py-4 font-medium">Paciente</th>
+                  <th className="px-6 py-4 font-medium">Medico</th>
                   <th className="px-6 py-4 font-medium">Nº Ficha</th>
                   <th className="px-6 py-4 font-medium">Estado</th>
                   <th className="px-6 py-4 font-medium">Motivo de Consulta</th>
@@ -252,13 +256,13 @@ export default function ConsultasPage() {
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                    <td colSpan={8} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
                       Cargando consultas...
                     </td>
                   </tr>
                 ) : consultas.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                    <td colSpan={8} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
                       No se encontraron consultas que coincidan con los filtros.
                     </td>
                   </tr>
@@ -276,6 +280,9 @@ export default function ConsultasPage() {
                           <div className="font-medium text-zinc-900 dark:text-zinc-100">
                             {consulta.expand?.paciente_id ? `${consulta.expand.paciente_id.apellido}, ${consulta.expand.paciente_id.nombre}` : 'Paciente no encontrado'}
                           </div>
+                        </td>
+                        <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
+                          {doctorLabel(consulta.expand?.medico_id)}
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
                           {consulta.numero_ficha || consulta.expand?.paciente_id?.numero_ficha || '-'}

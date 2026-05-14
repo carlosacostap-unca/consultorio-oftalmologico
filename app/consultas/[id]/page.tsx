@@ -10,6 +10,10 @@ import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 import type { ConsultaEvento } from "@/lib/consulta-eventos";
 import type { ConsultaEstado } from "@/lib/consulta-estado";
 import { consultaEstadoBadgeClass, consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-estado";
+import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
+import type { UserRole } from "@/lib/permissions";
+import type { Medico } from "@/lib/types";
+import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 
 interface Paciente {
   id: string;
@@ -72,6 +76,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   // Estado inicial del formulario basado en la captura
   const initialFormState = {
     paciente_id: initialPacienteId,
+    medico_id: "",
     numero_ficha: "",
     estado: "finalizada" as ConsultaEstado,
     fecha: new Date().toISOString().split('T')[0],
@@ -109,6 +114,9 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [consultaEventos, setConsultaEventos] = useState<ConsultaEvento[]>([]);
   const [isLoadingConsultaEventos, setIsLoadingConsultaEventos] = useState(true);
   const [consultaEventosError, setConsultaEventosError] = useState("");
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
+  const [originalMedicoId, setOriginalMedicoId] = useState("");
 
   // Estado para la búsqueda de pacientes
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
@@ -122,10 +130,20 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
   const canEditConsulta = isConsultaEditable(formData.fecha, consultaEditLimitDays);
   const isReadOnly = isViewMode || !canEditConsulta;
+  const canChooseDoctor = canAssignAnyDoctor(activeRole);
+  const assignableDoctors = canChooseDoctor ? medicos : medicos.filter((medico) => medico.id === user?.id);
+  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || null;
+  const canEditDoctorAttribution =
+    !isViewMode &&
+    (canChooseDoctor || (activeRole === "medico" && (!formData.medico_id || formData.medico_id === user?.id)));
+  const doctorAttributionChanged = formData.medico_id !== originalMedicoId;
+  const showSaveActions = !isReadOnly || (canEditDoctorAttribution && doctorAttributionChanged);
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record);
+    const authUser = pb.authStore.record;
+    setUser(authUser);
+    setActiveRole(resolveActiveRole(authUser, ["medico"]));
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -144,6 +162,14 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             }
           })
           .catch((error) => console.error("Error al cargar configuracion:", error));
+
+        const medicosResponse = await fetch("/api/medicos", {
+          headers: { Authorization: `Bearer ${pb.authStore.token}` },
+        });
+        if (medicosResponse.ok) {
+          const medicosData = await medicosResponse.json();
+          setMedicos(Array.isArray(medicosData.medicos) ? medicosData.medicos : []);
+        }
 
         // Cargar datos de la consulta existente PRIMERO para que la UI se actualice rápido
         let currentPacienteId = "";
@@ -166,6 +192,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             fecha: fechaFormateada,
             paciente_id: consultaRecord.paciente_id || prev.paciente_id
           }));
+          setOriginalMedicoId(consultaRecord.medico_id || "");
           
           currentPacienteId = consultaRecord.paciente_id;
 
@@ -301,8 +328,13 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!canEditConsulta) {
+    const onlyDoctorAttributionChange = doctorAttributionChanged && !canEditConsulta;
+    if (!canEditConsulta && !onlyDoctorAttributionChange) {
       alert(`Solo se pueden editar consultas de los ultimos ${consultaEditLimitDays} dias.`);
+      return;
+    }
+    if (onlyDoctorAttributionChange && !formData.medico_id) {
+      alert("Selecciona el medico responsable.");
       return;
     }
 
@@ -311,18 +343,17 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     setIsLoading(true);
     try {
       // Aseguramos formato ISO para la fecha
-      const dataToSave = {
-        ...formData,
-        estado: targetEstado,
-        fecha: new Date(formData.fecha).toISOString(),
-      };
+      const dataToSave = onlyDoctorAttributionChange
+        ? { medico_id: formData.medico_id }
+        : {
+            ...formData,
+            estado: targetEstado,
+            fecha: new Date(formData.fecha).toISOString(),
+          };
       
       const response = await fetch(`/api/consultas/${consultaId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${pb.authStore.token}`,
-        },
+        headers: activeRoleJsonHeaders(pb.authStore.token, activeRole),
         body: JSON.stringify(dataToSave),
       });
 
@@ -330,6 +361,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error || "No se pudo actualizar la consulta");
       }
+      setOriginalMedicoId(formData.medico_id);
       
       // Si venimos desde un turno, lo actualizamos para enlazarlo y marcarlo completado
       if (turnoId) {
@@ -951,6 +983,28 @@ function continuityToneClass(tone: string) {
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
+                <div className="col-span-12 md:col-span-5">
+                  <label className="block text-xs font-semibold mb-1">Medico responsable</label>
+                  {canEditDoctorAttribution ? (
+                    <select
+                      name="medico_id"
+                      value={formData.medico_id}
+                      onChange={handleInputChange}
+                      className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]"
+                    >
+                      <option value="">Medico no registrado</option>
+                      {assignableDoctors.map((medico) => (
+                        <option key={medico.id} value={medico.id}>
+                          {doctorLabel(medico)}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700">
+                      {doctorLabel(selectedDoctor)}
+                    </div>
+                  )}
+                </div>
                 <div className="col-span-12">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
@@ -1223,7 +1277,7 @@ function continuityToneClass(tone: string) {
               >
                 {isReadOnly ? "Volver" : "Cancelar"}
               </button>
-              {!isReadOnly && (
+              {showSaveActions && (
                 <>
                   <button 
                     type="submit" 

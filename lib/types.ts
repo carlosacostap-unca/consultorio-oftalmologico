@@ -9,6 +9,11 @@ export interface AppUser extends RecordModel {
   roles?: UserRole[];
 }
 
+export interface Medico extends RecordModel {
+  email?: string;
+  name?: string;
+}
+
 export interface Patient extends RecordModel {
   nombre: string;
   apellido: string;
@@ -54,21 +59,28 @@ export interface Mutual extends RecordModel {
 
 export interface Consulta extends RecordModel {
   paciente_id: string;
+  medico_id?: string;
   fecha?: string;
   estado?: string;
   motivo_consulta?: string;
   diagnostico?: string;
   tratamiento?: string;
+  expand?: {
+    paciente_id?: Patient;
+    medico_id?: Medico;
+  };
 }
 
 export interface Receta extends RecordModel {
   paciente_id: string;
   consulta_id?: string;
+  medico_id?: string;
   fecha: string;
   medicamentos: string;
   indicaciones: string;
   expand?: {
     paciente_id?: Patient;
     consulta_id?: Consulta;
+    medico_id?: Medico;
   };
 }

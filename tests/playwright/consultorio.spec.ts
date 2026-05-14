@@ -764,6 +764,7 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       const table = page.locator("table");
       await expect(table.getByText(medicamentos)).toBeVisible();
+      await expect(table.getByText("Medico Demo")).toBeVisible();
       await expect(table.getByText("Con consulta")).toBeVisible();
       await expect(table.getByText("Control de fusion Playwright")).toBeVisible();
       await expect(page.getByRole("link", { name: /Imprimir receta de Libre Demo, Paciente/ })).toHaveAttribute(
@@ -856,6 +857,7 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(currentContinuity.getByRole("heading", { name: "Ultima consulta" })).toBeVisible();
       await expect(currentContinuity.getByRole("heading", { name: "Ultima receta" })).toBeVisible();
       await expect(currentContinuity.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
+      await expect(currentContinuity.getByText("Medico Demo").first()).toBeVisible();
       await expect(currentContinuity.getByText("Tratamiento de prueba").first()).toBeVisible();
       await expect(currentContinuity.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
       await expect(currentContinuity.getByText("Uso de prueba").first()).toBeVisible();
@@ -874,6 +876,7 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(clinicalTimeline.getByText("Receta").first()).toBeVisible();
       await expect(clinicalTimeline.getByText(`Playwright ficha consulta ${suffix}`).first()).toBeVisible();
       await expect(clinicalTimeline.getByText(`Playwright ficha receta ${suffix}`).first()).toBeVisible();
+      await expect(clinicalTimeline.getByText("Medico: Medico Demo").first()).toBeVisible();
       await expect(clinicalTimeline.getByText(`Playwright ficha evento oculto ${suffix}-0`).first()).toBeHidden();
       await clinicalTimeline.getByRole("button", { name: /Mostrar mas \(\d+\)/ }).click();
       await expect(clinicalTimeline.getByText(`Playwright ficha evento oculto ${suffix}-0`).first()).toBeVisible();
@@ -889,6 +892,7 @@ test.describe("roles y otorgamiento de turnos", () => {
         .getByText(`Playwright ficha consulta ${suffix}`)
         .locator("xpath=ancestor::div[contains(@class,'border-l-2')][1]");
       await consultationEvent.getByRole("button", { name: "Ver detalle" }).click();
+      await expect(consultationEvent.getByText("Medico", { exact: true })).toBeVisible();
       await expect(consultationEvent.getByText("Motivo", { exact: true })).toBeVisible();
       await expect(consultationEvent.getByText("Diagnostico", { exact: true })).toBeVisible();
       await expect(consultationEvent.getByText("Tratamiento", { exact: true })).toBeVisible();
@@ -915,6 +919,7 @@ test.describe("roles y otorgamiento de turnos", () => {
         .getByText(`Playwright ficha receta ${suffix}`)
         .locator("xpath=ancestor::div[contains(@class,'border-l-2')][1]");
       await prescriptionEvent.getByRole("button", { name: "Ver detalle" }).click();
+      await expect(prescriptionEvent.getByText("Medico", { exact: true })).toBeVisible();
       await expect(prescriptionEvent.getByText("Medicamentos", { exact: true })).toBeVisible();
       await expect(prescriptionEvent.getByText("Indicaciones", { exact: true })).toBeVisible();
       await expect(prescriptionEvent.getByText("Vinculacion", { exact: true })).toBeVisible();
@@ -1216,6 +1221,8 @@ test.describe("roles y otorgamiento de turnos", () => {
       await page.getByLabel("Continuidad clinica").getByRole("link", { name: "Imprimir informe" }).click();
       await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}/imprimir`));
       await expect(page.getByRole("heading", { name: "Informe clinico de consulta" })).toBeVisible();
+      await expect(page.getByText("Medico:").first()).toBeVisible();
+      await expect(page.getByText("Medico Demo").first()).toBeVisible();
       await expect(page.getByText(motivo).first()).toBeVisible();
       await expect(page.getByText("Receta Playwright desde consulta").first()).toBeVisible();
       await expect(page.getByText("Usar segun indicacion medica.").first()).toBeVisible();
@@ -1230,6 +1237,8 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page).toHaveURL(new RegExp(`/recetas/${createdRecetaId}/imprimir`));
       await expect(page.getByRole("heading", { name: "Receta medica" })).toBeVisible();
       await expect(page.getByText("Consultorio oftalmologico")).toBeVisible();
+      await expect(page.getByText("Medico:").first()).toBeVisible();
+      await expect(page.getByText("Medico Demo").first()).toBeVisible();
       await expect(page.getByText("Documento:")).toBeVisible();
       await expect(page.getByText("Ficha:")).toBeVisible();
       await expect(page.getByText("Obra social:")).toBeVisible();
@@ -1494,12 +1503,15 @@ async function createDemoConsultation(
   patientId: string,
   motivo: string,
   fecha = new Date(`${DEMO_DATE}T12:00:00`).toISOString(),
-  estado = "finalizada"
+  estado = "finalizada",
+  medicoId?: string
 ) {
+  const doctorId = medicoId || await getUserIdByEmail(request, env, token, "medico.demo@consultorio.local");
   const response = await request.post(`${pocketBaseUrl(env)}/api/collections/consultas/records`, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       paciente_id: patientId,
+      medico_id: doctorId,
       fecha,
       motivo_consulta: motivo,
       diagnostico: "Control de fusion Playwright",
@@ -1531,13 +1543,16 @@ async function createDemoPrescription(
   token: string,
   patientId: string,
   consultationId: string,
-  medicamentos: string
+  medicamentos: string,
+  medicoId?: string
 ) {
+  const doctorId = medicoId || await getUserIdByEmail(request, env, token, "medico.demo@consultorio.local");
   const response = await request.post(`${pocketBaseUrl(env)}/api/collections/recetas/records`, {
     headers: { Authorization: `Bearer ${token}` },
     data: {
       paciente_id: patientId,
       consulta_id: consultationId,
+      medico_id: doctorId,
       fecha: new Date(`${DEMO_DATE}T12:00:00`).toISOString(),
       medicamentos,
       indicaciones: "Uso de prueba",

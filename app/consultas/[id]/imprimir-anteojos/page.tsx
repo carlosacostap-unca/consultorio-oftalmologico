@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
+import { doctorLabel } from "@/lib/doctor-attribution";
 
 interface Consulta {
   id: string;
   fecha: string;
   paciente_id: string;
+  medico_id?: string;
   add_value?: string;
   diagnostico?: string;
   tratamiento?: string;
@@ -34,6 +36,10 @@ interface Consulta {
       obra_social?: string;
       numero_afiliado?: string;
     };
+    medico_id?: {
+      name?: string;
+      email?: string;
+    };
   };
 }
 
@@ -46,7 +52,7 @@ export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id:
     const loadData = async () => {
       try {
         const record = await pb.collection("consultas").getOne<Consulta>(resolvedParams.id, {
-          expand: "paciente_id",
+          expand: "paciente_id,medico_id",
         });
         setConsulta(record);
       } catch (error) {
@@ -77,6 +83,7 @@ export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id:
         <section className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Info label="Paciente" value={pacienteNombre} />
           <Info label="Fecha" value={formatDate(consulta.fecha)} />
+          <Info label="Medico" value={doctorLabel(consulta.expand?.medico_id)} />
           <Info label="Documento" value={documento || "-"} />
           <Info label="Ficha" value={paciente?.numero_ficha || "-"} />
           <Info label="Obra social" value={paciente?.obra_social || "-"} />

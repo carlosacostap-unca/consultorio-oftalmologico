@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { Receta } from "@/lib/types";
+import { doctorLabel } from "@/lib/doctor-attribution";
 import { patientDocument } from "@/lib/patient-merge";
 
 type RelationFilter = "all" | "linked" | "free";
@@ -32,7 +33,7 @@ export default function RecetasPage() {
       try {
         const recetasRecords = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
-          expand: "paciente_id,consulta_id",
+          expand: "paciente_id,consulta_id,medico_id",
         });
         setRecetas(recetasRecords);
       } catch (error) {
@@ -49,7 +50,7 @@ export default function RecetasPage() {
       .subscribe<Receta>("*", async () => {
         const records = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
-          expand: "paciente_id,consulta_id",
+          expand: "paciente_id,consulta_id,medico_id",
         });
         setRecetas(records);
       })
@@ -231,6 +232,7 @@ export default function RecetasPage() {
                   <tr className="bg-zinc-50 dark:bg-zinc-950/50 border-b border-zinc-200 dark:border-zinc-800">
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Fecha</th>
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Paciente</th>
+                    <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Medico</th>
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Medicamentos</th>
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Consulta</th>
                     <th className="px-6 py-4 text-xs font-semibold text-zinc-500 dark:text-zinc-400 uppercase tracking-wider text-right">Acciones</th>
@@ -250,6 +252,9 @@ export default function RecetasPage() {
                           DNI: {patientDocument(receta.expand?.paciente_id) || "-"}
                           {receta.expand?.paciente_id?.numero_ficha ? ` - Ficha ${receta.expand.paciente_id.numero_ficha}` : ""}
                         </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-zinc-700 dark:text-zinc-200">
+                        {doctorLabel(receta.expand?.medico_id)}
                       </td>
                       <td className="px-6 py-4">
                         <div className="max-w-xs truncate text-sm text-zinc-700 dark:text-zinc-200">

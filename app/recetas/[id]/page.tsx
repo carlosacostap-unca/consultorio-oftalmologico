@@ -6,7 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
 import { use } from "react";
-import type { Consulta, Patient, Receta } from "@/lib/types";
+import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
+import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
+import type { UserRole } from "@/lib/permissions";
+import type { Consulta, Medico, Patient, Receta } from "@/lib/types";
 import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
 
 export default function EditarRecetaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -25,9 +28,12 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
   
   const isViewMode = searchParams.get("mode") === "view";
   
+  const [user, setUser] = useState<any>(null);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [pacientes, setPacientes] = useState<Patient[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [selectedPacienteData, setSelectedPacienteData] = useState<Patient | null>(null);
@@ -39,10 +45,12 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
   const [formData, setFormData] = useState({
     paciente_id: "",
     consulta_id: "",
+    medico_id: "",
     fecha: new Date().toISOString().split('T')[0],
     medicamentos: "",
     indicaciones: "",
   });
+  const [isDoctorManuallySelected, setIsDoctorManuallySelected] = useState(false);
 
   const patientDocument = (patient?: Patient | null) => patient?.numero_documento || patient?.dni || "";
   const formatPatientOption = (patient: Patient) => {
@@ -57,6 +65,12 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
     return normalized || "-";
   };
   const selectedConsultaData = consultas.find((consulta) => consulta.id === formData.consulta_id) || null;
+  const canChooseDoctor = canAssignAnyDoctor(activeRole);
+  const canEditDoctorAttribution =
+    !isViewMode &&
+    (canChooseDoctor || (activeRole === "medico" && (!formData.medico_id || formData.medico_id === user?.id)));
+  const assignableDoctors = canChooseDoctor ? medicos : medicos.filter((medico) => medico.id === user?.id);
+  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || null;
   const patientSummary = selectedPacienteData
     ? [
         patientDocument(selectedPacienteData) ? `DNI ${patientDocument(selectedPacienteData)}` : "",
@@ -75,6 +89,10 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
 
   useEffect(() => {
     setIsMounted(true);
+    const authUser = pb.authStore.record;
+    const resolvedRole = resolveActiveRole(authUser, ["medico"]);
+    setUser(authUser);
+    setActiveRole(resolvedRole);
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -83,8 +101,18 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
 
     const loadData = async () => {
       try {
+        const medicosResponse = await fetch("/api/medicos", {
+          headers: { Authorization: `Bearer ${pb.authStore.token}` },
+        });
+        if (medicosResponse.ok) {
+          const data = await medicosResponse.json();
+          setMedicos(Array.isArray(data.medicos) ? data.medicos : []);
+        }
+
         if (recetaId) {
-          const recetaRecord = await pb.collection("recetas").getOne<Receta>(recetaId);
+          const recetaRecord = await pb.collection("recetas").getOne<Receta>(recetaId, {
+            expand: "medico_id",
+          });
           
           let fechaFormateada = new Date().toISOString().split('T')[0];
           try {
@@ -98,10 +126,12 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
           setFormData({
             paciente_id: recetaRecord.paciente_id || "",
             consulta_id: recetaRecord.consulta_id || "",
+            medico_id: recetaRecord.medico_id || "",
             fecha: fechaFormateada,
             medicamentos: recetaRecord.medicamentos || "",
             indicaciones: recetaRecord.indicaciones || "",
           });
+          setIsDoctorManuallySelected(Boolean(recetaRecord.medico_id));
 
           if (recetaRecord.paciente_id) {
             try {
@@ -119,6 +149,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
             const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
               filter: `paciente_id = "${recetaRecord.paciente_id}"`,
               sort: "-fecha",
+              expand: "medico_id",
             });
             setConsultas(consultasRecords);
           }
@@ -141,6 +172,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
           const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
             filter: `paciente_id = "${formData.paciente_id}"`,
             sort: "-fecha",
+            expand: "medico_id",
           });
           setConsultas(consultasRecords);
         } catch (error) {
@@ -183,19 +215,33 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
       alert("Selecciona un paciente de la lista.");
       return;
     }
+    if (!formData.medico_id) {
+      alert("Selecciona el medico emisor de la receta.");
+      return;
+    }
 
     setIsLoading(true);
 
     try {
       const fechaConHora = `${formData.fecha} 12:00:00.000Z`;
 
-      await pb.collection("recetas").update(recetaId, {
+      const response = await fetch(`/api/recetas/${recetaId}`, {
+        method: "PATCH",
+        headers: activeRoleJsonHeaders(pb.authStore.token, activeRole),
+        body: JSON.stringify({
         paciente_id: formData.paciente_id,
         consulta_id: formData.consulta_id || null,
+        medico_id: formData.medico_id,
         fecha: fechaConHora,
         medicamentos: formData.medicamentos,
         indicaciones: formData.indicaciones,
+        }),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "Error al actualizar la receta");
+      }
 
       router.push("/recetas");
     } catch (error) {
@@ -251,6 +297,9 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                     <span className="rounded-full bg-orange-50 px-2.5 py-1 font-semibold text-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
                       {formData.consulta_id ? "Vinculada a consulta" : "Receta libre"}
                     </span>
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-semibold dark:bg-zinc-800">
+                      {doctorLabel(selectedDoctor)}
+                    </span>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -289,6 +338,12 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                     <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">{selectedConsultaData.diagnostico}</div>
                   )}
                 </div>
+                <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950/60">
+                  <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Medico emisor</div>
+                  <div className="mt-2 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+                    {doctorLabel(selectedDoctor)}
+                  </div>
+                </div>
                 <div className="rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950/60 md:col-span-3">
                   <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Indicaciones</div>
                   <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-900 dark:text-zinc-100">{displayValue(formData.indicaciones)}</div>
@@ -299,7 +354,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
             <form onSubmit={handleSubmit} className="p-6 sm:p-8">
               <div className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
                       Paciente *
@@ -366,6 +421,34 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                       className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:[color-scheme:dark] dark:text-zinc-100 disabled:opacity-70 disabled:bg-zinc-100 dark:disabled:bg-zinc-800"
                     />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                      Medico emisor *
+                    </label>
+                    {canEditDoctorAttribution ? (
+                      <select
+                        required
+                        value={formData.medico_id}
+                        onChange={(e) => {
+                          setFormData({ ...formData, medico_id: e.target.value });
+                          setIsDoctorManuallySelected(true);
+                        }}
+                        className="w-full px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100"
+                      >
+                        <option value="">Medico no registrado</option>
+                        {assignableDoctors.map((medico) => (
+                          <option key={medico.id} value={medico.id}>
+                            {doctorLabel(medico)}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full px-4 py-2.5 bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-xl text-zinc-900 dark:text-zinc-100">
+                        {doctorLabel(selectedDoctor)}
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 {formData.paciente_id && (
@@ -377,7 +460,17 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
                       <select
                         disabled={isViewMode}
                         value={formData.consulta_id}
-                        onChange={(e) => setFormData({ ...formData, consulta_id: e.target.value })}
+                        onChange={(e) => {
+                          const consulta = consultas.find((item) => item.id === e.target.value) || null;
+                          setFormData({
+                            ...formData,
+                            consulta_id: e.target.value,
+                            medico_id:
+                              consulta?.medico_id && !isDoctorManuallySelected
+                                ? consulta.medico_id
+                                : formData.medico_id,
+                          });
+                        }}
                         className="flex-grow px-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all dark:text-zinc-100 disabled:opacity-70 disabled:bg-zinc-100 dark:disabled:bg-zinc-800"
                       >
                         <option value="">Ninguna o crear sin consulta</option>

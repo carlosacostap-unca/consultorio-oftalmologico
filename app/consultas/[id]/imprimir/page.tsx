@@ -5,6 +5,7 @@ import { use } from "react";
 import type { ReactNode } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
+import { doctorLabel } from "@/lib/doctor-attribution";
 
 interface PrintablePatient {
   nombre?: string;
@@ -17,9 +18,15 @@ interface PrintablePatient {
   fecha_nacimiento?: string;
 }
 
+interface PrintableDoctor {
+  name?: string;
+  email?: string;
+}
+
 interface PrintableConsulta {
   id: string;
   paciente_id: string;
+  medico_id?: string;
   fecha?: string;
   motivo_consulta?: string;
   av_sc_od?: string;
@@ -57,6 +64,7 @@ interface PrintableConsulta {
   ant_otra?: string;
   expand?: {
     paciente_id?: PrintablePatient;
+    medico_id?: PrintableDoctor;
   };
 }
 
@@ -78,7 +86,7 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
       try {
         const [consultaRecord, recetasRecords] = await Promise.all([
           pb.collection("consultas").getOne<PrintableConsulta>(resolvedParams.id, {
-            expand: "paciente_id",
+            expand: "paciente_id,medico_id",
           }),
           pb.collection("recetas").getFullList<PrintableReceta>({
             filter: `consulta_id = "${resolvedParams.id}"`,
@@ -116,6 +124,7 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
         <section className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Info label="Paciente" value={pacienteNombre} />
           <Info label="Fecha" value={consulta.fecha ? formatDate(consulta.fecha) : "-"} />
+          <Info label="Medico" value={doctorLabel(consulta.expand?.medico_id)} />
           <Info label="Documento" value={documento || "-"} />
           <Info label="Ficha" value={paciente?.numero_ficha || "-"} />
           <Info label="Obra social" value={paciente?.obra_social || "-"} />

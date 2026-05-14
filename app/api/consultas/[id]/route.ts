@@ -3,6 +3,7 @@ import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
 import { loadSystemSettings } from "@/lib/system-settings-server";
 import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
 import { consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-estado";
+import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
 
 export const dynamic = "force-dynamic";
 
@@ -18,16 +19,25 @@ export async function PATCH(
 
     const { id } = await context.params;
     const current = await pbAdmin(`/api/collections/consultas/records/${encodeURIComponent(id)}`);
+    const body = await request.json();
     const settings = await loadSystemSettings();
+    const isOnlyDoctorAttributionChange = onlyDoctorAttributionChanged(body);
+    const activeRole = activeRoleFromRequest(request, user);
 
-    if (!isConsultaEditable(current.fecha, settings.consultaEditLimitDays)) {
+    if (!isConsultaEditable(current.fecha, settings.consultaEditLimitDays) && !isOnlyDoctorAttributionChange) {
       return Response.json(
         { error: `Solo se pueden editar consultas de los ultimos ${settings.consultaEditLimitDays} dias` },
         { status: 403 }
       );
     }
 
-    const body = await request.json();
+    if (Object.prototype.hasOwnProperty.call(body, "medico_id")) {
+      const validation = await validateDoctorAssignment(user, activeRole, String(body.medico_id || ""));
+      if (!validation.ok) {
+        return Response.json({ error: validation.error }, { status: 403 });
+      }
+    }
+
     const updated = await pbAdmin(`/api/collections/consultas/records/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(body),
@@ -60,6 +70,11 @@ export async function PATCH(
     console.error("Error al actualizar consulta:", error);
     return Response.json({ error: "No se pudo actualizar la consulta" }, { status: 500 });
   }
+}
+
+function onlyDoctorAttributionChanged(body: Record<string, unknown>) {
+  const keys = Object.keys(body).filter((key) => !["id", "collectionId", "collectionName", "created", "updated", "expand"].includes(key));
+  return keys.length === 1 && keys[0] === "medico_id";
 }
 
 function changedFields(current: Record<string, unknown>, next: Record<string, unknown>) {

@@ -4,6 +4,7 @@ import { useEffect, useState, use } from "react";
 import { pb } from "@/lib/pocketbase";
 import type { Consulta, Patient, Receta } from "@/lib/types";
 import { patientDisplayName, patientDocument } from "@/lib/patient-merge";
+import { doctorLabel } from "@/lib/doctor-attribution";
 
 type PrintableConsulta = Consulta & {
   tratamiento?: string;
@@ -26,11 +27,12 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
           pb.collection("consultas").getFullList<PrintableConsulta>({
             filter: `paciente_id = "${pacienteId}"`,
             sort: "-fecha",
+            expand: "medico_id",
           }),
           pb.collection("recetas").getFullList<Receta>({
             filter: `paciente_id = "${pacienteId}"`,
             sort: "-fecha,-created",
-            expand: "consulta_id",
+            expand: "consulta_id,medico_id",
           }),
         ]);
 
@@ -113,6 +115,7 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
                 <article key={consulta.id} className="rounded-lg border border-gray-300 p-4 text-sm break-inside-avoid">
                   <div className="mb-2 font-bold">{formatDate(consulta.fecha)}</div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                    <Info label="Medico" value={doctorLabel(consulta.expand?.medico_id)} />
                     <Info label="Motivo" value={consulta.motivo_consulta || "-"} />
                     <Info label="Diagnostico" value={consulta.diagnostico || "-"} />
                     <Info label="Tratamiento" value={consulta.tratamiento || "-"} />
@@ -136,6 +139,7 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
                     <span>{receta.consulta_id ? "Vinculada a consulta" : "Receta libre"}</span>
                   </div>
                   <div className="grid grid-cols-1 gap-2">
+                    <Info label="Medico" value={doctorLabel(receta.expand?.medico_id)} />
                     <Info label="Medicamentos" value={receta.medicamentos || "-"} />
                     <Info label="Indicaciones" value={receta.indicaciones || "-"} />
                     {receta.expand?.consulta_id?.fecha && (
