@@ -21,58 +21,22 @@ El sistema SHALL listar consultas con filtros por paciente, letra inicial y fech
 - **THEN** el sistema muestra consultas entre el inicio y fin de ese dia
 
 ### Requirement: Nueva consulta clinica
-El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado con campos narrativos multilínea, contexto clinico previo del paciente, auditoria de creacion y acciones de cierre asistidas al finalizar el guardado.
-
-#### Scenario: Crear consulta desde paciente
-- **WHEN** la URL incluye `paciente_id`
-- **THEN** el sistema carga el paciente con mutual expandida
-- **AND** precarga paciente, numero de ficha y antecedentes fijos disponibles
-- **AND** muestra un resumen visible del paciente seleccionado
-
-#### Scenario: Crear consulta desde turno
-- **WHEN** la URL incluye `turno_id`
-- **THEN** el sistema carga el turno
-- **AND** usa su motivo y paciente como datos iniciales
-- **AND** muestra el contexto de atencion desde turno
+El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftalmologicos, presentando el formulario como un flujo clinico organizado con campos narrativos multilínea, contexto clinico previo del paciente, auditoria de creacion, acciones de cierre asistidas al finalizar el guardado y una disposicion compacta de escritorio para monitores Full HD.
 
 #### Scenario: Mostrar contexto clinico previo
 - **WHEN** el usuario selecciona o abre una nueva consulta con paciente
-- **THEN** el sistema muestra una seccion de contexto clinico del paciente
+- **THEN** el sistema muestra contexto clinico del paciente
 - **AND** incluye ultimas consultas con fecha, motivo, diagnostico y tratamiento cuando existan
 - **AND** incluye recetas recientes con fecha, medicamentos e indicaciones cuando existan
 - **AND** permite abrir consultas y recetas previas desde esa seccion
-
-#### Scenario: Paciente sin historia previa
-- **WHEN** el paciente seleccionado no tiene consultas ni recetas registradas
-- **THEN** el sistema muestra estados vacios claros
-- **AND** permite continuar la carga y guardado de la nueva consulta
+- **AND** en escritorio ubica el contexto en un panel lateral con altura controlada
 
 #### Scenario: Formulario clinico organizado
 - **WHEN** el usuario abre una nueva consulta
 - **THEN** el sistema muestra secciones distinguibles para paciente, antecedentes, motivo, examen oftalmologico, refraccion y cierre clinico
 - **AND** mantiene disponibles todos los campos clinicos actuales
 - **AND** permite cargar biomicroscopia, fondo de ojo, diagnostico y tratamiento como texto multilínea
-
-#### Scenario: Guardar consulta
-- **WHEN** el usuario guarda la consulta con paciente seleccionado
-- **THEN** el sistema crea un registro en `consultas`
-- **AND** guarda la fecha en formato ISO
-- **AND** registra un evento de auditoria de creacion de consulta
-- **AND** muestra una confirmacion de consulta guardada sin redirigir automaticamente
-
-#### Scenario: Acciones posteriores al guardado
-- **WHEN** la consulta se guarda correctamente
-- **THEN** el sistema muestra una accion recomendada para continuar la atencion
-- **AND** recomienda crear receta cuando la consulta tiene tratamiento cargado
-- **AND** recomienda imprimir anteojos cuando no hay tratamiento y hay refraccion cargada
-- **AND** recomienda volver al contexto anterior cuando no hay tratamiento ni refraccion
-- **AND** mantiene acciones secundarias para abrir consulta, abrir ficha del paciente, crear receta, imprimir anteojos y volver al contexto anterior
-
-#### Scenario: Vincular consulta con turno
-- **WHEN** la consulta se creo desde un turno
-- **THEN** el sistema actualiza el turno con `consulta_id`
-- **AND** cambia su estado a `Atendido`
-- **AND** informa que el turno fue marcado como atendido
+- **AND** en un monitor Full HD prioriza que la carga clinica y los controles de guardado queden dentro del area visible de escritorio sin scroll vertical de pagina
 
 ### Requirement: Antecedentes clinicos
 El sistema SHALL registrar antecedentes fijos y copiarlos desde el paciente o la consulta anterior cuando corresponda.

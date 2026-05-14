@@ -639,11 +639,11 @@ function NuevaConsultaForm() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
-      <div className="max-w-[1500px] mx-auto">
+    <div className="min-h-screen bg-zinc-50 p-3 dark:bg-zinc-950 sm:p-4">
+      <div className="mx-auto max-w-[1760px]">
         
         {/* Cabecera */}
-      <div className="flex items-center gap-4 mb-8">
+      <div className="mb-3 flex items-center gap-3">
         <button 
           onClick={() => router.back()}
           className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
@@ -653,8 +653,8 @@ function NuevaConsultaForm() {
           </svg>
         </button>
         <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Nueva Consulta</h1>
-            <p className="text-zinc-500 dark:text-zinc-400">Registrar atencion medica</p>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Nueva Consulta</h1>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Registrar atencion medica</p>
           </div>
         </div>
 
@@ -662,13 +662,13 @@ function NuevaConsultaForm() {
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
           {/* Header del Formulario */}
-          <div className="bg-[#2d8f8f] dark:bg-emerald-800 text-white p-3 border-b-4 border-[#1f6b6b] dark:border-emerald-950 shadow-inner">
-            <h2 className="text-2xl font-bold italic tracking-wide text-center w-full shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
+          <div className="border-b-4 border-[#1f6b6b] bg-[#2d8f8f] p-2 text-white shadow-inner dark:border-emerald-950 dark:bg-emerald-800">
+            <h2 className="w-full text-center text-xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
               Historia clinica de atencion
             </h2>
           </div>
           
-          <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
+          <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-3 font-sans text-sm text-zinc-900 dark:text-zinc-100 2xl:pr-[400px]">
             {savedConsultation && completionRecommendation && (
               <section aria-label="Cierre de consulta" className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -725,7 +725,7 @@ function NuevaConsultaForm() {
               </section>
             )}
 
-            <div className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)]">
+            <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.7fr)] 2xl:hidden">
               <section className="rounded-xl border border-zinc-300 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                   <div>
@@ -752,7 +752,7 @@ function NuevaConsultaForm() {
                 <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Atencion actual</p>
                 {selectedTurnoData ? (
                   <div className="mt-2 space-y-2 text-sm">
-                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">Consulta desde turno</div>
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">Turno asociado</div>
                     <div className="text-zinc-600 dark:text-zinc-300">{turnoDateLabel || "Sin fecha de turno"}</div>
                     <div className="flex flex-wrap gap-2 text-xs">
                       {selectedTurnoData.tipo && <span className="rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{selectedTurnoData.tipo}</span>}
@@ -778,7 +778,7 @@ function NuevaConsultaForm() {
             </div>
 
             {/* Sección: CONTEXTO CLINICO */}
-            <section aria-label="Contexto clinico del paciente" className="mb-6 rounded-xl border border-zinc-300 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+            <section aria-label="Contexto clinico del paciente" className="mb-4 rounded-xl border border-zinc-300 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:hidden">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Contexto clinico del paciente</p>
@@ -885,14 +885,148 @@ function NuevaConsultaForm() {
               )}
             </section>
 
+            <aside className="fixed right-4 top-[116px] z-10 hidden w-[372px] overflow-y-auto rounded-xl border border-zinc-300 bg-white p-3 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 2xl:block 2xl:max-h-[calc(100vh-140px)]" aria-label="Panel de contexto de la consulta">
+              <section className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Paciente</p>
+                <h3 className="mt-1 text-base font-bold text-zinc-900 dark:text-zinc-100">{pacienteNombre}</h3>
+                <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                  {patientSummaryItems.length > 0 ? patientSummaryItems.map((item) => (
+                    <span key={item} className="rounded-full bg-white px-2 py-1 font-medium dark:bg-zinc-900">{item}</span>
+                  )) : (
+                    <span className="rounded-full bg-white px-2 py-1 font-medium dark:bg-zinc-900">Busca o selecciona un paciente</span>
+                  )}
+                </div>
+              </section>
+
+              <section className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Atencion actual</p>
+                {selectedTurnoData ? (
+                  <div className="mt-2 text-sm">
+                    <div className="font-semibold text-zinc-900 dark:text-zinc-100">Turno asociado</div>
+                    <div className="mt-1 text-zinc-600 dark:text-zinc-300">{turnoDateLabel || "Sin fecha de turno"}</div>
+                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs">
+                      {selectedTurnoData.tipo && <span className="rounded-full bg-blue-50 px-2 py-1 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{selectedTurnoData.tipo}</span>}
+                      {selectedTurnoData.estado && <span className="rounded-full bg-emerald-50 px-2 py-1 font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{selectedTurnoData.estado}</span>}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Consulta manual sin turno asociado.</div>
+                )}
+                <div className="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Antecedentes activos</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
+                      <span key={item} className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                    )) : (
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos.</span>
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              <section aria-label="Contexto lateral del paciente" className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[#2d8f8f] dark:text-emerald-400">Contexto clinico</p>
+                    <h3 className="mt-1 text-base font-bold text-zinc-900 dark:text-zinc-100">Continuidad</h3>
+                  </div>
+                  {formData.paciente_id && (
+                    <Link href={`/pacientes/${formData.paciente_id}?mode=view`} className="rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                      Ver ficha
+                    </Link>
+                  )}
+                </div>
+
+                {!formData.paciente_id ? (
+                  <div className="mt-3 rounded-lg border border-dashed border-zinc-300 bg-white p-3 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-400">Selecciona un paciente para ver su historia reciente.</div>
+                ) : isLoadingClinicalContext ? (
+                  <div className="mt-3 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-blue-500 border-t-transparent"></div>
+                    Cargando contexto...
+                  </div>
+                ) : clinicalContextError ? (
+                  <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">{clinicalContextError}</div>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Ultimas consultas</h4>
+                        <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{recentConsultas.length}</span>
+                      </div>
+                      {recentConsultas.length === 0 ? (
+                        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {recentConsultas.map((consulta) => (
+                            <article key={consulta.id} className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-900">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatClinicalDate(consulta.fecha || consulta.created)}</div>
+                                  <div className="mt-1 truncate font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo registrado"}</div>
+                                </div>
+                                <Link href={`/consultas/${consulta.id}?mode=view`} className="shrink-0 text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">Abrir</Link>
+                              </div>
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                <div>
+                                  <div className="font-semibold uppercase text-zinc-500 dark:text-zinc-500">Diagnostico</div>
+                                  <div className="mt-0.5 line-clamp-2">{consulta.diagnostico || "-"}</div>
+                                </div>
+                                <div>
+                                  <div className="font-semibold uppercase text-zinc-500 dark:text-zinc-500">Tratamiento</div>
+                                  <div className="mt-0.5 line-clamp-2">{consulta.tratamiento || "-"}</div>
+                                </div>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                      <div className="flex items-center justify-between gap-3">
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Recetas recientes</h4>
+                        <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">{recentRecetas.length}</span>
+                      </div>
+                      {recentRecetas.length === 0 ? (
+                        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No hay recetas registradas.</p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {recentRecetas.map((receta) => (
+                            <article key={receta.id} className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-900">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold uppercase text-emerald-600 dark:text-emerald-400">{formatClinicalDate(receta.fecha || receta.created)}</div>
+                                  <div className="mt-1 truncate font-semibold text-zinc-900 dark:text-zinc-100">{receta.medicamentos || "Sin medicamentos registrados"}</div>
+                                </div>
+                                <div className="flex shrink-0 gap-2">
+                                  <Link href={`/recetas/${receta.id}?mode=view`} className="text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">Abrir</Link>
+                                  {receta.consulta_id && (
+                                    <Link href={`/consultas/${receta.consulta_id}?mode=view`} className="text-sm font-semibold text-emerald-700 hover:text-emerald-800 dark:text-emerald-300 dark:hover:text-emerald-200">Consulta</Link>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+                                <div className="font-semibold uppercase text-zinc-500 dark:text-zinc-500">Indicaciones</div>
+                                <p className="mt-0.5 line-clamp-2">{receta.indicaciones || "-"}</p>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </section>
+            </aside>
+
             {/* Sección: DATOS DEL PACIENTE */}
-            <div className="mb-6">
-              <div className="flex items-center mb-2">
+            <div className="mb-3">
+              <div className="mb-1.5 flex items-center">
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Carga inicial del paciente</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white dark:bg-zinc-800 p-3 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm">
+              <div className="grid grid-cols-1 items-end gap-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-12">
                 <div className="col-span-12 md:col-span-5">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
                   <div className="relative">
@@ -987,12 +1121,12 @@ function NuevaConsultaForm() {
             </div>
 
             {/* Sección: ANTECEDENTES */}
-            <div className="mb-6">
-              <div className="flex items-center mb-2">
+            <div className="mb-3">
+              <div className="mb-1.5 flex items-center">
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Antecedentes Fijos</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
-              <div className="p-3 border-2 border-zinc-300 dark:border-zinc-600 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex flex-wrap items-center gap-6 shadow-inner">
+              <div className="flex flex-wrap items-center gap-4 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="ant_diabetes" checked={formData.ant_diabetes} onChange={handleInputChange} className="w-4 h-4 text-[#2d8f8f]" />
                   <span className="font-semibold text-sm">DIABETES</span>
@@ -1037,16 +1171,16 @@ function NuevaConsultaForm() {
             </div>
 
             {/* Sección: DATOS MEDICOS */}
-            <div className="mb-4">
-              <div className="flex items-center mb-2">
+            <div className="mb-3">
+              <div className="mb-1.5 flex items-center">
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Examen y cierre clinico</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
 
-              <div className="bg-white dark:bg-zinc-800 p-4 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm space-y-4">
+              <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
                 
-                <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-                  <div className="mb-4">
+                <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                  <div className="mb-2">
                     <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Motivo de consulta</h4>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">Fecha de atencion y motivo principal referido por el paciente.</p>
                   </div>
@@ -1068,26 +1202,26 @@ function NuevaConsultaForm() {
                         name="motivo_consulta"
                         value={formData.motivo_consulta}
                         onChange={handleInputChange}
-                        rows={3}
+                        rows={2}
                         placeholder="Motivo principal de la atencion..."
-                        className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                        className="mt-1 min-h-20 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[64px] 2xl:resize-none"
                       />
                     </label>
                   </div>
                 </section>
 
-                <div className="grid grid-cols-1 gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.75fr)_minmax(620px,1.25fr)]">
-                  <div className="space-y-4">
-                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-                      <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.72fr)_minmax(620px,1.28fr)]">
+                  <div className="space-y-3">
+                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                      <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
                           <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Agudeza visual</h4>
                           <p className="text-xs text-zinc-500 dark:text-zinc-400">Sin correccion y con correccion por ojo.</p>
                         </div>
                         <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">/10</span>
                       </div>
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">OD</div>
                           <label className="mb-2 grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
                             AV S/C
@@ -1098,7 +1232,7 @@ function NuevaConsultaForm() {
                             <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           </label>
                         </div>
-                        <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                        <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">OI</div>
                           <label className="mb-2 grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
                             AV S/C
@@ -1112,15 +1246,15 @@ function NuevaConsultaForm() {
                       </div>
                     </section>
 
-                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
                       <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Presion ocular</h4>
-                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
+                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2.5 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
                           OD
                           <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           <span className="text-xs text-zinc-500">mmHg</span>
                         </label>
-                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-3 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
+                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2.5 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
                           OI
                           <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           <span className="text-xs text-zinc-500">mmHg</span>
@@ -1129,8 +1263,8 @@ function NuevaConsultaForm() {
                     </section>
                   </div>
 
-                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-                    <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div>
                         <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Refraccion</h4>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">Lejos y cerca con ESF, CIL y EJE para OD/OI.</p>
@@ -1141,9 +1275,9 @@ function NuevaConsultaForm() {
                       </label>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-                      <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
-                        <div className="mb-3 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de lejos</div>
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
+                        <div className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de lejos</div>
                         <div className="grid grid-cols-[44px_repeat(3,minmax(0,1fr))] gap-2 text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
                           <span></span><span>ESF</span><span>CIL</span><span>EJE</span>
                         </div>
@@ -1161,8 +1295,8 @@ function NuevaConsultaForm() {
                         </div>
                       </div>
 
-                      <div className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
-                        <div className="mb-3 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de cerca</div>
+                      <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
+                        <div className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de cerca</div>
                         <div className="grid grid-cols-[44px_repeat(3,minmax(0,1fr))] gap-2 text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
                           <span></span><span>ESF</span><span>CIL</span><span>EJE</span>
                         </div>
@@ -1319,21 +1453,21 @@ function NuevaConsultaForm() {
                   </>
                 )}
 
-                <div className="grid grid-cols-1 gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700 xl:grid-cols-2">
-                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-                    <div className="mb-3">
+                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-2">
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <div className="mb-2">
                       <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Examen oftalmologico</h4>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">Hallazgos del segmento anterior y posterior.</p>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <label className="block text-sm font-bold">
                         Biomicroscopia
                         <textarea
                           name="biomicroscopia"
                           value={formData.biomicroscopia}
                           onChange={handleInputChange}
-                          rows={4}
-                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                          rows={3}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
                         />
                       </label>
                       <label className="block text-sm font-bold">
@@ -1342,27 +1476,27 @@ function NuevaConsultaForm() {
                           name="fondo_ojo"
                           value={formData.fondo_ojo}
                           onChange={handleInputChange}
-                          rows={4}
-                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                          rows={3}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
                         />
                       </label>
                     </div>
                   </section>
 
-                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-900/50">
-                    <div className="mb-3">
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <div className="mb-2">
                       <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Cierre clinico</h4>
                       <p className="text-xs text-zinc-500 dark:text-zinc-400">Conclusion diagnostica y conducta indicada.</p>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       <label className="block text-sm font-bold">
                         Diagnostico
                         <textarea
                           name="diagnostico"
                           value={formData.diagnostico}
                           onChange={handleInputChange}
-                          rows={4}
-                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                          rows={3}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
                         />
                       </label>
                       <label className="block text-sm font-bold">
@@ -1371,8 +1505,8 @@ function NuevaConsultaForm() {
                           name="tratamiento"
                           value={formData.tratamiento}
                           onChange={handleInputChange}
-                          rows={4}
-                          className="mt-1 min-h-28 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                          rows={3}
+                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[72px] 2xl:resize-none"
                         />
                       </label>
                     </div>
@@ -1382,7 +1516,7 @@ function NuevaConsultaForm() {
             </div>
 
             {/* Botones de Acción */}
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t-2 border-zinc-300 dark:border-zinc-700">
+            <div className="mt-3 flex justify-end gap-3 border-t-2 border-zinc-300 pt-3 dark:border-zinc-700">
               <button 
                 type="button"
                 onClick={() => router.back()}
