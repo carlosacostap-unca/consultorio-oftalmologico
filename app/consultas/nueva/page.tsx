@@ -1215,7 +1215,7 @@ function NuevaConsultaForm() {
                     <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Motivo de consulta</h4>
                     <p className="text-xs text-zinc-500 dark:text-zinc-400">Fecha de atencion y motivo principal referido por el paciente.</p>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
                     <label className="block text-sm font-bold">
                       Fecha
                       <input
