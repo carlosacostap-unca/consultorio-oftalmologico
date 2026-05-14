@@ -37,6 +37,8 @@ export const PERMISSION_GROUPS = [
       { key: "turnos.create", label: "Crear turnos" },
       { key: "turnos.edit", label: "Editar turnos" },
       { key: "turnos.delete", label: "Eliminar turnos" },
+      { key: "agenda.schedules.manage", label: "Gestionar horarios medicos" },
+      { key: "agenda.blocks.manage", label: "Gestionar bloqueos de agenda" },
     ],
   },
   {
@@ -63,6 +65,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<ManagedRole, PermissionKey[]> = {
     "consultas.create",
     "consultas.edit",
     "turnos.view",
+    "agenda.blocks.manage",
     "recetas.manage",
   ],
   secretaria: [
@@ -72,6 +75,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<ManagedRole, PermissionKey[]> = {
     "turnos.view",
     "turnos.create",
     "turnos.edit",
+    "agenda.schedules.manage",
+    "agenda.blocks.manage",
     "mutuales.manage",
   ],
 };

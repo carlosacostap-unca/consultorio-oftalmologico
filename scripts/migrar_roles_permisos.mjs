@@ -12,6 +12,7 @@ const DEFAULT_ROLE_PERMISSIONS = {
     "consultas.create",
     "consultas.edit",
     "turnos.view",
+    "agenda.blocks.manage",
     "recetas.manage",
   ],
   secretaria: [
@@ -21,6 +22,8 @@ const DEFAULT_ROLE_PERMISSIONS = {
     "turnos.view",
     "turnos.create",
     "turnos.edit",
+    "agenda.schedules.manage",
+    "agenda.blocks.manage",
     "mutuales.manage",
   ],
 };

@@ -13,6 +13,7 @@ if (hasFlag("--require-test-pocketbase") || process.env.REQUIRE_TEST_POCKETBASE 
 console.log("Buscando medico demo...");
 
 const DEMO_DATE = env.DEMO_AGENDA_DATE || process.env.DEMO_AGENDA_DATE || "2026-05-15";
+const DEMO_WEEKDAY = new Date(`${DEMO_DATE}T12:00:00`).getDay();
 
 const medico = await findFirstRecord("users", 'email = "medico.demo@consultorio.local"');
 if (!medico) {
@@ -82,12 +83,45 @@ await upsertDisponibilidad({
   tipo: "Consulta",
 });
 
+await upsertAgendaSemanal({
+  medico_id: medico.id,
+  dia_semana: DEMO_WEEKDAY,
+  hora_inicio: "09:00",
+  hora_fin: "12:00",
+  tipo: "Consulta",
+  duracion_minutos: 15,
+  activo: true,
+});
+
+await upsertAgendaSemanal({
+  medico_id: medicoDos.id,
+  dia_semana: DEMO_WEEKDAY,
+  hora_inicio: "10:00",
+  hora_fin: "11:00",
+  tipo: "Consulta",
+  duracion_minutos: 15,
+  activo: true,
+});
+
+await upsertBloqueoAgenda({
+  alcance: "general",
+  fecha_inicio: localIso(DEMO_DATE, "13:00"),
+  fecha_fin: localIso(DEMO_DATE, "13:30"),
+  hora_inicio: "13:00",
+  hora_fin: "13:30",
+  dia_completo: false,
+  motivo: "Bloqueo demo sin turnos",
+});
+
 console.log("Datos demo de agenda listos:");
 console.log(`- Fecha: ${DEMO_DATE}`);
 console.log(`- Medico: ${medico.email}`);
 console.log(`- Disponibilidad: 09:00 - 12:00`);
+console.log(`- Horario recurrente medico: viernes 09:00 - 12:00`);
 console.log(`- Segundo medico: ${medicoDos.email}`);
 console.log(`- Disponibilidad segundo medico: 10:00 - 11:00`);
+console.log(`- Horario recurrente segundo medico: viernes 10:00 - 11:00`);
+console.log(`- Bloqueo general demo: 13:00 - 13:30`);
 console.log(`- Horario ocupado: 09:15 (${pacienteOcupado.apellido}, ${pacienteOcupado.nombre})`);
 console.log(`- Paciente libre para pruebas: ${pacienteLibre.apellido}, ${pacienteLibre.nombre} DNI ${pacienteLibre.numero_documento}`);
 console.log(`- Pacientes duplicados demo: ${pacienteDuplicadoPrincipal.numero_documento} y ${pacienteDuplicadoSecundario.numero_documento}`);
@@ -142,6 +176,43 @@ async function upsertDisponibilidad(data) {
   }
 
   return pb("/api/collections/disponibilidades/records", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+async function upsertAgendaSemanal(data) {
+  console.log("Preparando regla semanal demo...");
+  const existing = await findFirstRecord(
+    "agenda_semanal_medico",
+    `medico_id = "${data.medico_id}" && dia_semana = ${data.dia_semana} && hora_inicio = "${data.hora_inicio}" && tipo = "${data.tipo}"`
+  );
+
+  if (existing) {
+    return pb(`/api/collections/agenda_semanal_medico/records/${encodeURIComponent(existing.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  return pb("/api/collections/agenda_semanal_medico/records", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+async function upsertBloqueoAgenda(data) {
+  console.log("Preparando bloqueo demo...");
+  const existing = await findFirstRecord("bloqueos_agenda", `motivo = "${data.motivo}"`);
+
+  if (existing) {
+    return pb(`/api/collections/bloqueos_agenda/records/${encodeURIComponent(existing.id)}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+  }
+
+  return pb("/api/collections/bloqueos_agenda/records", {
     method: "POST",
     body: JSON.stringify(data),
   });

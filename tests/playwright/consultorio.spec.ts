@@ -79,6 +79,34 @@ test.describe("roles y otorgamiento de turnos", () => {
     await expect(page.getByRole("button", { name: /09:15.*Ocupado/ })).toBeVisible();
   });
 
+  test("secretaria ve turnos a resolver cuando un bloqueo afecta turnos otorgados", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const motivoBloqueo = `Playwright bloqueo conflicto ${Date.now()}`;
+    let block: Record<string, string> | null = null;
+
+    try {
+      block = await createDemoScheduleBlock(request, env, adminToken, medicoId, motivoBloqueo);
+
+      await login(page, "secretaria.demo@consultorio.local");
+      await page.goto("/turnos");
+      await page.getByRole("button", { name: "Agenda Diaria" }).click();
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+
+      await expect(page.getByRole("heading", { name: "Turnos dentro de horarios bloqueados" })).toBeVisible();
+      const conflictTray = page.getByLabel("Turnos a resolver");
+      await expect(conflictTray.getByText("Turno ocupado demo")).toBeVisible();
+      await expect(conflictTray.getByText(motivoBloqueo)).toBeVisible();
+      await expect(page.getByRole("button", { name: /09:15.*Conflicto/ }).first()).toBeVisible();
+    } finally {
+      if (block?.id) {
+        await deleteDemoScheduleBlock(request, env, adminToken, block.id);
+      }
+    }
+  });
+
   test("secretaria gestiona sala de espera por estado", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
@@ -990,6 +1018,7 @@ test.describe("roles y otorgamiento de turnos", () => {
     let createdRecetaId = "";
     let priorConsultaId = "";
     let priorRecetaId = "";
+    let inProgressConsultaId = "";
     await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, slot);
 
     try {
@@ -997,6 +1026,16 @@ test.describe("roles y otorgamiento de turnos", () => {
       priorConsultaId = priorConsulta.id as string;
       const priorReceta = await createDemoPrescription(request, env, adminToken, patient!.id as string, priorConsultaId, recetaPrevia);
       priorRecetaId = priorReceta.id as string;
+      const inProgressConsulta = await createDemoConsultation(
+        request,
+        env,
+        adminToken,
+        patient!.id as string,
+        `Playwright avance pendiente ${Date.now()}`,
+        new Date(`${DEMO_DATE}T08:30:00`).toISOString(),
+        "en_curso"
+      );
+      inProgressConsultaId = inProgressConsulta.id as string;
       const turno = await createDemoAppointment(request, env, adminToken, medicoId, patient!.id as string, motivo, slot, "En espera");
 
       await login(page, "medico.demo@consultorio.local");
@@ -1015,6 +1054,11 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(doctorPanel.getByText("Paciente en consulta", { exact: true })).toBeVisible();
       await expect(doctorPanel.getByText("Proximo paciente", { exact: true })).toBeVisible();
       await expect(doctorPanel.getByText("Pendientes de atencion", { exact: true })).toBeVisible();
+      const inProgressInbox = doctorPanel.getByLabel("Consultas en curso");
+      await expect(inProgressInbox).toBeVisible();
+      await expect(inProgressInbox.getByText("Avances pendientes de cierre")).toBeVisible();
+      await expect(inProgressInbox.getByText("Playwright avance pendiente").first()).toBeVisible();
+      await expect(inProgressInbox.getByRole("link", { name: "Retomar" }).first()).toHaveAttribute("href", `/consultas/${inProgressConsultaId}`);
       await expect(doctorPanel.getByText(motivo)).toBeVisible();
       await expect(doctorPanel.getByRole("link", { name: "Ficha clinica" }).first()).toBeVisible();
       await expect(doctorPanel.getByRole("link", { name: "Nueva receta" }).first()).toBeVisible();
@@ -1219,6 +1263,11 @@ test.describe("roles y otorgamiento de turnos", () => {
           headers: { Authorization: `Bearer ${adminToken}` },
         });
       }
+      if (inProgressConsultaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${inProgressConsultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
       await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, slot);
     }
   });
@@ -1403,13 +1452,49 @@ async function createRawDemoAppointment(
   return response.json() as Promise<Record<string, string>>;
 }
 
+async function createDemoScheduleBlock(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  medicoId: string,
+  motivo: string
+) {
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/bloqueos_agenda/records`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      alcance: "medico",
+      medico_id: medicoId,
+      fecha_inicio: demoSlotIso("09:00"),
+      fecha_fin: demoSlotIso("09:30"),
+      hora_inicio: "09:00",
+      hora_fin: "09:30",
+      dia_completo: false,
+      motivo,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<Record<string, string>>;
+}
+
+async function deleteDemoScheduleBlock(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  blockId: string
+) {
+  await request.delete(`${pocketBaseUrl(env)}/api/collections/bloqueos_agenda/records/${blockId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
 async function createDemoConsultation(
   request: APIRequestContext,
   env: Record<string, string>,
   token: string,
   patientId: string,
   motivo: string,
-  fecha = new Date(`${DEMO_DATE}T12:00:00`).toISOString()
+  fecha = new Date(`${DEMO_DATE}T12:00:00`).toISOString(),
+  estado = "finalizada"
 ) {
   const response = await request.post(`${pocketBaseUrl(env)}/api/collections/consultas/records`, {
     headers: { Authorization: `Bearer ${token}` },
@@ -1419,7 +1504,7 @@ async function createDemoConsultation(
       motivo_consulta: motivo,
       diagnostico: "Control de fusion Playwright",
       tratamiento: "Tratamiento de prueba",
-      estado: "finalizada",
+      estado,
     },
   });
   expect(response.ok()).toBeTruthy();

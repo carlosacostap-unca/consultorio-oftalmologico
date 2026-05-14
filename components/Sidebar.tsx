@@ -103,6 +103,8 @@ export function Sidebar() {
     { name: "Pacientes", href: "/pacientes" },
     { name: "Mutuales", href: "/mutuales" },
     { name: "Turnos", href: "/turnos" },
+    ...(activeRole === "secretaria" ? [{ name: "Horarios medicos", href: "/horarios-medicos" }] : []),
+    ...(activeRole === "secretaria" || activeRole === "medico" ? [{ name: "Bloqueos y feriados", href: "/bloqueos-agenda" }] : []),
     { name: "Consultas", href: "/consultas" },
     { name: "Recetas", href: "/recetas" },
   ];
@@ -110,6 +112,8 @@ export function Sidebar() {
     { name: "Usuarios", href: "/usuarios" },
     { name: "Permisos", href: "/permisos" },
     { name: "Edicion de consultas", href: "/edicion-consultas" },
+    { name: "Horarios medicos", href: "/horarios-medicos" },
+    { name: "Bloqueos y feriados", href: "/bloqueos-agenda" },
     { name: "Duplicados", href: "/pacientes/duplicados" },
   ];
 

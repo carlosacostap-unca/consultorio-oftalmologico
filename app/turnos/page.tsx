@@ -9,6 +9,15 @@ import type { UserRole } from "@/lib/permissions";
 import { createTurnoEvento, type TurnoEvento } from "@/lib/turno-eventos";
 import { formatDate } from "@/lib/utils";
 import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
+import {
+  blockAppliesToSlot,
+  findConflictingAppointments,
+  generateRecurringSlotsForDate,
+  type GeneratedScheduleSlot,
+  type ScheduleBlock,
+  type WeeklyScheduleRule,
+} from "@/lib/agenda-recurrente";
 
 interface Paciente {
   id: string;
@@ -85,6 +94,18 @@ interface Disponibilidad {
   };
 }
 
+interface AgendaSemanalMedico extends WeeklyScheduleRule {
+  expand?: {
+    medico_id?: Medico;
+  };
+}
+
+interface BloqueoAgenda extends ScheduleBlock {
+  expand?: {
+    medico_id?: Medico;
+  };
+}
+
 interface Medico {
   id: string;
   name?: string;
@@ -102,8 +123,16 @@ interface AppUser {
 interface ConsultaResumen {
   id: string;
   fecha?: string;
+  estado?: string;
   motivo_consulta?: string;
   diagnostico?: string;
+}
+
+interface ConsultaEnCurso extends ConsultaResumen {
+  paciente_id?: string;
+  expand?: {
+    paciente_id?: Paciente;
+  };
 }
 
 interface PatientQuickCardForm {
@@ -178,6 +207,7 @@ interface AvailabilitySlot {
   start: Date;
   end: Date;
   appointment?: Turno;
+  block?: ScheduleBlock;
 }
 
 interface RescheduleState {
@@ -303,6 +333,10 @@ export default function TurnosPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [turnos, setTurnos] = useState<Turno[]>([]);
   const [disponibilidades, setDisponibilidades] = useState<Disponibilidad[]>([]);
+  const [agendaSemanal, setAgendaSemanal] = useState<AgendaSemanalMedico[]>([]);
+  const [bloqueosAgenda, setBloqueosAgenda] = useState<BloqueoAgenda[]>([]);
+  const [consultasEnCurso, setConsultasEnCurso] = useState<ConsultaEnCurso[]>([]);
+  const [isLoadingConsultasEnCurso, setIsLoadingConsultasEnCurso] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
 
   // Vistas
@@ -1014,19 +1048,24 @@ export default function TurnosPage() {
 
     updateQuickAppointment({ isSaving: true, error: "" });
     try {
-      const record = await pb.collection("turnos").create<Turno>({
+      const disponibilidadId = isRecurringAvailability(disponibilidad) ? "" : disponibilidad.id;
+      const turnoPayload: Record<string, unknown> = {
         paciente_id: quickAppointment.paciente_id,
         medico_id: medicoId,
         fecha_hora: start.toISOString(),
         motivo: quickAppointment.motivo.trim(),
         observaciones: quickAppointment.observaciones.trim(),
         estado: "En espera",
-        disponibilidad_id: disponibilidad.id,
         tipo: disponibilidad.tipo,
         duracion: duration,
         es_sobreturno: quickAppointment.mode === "overbooking",
         sobreturno_tipo: quickAppointment.mode === "overbooking" ? quickAppointment.sobreturno_tipo : "",
-      });
+      };
+      if (disponibilidadId) {
+        turnoPayload.disponibilidad_id = disponibilidadId;
+      }
+
+      const record = await pb.collection("turnos").create<Turno>(turnoPayload);
 
       const selectedPatient = selectedQuickPatient || quickAppointment.patientResults.find((patient) => patient.id === quickAppointment.paciente_id);
       const doctor = medicos.find((medico) => medico.id === medicoId) || disponibilidad.expand?.medico_id;
@@ -1040,7 +1079,7 @@ export default function TurnosPage() {
         metadata: {
           paciente_id: quickAppointment.paciente_id,
           medico_id: medicoId,
-          disponibilidad_id: disponibilidad.id,
+          disponibilidad_id: disponibilidadId || null,
           motivo: quickAppointment.motivo.trim(),
           modo: quickAppointment.mode,
         },
@@ -1330,6 +1369,24 @@ export default function TurnosPage() {
     }
   };
 
+  const loadConsultasEnCurso = async () => {
+    setIsLoadingConsultasEnCurso(true);
+    try {
+      const response = await pb.collection("consultas").getList<ConsultaEnCurso>(1, 10, {
+        filter: 'estado = "en_curso"',
+        sort: "-fecha,-updated",
+        expand: "paciente_id",
+        requestKey: null,
+      });
+      setConsultasEnCurso(response.items);
+    } catch (error) {
+      console.error("Error al cargar consultas en curso:", error);
+      setConsultasEnCurso([]);
+    } finally {
+      setIsLoadingConsultasEnCurso(false);
+    }
+  };
+
   // Establecer fecha de hoy por defecto al cambiar a vista diaria o semanal si no hay fecha seleccionada
   useEffect(() => {
     if ((viewMode === 'daily' || viewMode === 'weekly' || viewMode === 'waiting-room') && !filterDate) {
@@ -1566,7 +1623,7 @@ export default function TurnosPage() {
 
     const loadData = async () => {
       try {
-        const [medicosResponse, turnosRecords, dispRecords] = await Promise.all([
+        const [medicosResponse, turnosRecords, dispRecords, agendaRecords, bloqueosRecords, consultasEnCursoResponse] = await Promise.all([
           fetch("/api/medicos", {
             headers: { Authorization: `Bearer ${pb.authStore.token}` },
           }),
@@ -1577,7 +1634,23 @@ export default function TurnosPage() {
           pb.collection("disponibilidades").getFullList<Disponibilidad>({
             sort: "-fecha_hora_inicio",
             expand: "medico_id",
-          })
+          }),
+          pb.collection("agenda_semanal_medico").getFullList<AgendaSemanalMedico>({
+            sort: "medico_id,dia_semana,hora_inicio",
+            expand: "medico_id",
+            requestKey: null,
+          }).catch(() => []),
+          pb.collection("bloqueos_agenda").getFullList<BloqueoAgenda>({
+            sort: "-fecha_inicio,-created",
+            expand: "medico_id",
+            requestKey: null,
+          }).catch(() => []),
+          pb.collection("consultas").getList<ConsultaEnCurso>(1, 10, {
+            filter: 'estado = "en_curso"',
+            sort: "-fecha,-updated",
+            expand: "paciente_id",
+            requestKey: null,
+          }),
         ]);
 
         if (!medicosResponse.ok) {
@@ -1590,9 +1663,13 @@ export default function TurnosPage() {
 
         setTurnos(turnosRecords);
         setDisponibilidades(dispRecords);
+        setAgendaSemanal(agendaRecords);
+        setBloqueosAgenda(bloqueosRecords);
+        setConsultasEnCurso(consultasEnCursoResponse.items);
       } catch (error) {
         console.error("Error al cargar datos:", error);
       } finally {
+        setIsLoadingConsultasEnCurso(false);
         setIsLoading(false);
       }
     };
@@ -1614,6 +1691,46 @@ export default function TurnosPage() {
       })
       .catch((err) => console.log("Suscripción fallida a turnos:", err));
 
+    let unsubscribeConsultas: () => void;
+    pb.collection("consultas")
+      .subscribe<ConsultaEnCurso>("*", () => {
+        loadConsultasEnCurso();
+      })
+      .then((unsub) => {
+        unsubscribeConsultas = unsub;
+      })
+      .catch((err) => console.log("Suscripcion fallida a consultas:", err));
+
+    let unsubscribeAgenda: () => void;
+    pb.collection("agenda_semanal_medico")
+      .subscribe<AgendaSemanalMedico>("*", async () => {
+        const records = await pb.collection("agenda_semanal_medico").getFullList<AgendaSemanalMedico>({
+          sort: "medico_id,dia_semana,hora_inicio",
+          expand: "medico_id",
+          requestKey: null,
+        });
+        setAgendaSemanal(records);
+      })
+      .then((unsub) => {
+        unsubscribeAgenda = unsub;
+      })
+      .catch((err) => console.log("Suscripcion fallida a agenda semanal:", err));
+
+    let unsubscribeBloqueos: () => void;
+    pb.collection("bloqueos_agenda")
+      .subscribe<BloqueoAgenda>("*", async () => {
+        const records = await pb.collection("bloqueos_agenda").getFullList<BloqueoAgenda>({
+          sort: "-fecha_inicio,-created",
+          expand: "medico_id",
+          requestKey: null,
+        });
+        setBloqueosAgenda(records);
+      })
+      .then((unsub) => {
+        unsubscribeBloqueos = unsub;
+      })
+      .catch((err) => console.log("Suscripcion fallida a bloqueos de agenda:", err));
+
     const handleActiveRoleChange = () => {
       applyCurrentUserRole();
     };
@@ -1622,6 +1739,9 @@ export default function TurnosPage() {
 
     return () => {
       if (unsubscribe) unsubscribe();
+      if (unsubscribeConsultas) unsubscribeConsultas();
+      if (unsubscribeAgenda) unsubscribeAgenda();
+      if (unsubscribeBloqueos) unsubscribeBloqueos();
       window.removeEventListener(ACTIVE_ROLE_CHANGED_EVENT, handleActiveRoleChange);
     };
   }, [router]);
@@ -1773,6 +1893,17 @@ export default function TurnosPage() {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
   };
 
+  function scheduleTimeValue(date: Date) {
+    const pad = (n: number) => n.toString().padStart(2, "0");
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  function appointmentTypeFromAvailability(tipo?: string): "Consulta" | "Estudio" | "Cirugia" {
+    if (tipo === "Estudio") return "Estudio";
+    if ((tipo || "").toLowerCase().startsWith("cirug")) return "Cirugia";
+    return "Consulta";
+  }
+
   const dailyDate = filterDate || dateKey(new Date());
   const isLateTurno = (turno: Turno) =>
     turno.estado === "En espera" && new Date(turno.fecha_hora).getTime() < Date.now();
@@ -1810,6 +1941,16 @@ export default function TurnosPage() {
       dateKey(new Date(turno.fecha_hora)) === dailyDate
     )
     .sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
+  const dailyScheduleDate = new Date(`${dailyDate}T12:00:00`);
+  const recurringSlotsForDailyDate = generateRecurringSlotsForDate(
+    dailyScheduleDate,
+    agendaSemanal.filter((rule) => selectedMedicoId === "all" || rule.medico_id === selectedMedicoId),
+    bloqueosAgenda,
+    dailyBaseTurnos
+  );
+  const dailyAppointmentConflicts = findConflictingAppointments(dailyBaseTurnos, bloqueosAgenda)
+    .map((conflict) => ({ ...conflict, turno: conflict.appointment as Turno }))
+    .sort((a, b) => a.start.getTime() - b.start.getTime());
   const dailySearchedTurnos = dailyBaseTurnos.filter(matchesPatientSearch);
   const dailyVisibleTurnos = dailySearchedTurnos.filter(matchesDailyOperationFilter);
   const dailyStats = buildDailyStats(dailyVisibleTurnos);
@@ -1833,6 +1974,12 @@ export default function TurnosPage() {
     turno.id !== doctorCurrentTurno?.id &&
     turno.id !== doctorNextTurno?.id
   );
+  const inProgressConsultationDateLabel = (value?: string) => {
+    if (!value) return "Sin fecha";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Sin fecha";
+    return `${formatDate(date)} ${shortTime(date)}`;
+  };
   const nextDailyTurno =
     dailyVisibleTurnos.find((turno) => turno.estado !== "Cancelado" && new Date(turno.fecha_hora).getTime() >= Date.now()) ??
     dailyVisibleTurnos.find((turno) => turno.estado !== "Cancelado") ??
@@ -1850,9 +1997,24 @@ export default function TurnosPage() {
         .sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime());
       const searchedDoctorTurnos = allDoctorTurnos.filter(matchesPatientSearch);
       const doctorTurnos = searchedDoctorTurnos.filter(matchesDailyOperationFilter);
+      const doctorRecurringRules = agendaSemanal.filter((rule) =>
+        rule.activo !== false &&
+        rule.medico_id === medico.id &&
+        Number(rule.dia_semana) === dailyScheduleDate.getDay()
+      );
       const doctorDisponibilidades = dailyDisponibilidades
         .filter((disp) => disp.medico_id === medico.id)
+        .filter((disp) => {
+          const start = new Date(disp.fecha_hora_inicio);
+          const end = new Date(disp.fecha_hora_fin);
+          return !doctorRecurringRules.some((rule) =>
+            rule.hora_inicio === scheduleTimeValue(start) &&
+            rule.hora_fin === scheduleTimeValue(end) &&
+            rule.tipo === appointmentTypeFromAvailability(disp.tipo)
+          );
+        })
         .sort((a, b) => new Date(a.fecha_hora_inicio).getTime() - new Date(b.fecha_hora_inicio).getTime());
+      const recurringSlots = recurringSlotsForDailyDate.filter((slot) => slot.medico_id === medico.id);
       const nextTurno =
         doctorTurnos.find((turno) => turno.estado !== "Cancelado" && new Date(turno.fecha_hora).getTime() >= Date.now()) ??
         doctorTurnos.find((turno) => turno.estado !== "Cancelado") ??
@@ -1863,11 +2025,13 @@ export default function TurnosPage() {
         turnos: doctorTurnos,
         allTurnos: allDoctorTurnos,
         disponibilidades: doctorDisponibilidades,
+        recurringRules: doctorRecurringRules,
+        recurringSlots,
         stats: buildDailyStats(allDoctorTurnos),
         visibleStats: buildDailyStats(doctorTurnos),
         searchedStats: buildDailyStats(searchedDoctorTurnos),
         nextTurno,
-        hasActivity: allDoctorTurnos.length > 0 || doctorDisponibilidades.length > 0,
+        hasActivity: allDoctorTurnos.length > 0 || doctorDisponibilidades.length > 0 || recurringSlots.length > 0,
       };
     })
     .filter((section) => selectedMedicoId !== "all" || section.hasActivity);
@@ -1914,7 +2078,9 @@ export default function TurnosPage() {
     });
 
     if (appointment.disponibilidad.medico_id) params.set("medico_id", appointment.disponibilidad.medico_id);
-    if (appointment.disponibilidad.id) params.set("disponibilidad_id", appointment.disponibilidad.id);
+    if (appointment.disponibilidad.id && !isRecurringAvailability(appointment.disponibilidad)) {
+      params.set("disponibilidad_id", appointment.disponibilidad.id);
+    }
 
     return appointment.mode === "overbooking"
       ? `/turnos/sobreturno/nuevo?${params.toString()}`
@@ -1922,6 +2088,25 @@ export default function TurnosPage() {
   };
 
   const slotDurationForAvailability = (disp: Disponibilidad) => disp.tipo === "Consulta" ? 15 : 60;
+
+  const isRecurringAvailability = (disp: Disponibilidad) => disp.id.startsWith("recurrente:");
+
+  const availabilityFromRecurringSlot = (slot: GeneratedScheduleSlot, medico?: Medico): Disponibilidad => ({
+    id: `recurrente:${slot.sourceId}:${slot.start.toISOString()}`,
+    medico_id: slot.medico_id,
+    fecha_hora_inicio: slot.start.toISOString(),
+    fecha_hora_fin: slot.end.toISOString(),
+    tipo: slot.tipo === "Cirugia" ? "Cirugía" : slot.tipo,
+    expand: {
+      medico_id: medico,
+    },
+  });
+
+  const blockLabel = (block?: ScheduleBlock) => {
+    if (!block) return "";
+    const scope = block.alcance === "general" ? "Bloqueo general" : "Bloqueo";
+    return block.motivo?.trim() ? `${scope}: ${block.motivo.trim()}` : scope;
+  };
 
   const availabilitySlots = (disp: Disponibilidad, doctorTurnos: Turno[], ignoreTurnoId?: string): AvailabilitySlot[] => {
     const duration = slotDurationForAvailability(disp);
@@ -1938,8 +2123,19 @@ export default function TurnosPage() {
         const appointmentEnd = addMinutes(appointmentStart, turno.duracion || duration);
         return rangesOverlap(slotStart, slotEnd, appointmentStart, appointmentEnd);
       });
+      const syntheticSlot: GeneratedScheduleSlot = {
+        id: `${disp.id}:${slotStart.toISOString()}`,
+        sourceId: disp.id,
+        medico_id: disp.medico_id || "",
+        start: slotStart,
+        end: slotEnd,
+        tipo: appointmentTypeFromAvailability(disp.tipo),
+        duracion: duration,
+        source: "disponibilidad",
+      };
+      const block = bloqueosAgenda.find((candidate) => blockAppliesToSlot(candidate, syntheticSlot));
 
-      slots.push({ start: slotStart, end: slotEnd, appointment });
+      slots.push({ start: slotStart, end: slotEnd, appointment, block });
     }
 
     return slots;
@@ -3105,6 +3301,67 @@ export default function TurnosPage() {
                   </div>
                 </div>
 
+                {dailyAppointmentConflicts.length > 0 && (
+                  <section
+                    aria-label="Turnos a resolver"
+                    className="rounded-xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/20"
+                  >
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">Turnos a resolver</p>
+                        <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">Turnos dentro de horarios bloqueados</h3>
+                        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                          Estos turnos fueron otorgados, pero ahora coinciden con un bloqueo de agenda.
+                        </p>
+                      </div>
+                      <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/10 dark:text-amber-200">
+                        {dailyAppointmentConflicts.length}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                      {dailyAppointmentConflicts.map(({ turno, block, start }) => {
+                        const patient = turno.expand?.paciente_id;
+                        const doctor = medicos.find((medico) => medico.id === turno.medico_id);
+                        return (
+                          <article
+                            key={`${turno.id}-${block.id}`}
+                            className="rounded-lg border border-amber-200 bg-white p-4 dark:border-amber-900/60 dark:bg-zinc-950"
+                          >
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                                    {shortTime(start)}
+                                  </span>
+                                  <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                    {doctorLabel(doctor)}
+                                  </span>
+                                </div>
+                                <h4 className="mt-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                  {patient ? patientLabel(patient) : "Paciente no encontrado"}
+                                </h4>
+                                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                                  {turno.motivo || "Sin motivo cargado"}
+                                </p>
+                                <p className="mt-2 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                                  {blockLabel(block)}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleTurnoClick(turno)}
+                                className="w-fit rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-700"
+                              >
+                                Gestionar
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
+
                 {isDoctorRole && (
                   <section
                     aria-label="Tablero diario del medico"
@@ -3178,6 +3435,82 @@ export default function TurnosPage() {
                         )}
                       </div>
                     </div>
+
+                    <div aria-label="Consultas en curso" className="mt-5 rounded-xl border border-blue-200 bg-blue-50/60 p-4 dark:border-blue-900/50 dark:bg-blue-950/20">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">Consultas en curso</p>
+                          <h4 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">Avances pendientes de cierre</h4>
+                          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                            Retoma consultas guardadas como avance sin buscarlas en el historial general.
+                          </p>
+                        </div>
+                        <span className="w-fit rounded-full bg-white px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-200">
+                          {consultasEnCurso.length}
+                        </span>
+                      </div>
+
+                      {isLoadingConsultasEnCurso ? (
+                        <div className="mt-4 text-sm text-zinc-500 dark:text-zinc-400">Cargando consultas en curso...</div>
+                      ) : consultasEnCurso.length === 0 ? (
+                        <div className="mt-4 rounded-lg border border-dashed border-blue-200 bg-white/70 p-4 text-sm text-zinc-600 dark:border-blue-900/50 dark:bg-zinc-950/50 dark:text-zinc-400">
+                          No hay consultas en curso para retomar.
+                        </div>
+                      ) : (
+                        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+                          {consultasEnCurso.map((consulta) => {
+                            const patient = consulta.expand?.paciente_id;
+                            return (
+                              <article key={consulta.id} className="rounded-lg border border-blue-200 bg-white p-4 dark:border-blue-900/50 dark:bg-zinc-950">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
+                                        {consultaEstadoLabel(consulta.estado)}
+                                      </span>
+                                      <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">
+                                        {inProgressConsultationDateLabel(consulta.fecha)}
+                                      </span>
+                                    </div>
+                                    <h5 className="mt-2 text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                                      {patient ? patientLabel(patient) : "Paciente no encontrado"}
+                                    </h5>
+                                    <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
+                                      {consulta.motivo_consulta || "Sin motivo cargado"}
+                                    </p>
+                                    {patient && patientMeta(patient).length > 0 && (
+                                      <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                                        {patientMeta(patient).map((item) => (
+                                          <span key={item} className="rounded-full bg-zinc-100 px-2 py-0.5 dark:bg-zinc-900">
+                                            {item}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div className="flex shrink-0 flex-wrap gap-2">
+                                    <Link
+                                      href={`/consultas/${consulta.id}`}
+                                      className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-blue-700"
+                                    >
+                                      Retomar
+                                    </Link>
+                                    {consulta.paciente_id && (
+                                      <Link
+                                        href={`/pacientes/${consulta.paciente_id}?mode=view`}
+                                        className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-semibold text-zinc-800 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                                      >
+                                        Ficha
+                                      </Link>
+                                    )}
+                                  </div>
+                                </div>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
                   </section>
                 )}
 
@@ -3222,9 +3555,86 @@ export default function TurnosPage() {
                           </div>
                         </div>
                         <div className="flex flex-col gap-3 lg:max-w-3xl">
-                          {section.disponibilidades.length === 0 ? (
+                          {section.recurringSlots.length > 0 && (
+                            <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 dark:border-blue-900/60 dark:bg-blue-950/20">
+                              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                                Horarios recurrentes
+                              </div>
+                              <div className="mb-2 flex flex-wrap gap-2 text-xs font-semibold text-blue-800 dark:text-blue-200">
+                                {section.recurringRules.map((rule) => (
+                                  <span key={rule.id} className="rounded-full bg-white px-2.5 py-1 dark:bg-blue-950/60">
+                                    {rule.hora_inicio} - {rule.hora_fin} Â· {rule.tipo}
+                                  </span>
+                                ))}
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {section.recurringSlots.map((slot) => {
+                                  const disp = availabilityFromRecurringSlot(slot, section.medico);
+                                  const time = shortTime(slot.start);
+                                  const appointment = slot.appointment as Turno | undefined;
+                                  const patient = appointment?.expand?.paciente_id;
+
+                                  if (slot.block && appointment) {
+                                    return (
+                                      <button
+                                        key={slot.id}
+                                        type="button"
+                                        onClick={() => handleTurnoClick(appointment)}
+                                        className="inline-flex min-w-24 items-center justify-center rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-200 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/45"
+                                        title={blockLabel(slot.block)}
+                                      >
+                                        {time} Conflicto
+                                      </button>
+                                    );
+                                  }
+
+                                  if (slot.block) {
+                                    return (
+                                      <button
+                                        key={slot.id}
+                                        type="button"
+                                        disabled
+                                        className="inline-flex min-w-24 cursor-not-allowed items-center justify-center rounded-lg border border-zinc-300 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-400"
+                                        title={blockLabel(slot.block)}
+                                      >
+                                        {time} Bloqueado
+                                      </button>
+                                    );
+                                  }
+
+                                  if (appointment) {
+                                    return (
+                                      <button
+                                        key={slot.id}
+                                        type="button"
+                                        onClick={() => openQuickAppointment(disp, slot.start, "overbooking", appointment)}
+                                        className="inline-flex min-w-24 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-800 hover:bg-orange-100 dark:border-orange-900/60 dark:bg-orange-900/20 dark:text-orange-300 dark:hover:bg-orange-900/35"
+                                        title={patient ? `Sobreturno sobre ${patient.apellido}, ${patient.nombre}` : "Crear sobreturno"}
+                                      >
+                                        {time} Ocupado
+                                      </button>
+                                    );
+                                  }
+
+                                  return (
+                                    <button
+                                      key={slot.id}
+                                      type="button"
+                                      onClick={() => openQuickAppointment(disp, slot.start)}
+                                      className="inline-flex min-w-24 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/35"
+                                      title={`Alta rapida ${time}`}
+                                    >
+                                      {time} Libre
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {section.disponibilidades.length === 0 && section.recurringSlots.length === 0 ? (
                             <span className="rounded-lg border border-dashed border-zinc-300 px-3 py-2 text-sm text-zinc-500 dark:border-zinc-700 dark:text-zinc-400">
-                              Sin disponibilidad cargada
+                              Sin horarios configurados
                             </span>
                           ) : (
                             section.disponibilidades.map((disp) => {
@@ -3242,14 +3652,43 @@ export default function TurnosPage() {
                                   <div className="flex flex-wrap gap-2">
                                     {slots.map((slot) => {
                                       const time = slot.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                                      const patient = slot.appointment?.expand?.paciente_id;
+                                      const appointment = slot.appointment;
+                                      const patient = appointment?.expand?.paciente_id;
 
-                                      if (slot.appointment) {
+                                      if (slot.block && appointment) {
                                         return (
                                           <button
                                             key={slot.start.toISOString()}
                                             type="button"
-                                            onClick={() => openQuickAppointment(disp, slot.start, "overbooking", slot.appointment)}
+                                            onClick={() => handleTurnoClick(appointment)}
+                                            className="inline-flex min-w-24 items-center justify-center rounded-lg border border-amber-300 bg-amber-100 px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-200 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200 dark:hover:bg-amber-900/45"
+                                            title={blockLabel(slot.block)}
+                                          >
+                                            {time} Conflicto
+                                          </button>
+                                        );
+                                      }
+
+                                      if (slot.block) {
+                                        return (
+                                          <button
+                                            key={slot.start.toISOString()}
+                                            type="button"
+                                            disabled
+                                            className="inline-flex min-w-24 cursor-not-allowed items-center justify-center rounded-lg border border-zinc-300 bg-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-400"
+                                            title={blockLabel(slot.block)}
+                                          >
+                                            {time} Bloqueado
+                                          </button>
+                                        );
+                                      }
+
+                                      if (appointment) {
+                                        return (
+                                          <button
+                                            key={slot.start.toISOString()}
+                                            type="button"
+                                            onClick={() => openQuickAppointment(disp, slot.start, "overbooking", appointment)}
                                             className="inline-flex min-w-24 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 px-3 py-2 text-xs font-semibold text-orange-800 hover:bg-orange-100 dark:border-orange-900/60 dark:bg-orange-900/20 dark:text-orange-300 dark:hover:bg-orange-900/35"
                                             title={patient ? `Sobreturno sobre ${patient.apellido}, ${patient.nombre}` : "Crear sobreturno"}
                                           >
