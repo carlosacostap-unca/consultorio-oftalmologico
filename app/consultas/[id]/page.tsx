@@ -8,6 +8,8 @@ import { Suspense } from "react";
 import { formatDate } from "@/lib/utils";
 import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 import type { ConsultaEvento } from "@/lib/consulta-eventos";
+import type { ConsultaEstado } from "@/lib/consulta-estado";
+import { consultaEstadoBadgeClass, consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-estado";
 
 interface Paciente {
   id: string;
@@ -71,6 +73,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const initialFormState = {
     paciente_id: initialPacienteId,
     numero_ficha: "",
+    estado: "finalizada" as ConsultaEstado,
     fecha: new Date().toISOString().split('T')[0],
     motivo_consulta: "",
     
@@ -159,6 +162,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           setFormData(prev => ({
             ...prev,
             ...consultaRecord,
+            estado: normalizeConsultaEstado(String(consultaRecord.estado || "")),
             fecha: fechaFormateada,
             paciente_id: consultaRecord.paciente_id || prev.paciente_id
           }));
@@ -295,18 +299,21 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!canEditConsulta) {
       alert(`Solo se pueden editar consultas de los ultimos ${consultaEditLimitDays} dias.`);
       return;
     }
 
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const targetEstado: ConsultaEstado = submitter?.value === "finalizada" ? "finalizada" : normalizeConsultaEstado(formData.estado);
     setIsLoading(true);
     try {
       // Aseguramos formato ISO para la fecha
       const dataToSave = {
         ...formData,
+        estado: targetEstado,
         fecha: new Date(formData.fecha).toISOString(),
       };
       
@@ -329,7 +336,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         try {
           await pb.collection("turnos").update(turnoId, {
             consulta_id: consultaId,
-            estado: "Atendido"
+            estado: targetEstado === "finalizada" ? "Atendido" : "En consulta"
           });
         } catch (turnoError: any) {
           console.error("Error al actualizar el turno:", turnoError);
@@ -383,6 +390,16 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       minute: "2-digit",
     });
   };
+  const consultaEventoTipoLabel = (tipo: ConsultaEvento["tipo"]) => {
+    switch (tipo) {
+      case "created":
+        return "Creacion";
+      case "status_changed":
+        return "Estado";
+      default:
+        return "Edicion";
+    }
+  };
 
   const pacienteNombre = selectedPacienteData
     ? `${selectedPacienteData.apellido}, ${selectedPacienteData.nombre}`
@@ -409,11 +426,19 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     formData.ant_herpes ? "Herpes" : "",
     formData.ant_otra?.trim() || "",
   ].filter(Boolean);
+  const currentConsultaEstado = normalizeConsultaEstado(formData.estado);
+  const isConsultaFinalizada = currentConsultaEstado === "finalizada" || currentConsultaEstado === "anulada";
 
   const hasDiagnosis = Boolean(formData.diagnostico?.trim());
   const hasTreatment = Boolean(formData.tratamiento?.trim());
   const hasOpticalPrescription = refractionHasValues(formData);
   const continuityCards = [
+    {
+      title: "Estado",
+      value: consultaEstadoLabel(currentConsultaEstado),
+      detail: currentConsultaEstado === "finalizada" ? "Consulta cerrada clinicamente." : "Consulta pendiente de cierre clinico.",
+      tone: currentConsultaEstado === "finalizada" ? "emerald" : currentConsultaEstado === "anulada" ? "amber" : "blue",
+    },
     {
       title: "Diagnostico",
       value: hasDiagnosis ? "Registrado" : "Pendiente",
@@ -521,6 +546,8 @@ function continuityToneClass(tone: string) {
       return "border-emerald-200 bg-emerald-50/70 dark:border-emerald-900/50 dark:bg-emerald-950/20";
     case "amber":
       return "border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20";
+    case "blue":
+      return "border-blue-200 bg-blue-50/70 dark:border-blue-900/50 dark:bg-blue-950/20";
     default:
       return "border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950/60";
   }
@@ -623,7 +650,7 @@ function continuityToneClass(tone: string) {
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
             {continuityCards.map((card) => (
               <div key={card.title} className={`rounded-xl border p-4 ${continuityToneClass(card.tone)}`}>
                 <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">{card.title}</div>
@@ -673,6 +700,9 @@ function continuityToneClass(tone: string) {
                 <h2 className="mt-1 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{pacienteNombre}</h2>
                 <div className="mt-3 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
                   <span className="rounded-full bg-zinc-100 px-2.5 py-1 font-semibold dark:bg-zinc-800">Consulta {consultaDateLabel}</span>
+                  <span className={`rounded-full border px-2.5 py-1 font-semibold ${consultaEstadoBadgeClass(currentConsultaEstado)}`}>
+                    {consultaEstadoLabel(currentConsultaEstado)}
+                  </span>
                   {patientSummaryItems.length > 0 ? patientSummaryItems.map((item) => (
                     <span key={item} className="rounded-full bg-zinc-100 px-2.5 py-1 font-medium dark:bg-zinc-800">{item}</span>
                   )) : (
@@ -821,7 +851,7 @@ function continuityToneClass(tone: string) {
                   <div>
                     <div className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">{formatAuditDate(evento.created)}</div>
                     <span className="mt-2 inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
-                      {evento.tipo === "created" ? "Creacion" : "Edicion"}
+                      {consultaEventoTipoLabel(evento.tipo)}
                     </span>
                   </div>
                   <div className="min-w-0">
@@ -1194,28 +1224,41 @@ function continuityToneClass(tone: string) {
                 {isReadOnly ? "Volver" : "Cancelar"}
               </button>
               {!isReadOnly && (
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="px-6 py-2 bg-[#2d8f8f] hover:bg-[#1f6b6b] dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white rounded-lg font-bold shadow-md transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Guardando...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                      </svg>
-                      Guardar Cambios
-                    </>
+                <>
+                  <button 
+                    type="submit" 
+                    value={currentConsultaEstado}
+                    disabled={isLoading}
+                    className="px-6 py-2 bg-zinc-700 hover:bg-zinc-800 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-white rounded-lg font-bold shadow-md transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isLoading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                        </svg>
+                        Guardar Cambios
+                      </>
+                    )}
+                  </button>
+                  {!isConsultaFinalizada && (
+                    <button 
+                      type="submit" 
+                      value="finalizada"
+                      disabled={isLoading}
+                      className="px-6 py-2 bg-[#2d8f8f] hover:bg-[#1f6b6b] dark:bg-emerald-700 dark:hover:bg-emerald-600 text-white rounded-lg font-bold shadow-md transition-colors disabled:opacity-50"
+                    >
+                      {isLoading ? "Guardando..." : "Finalizar consulta"}
+                    </button>
                   )}
-                </button>
+                </>
               )}
             </div>
           </form>

@@ -1,6 +1,6 @@
 import { pbAdmin } from "./pocketbase-admin";
 
-export type ConsultaEventoTipo = "created" | "updated";
+export type ConsultaEventoTipo = "created" | "updated" | "status_changed";
 
 export interface ConsultaEventoActor {
   id?: string;

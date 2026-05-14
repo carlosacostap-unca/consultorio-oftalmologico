@@ -49,7 +49,7 @@ function collectionPayload(consultasCollectionId, pacientesCollectionId, usersCo
       relationField("paciente_id", pacientesCollectionId),
       relationField("actor_id", usersCollectionId),
       textField("actor_nombre"),
-      selectField("tipo", ["created", "updated"]),
+      selectField("tipo", ["created", "updated", "status_changed"]),
       textField("titulo"),
       textField("detalle"),
       jsonField("metadata"),

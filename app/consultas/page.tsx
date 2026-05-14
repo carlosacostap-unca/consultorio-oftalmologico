@@ -7,11 +7,13 @@ import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Patient } from "@/lib/types";
 import { appendActivePatientFilter } from "@/lib/patient-merge";
+import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
 
 interface Consulta {
   id: string;
   paciente_id: string;
   fecha: string;
+  estado?: string;
   motivo_consulta: string;
   diagnostico: string;
   numero_ficha?: string;
@@ -241,6 +243,7 @@ export default function ConsultasPage() {
                   <th className="px-6 py-4 font-medium">Fecha</th>
                   <th className="px-6 py-4 font-medium">Paciente</th>
                   <th className="px-6 py-4 font-medium">Nº Ficha</th>
+                  <th className="px-6 py-4 font-medium">Estado</th>
                   <th className="px-6 py-4 font-medium">Motivo de Consulta</th>
                   <th className="px-6 py-4 font-medium">Diagnóstico</th>
                   <th className="px-6 py-4 font-medium text-right">Acciones</th>
@@ -249,13 +252,13 @@ export default function ConsultasPage() {
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                    <td colSpan={7} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
                       Cargando consultas...
                     </td>
                   </tr>
                 ) : consultas.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
+                    <td colSpan={7} className="px-6 py-8 text-center text-zinc-500 dark:text-zinc-400">
                       No se encontraron consultas que coincidan con los filtros.
                     </td>
                   </tr>
@@ -276,6 +279,11 @@ export default function ConsultasPage() {
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
                           {consulta.numero_ficha || consulta.expand?.paciente_id?.numero_ficha || '-'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
+                            {consultaEstadoLabel(consulta.estado)}
+                          </span>
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300 max-w-xs truncate">
                           {consulta.motivo_consulta || '-'}

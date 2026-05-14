@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
 import type { AppUser, Consulta, Mutual, Patient, Receta } from "@/lib/types";
 import { isMergedPatient, patientDisplayName } from "@/lib/patient-merge";
+import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -523,7 +524,12 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
                       return (
                         <div key={consulta.id} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                          <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatDate(consulta.fecha)}</div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatDate(consulta.fecha)}</div>
+                            <span className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
+                              {consultaEstadoLabel(consulta.estado)}
+                            </span>
+                          </div>
                           <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo"}</div>
                           <div className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
                             <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Diagnostico:</span> {consulta.diagnostico || "-"}</p>
@@ -937,6 +943,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   <thead>
                     <tr className="bg-zinc-50/50 dark:bg-zinc-900/50 border-b border-zinc-200 dark:border-zinc-800">
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Fecha</th>
+                      <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Estado</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Motivo</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Diagnóstico</th>
                     </tr>
@@ -966,6 +973,11 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                         >
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
                             {fechaStr}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm">
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
+                              {consultaEstadoLabel(consulta.estado)}
+                            </span>
                           </td>
                           <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400 max-w-[200px] truncate" title={consulta.motivo_consulta}>
                             {consulta.motivo_consulta || "-"}
@@ -1040,11 +1052,12 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       newPrescriptionHref: `/recetas/nueva?consulta_id=${consulta.id}`,
       detailRows: [
         { label: "Fecha", value: formatDate(consulta.fecha) },
+        { label: "Estado", value: consultaEstadoLabel(consulta.estado) },
         { label: "Motivo", value: title },
         { label: "Diagnostico", value: consulta.diagnostico || "-" },
         { label: "Tratamiento", value: tratamiento || "-" },
       ],
-      searchText: buildEventSearchText(["consulta", formatDate(consulta.fecha), title, description, secondary]),
+      searchText: buildEventSearchText(["consulta", consultaEstadoLabel(consulta.estado), formatDate(consulta.fecha), title, description, secondary]),
     };
   });
 

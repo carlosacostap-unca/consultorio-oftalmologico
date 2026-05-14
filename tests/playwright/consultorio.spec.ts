@@ -785,7 +785,14 @@ test.describe("roles y otorgamiento de turnos", () => {
     const extraConsultaIds: string[] = [];
 
     try {
-      const consulta = await createDemoConsultation(request, env, adminToken, patient!.id as string, `Playwright ficha consulta ${suffix}`);
+      const consulta = await createDemoConsultation(
+        request,
+        env,
+        adminToken,
+        patient!.id as string,
+        `Playwright ficha consulta ${suffix}`,
+        new Date(`${DEMO_DATE}T20:00:00`).toISOString()
+      );
       consultaId = consulta.id as string;
       const receta = await createDemoPrescription(request, env, adminToken, patient!.id as string, consultaId, `Playwright ficha receta ${suffix}`);
       recetaId = receta.id as string;
@@ -918,7 +925,7 @@ test.describe("roles y otorgamiento de turnos", () => {
         .locator("xpath=ancestor::div[contains(@class,'rounded-2xl')][1]");
       await expect(recentRecipes).toBeVisible();
       await expect(recentRecipes.getByText(`Playwright ficha receta ${suffix}`)).toBeVisible();
-      await expect(recentRecipes.getByText("Vinculada a consulta")).toBeVisible();
+      await expect(recentRecipes.getByText("Vinculada a consulta").first()).toBeVisible();
       await expect(recentRecipes.getByRole("button", { name: "Ver" }).first()).toBeVisible();
       await expect(recentRecipes.getByRole("button", { name: "Imprimir" }).first()).toBeVisible();
       await expect(recentRecipes.getByRole("button", { name: "Consulta" }).first()).toBeVisible();
@@ -1083,9 +1090,9 @@ test.describe("roles y otorgamiento de turnos", () => {
         })
         .toBeTruthy();
 
-      await page.getByRole("button", { name: "GUARDAR CONSULTA" }).click();
-      await expect(page.getByText("Consulta guardada correctamente")).toBeVisible();
-      await expect(page.getByText("Consulta guardada y turno marcado como atendido")).toBeVisible();
+      await page.getByRole("button", { name: "FINALIZAR CONSULTA" }).click();
+      await expect(page.getByText("Consulta finalizada correctamente")).toBeVisible();
+      await expect(page.getByText("Consulta finalizada y turno actualizado")).toBeVisible();
       await expect(page.getByText("El turno fue marcado como Atendido.")).toBeVisible();
       const completionPanel = page.getByLabel("Cierre de consulta");
       await expect(completionPanel).toBeVisible();
@@ -1105,6 +1112,8 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       const updatedTurno = await pbGet(request, env, adminToken, "turnos", turno.id as string);
       createdConsultaId = String(updatedTurno.consulta_id || "");
+      const updatedConsulta = await pbGet(request, env, adminToken, "consultas", createdConsultaId);
+      expect(updatedConsulta.estado).toBe("finalizada");
       await expect(page.getByRole("link", { name: "Volver a jornada" })).toHaveAttribute(
         "href",
         new RegExp(`/turnos\\?tab=daily&date=${DEMO_DATE}&medico_id=${medicoId}`)
@@ -1125,6 +1134,7 @@ test.describe("roles y otorgamiento de turnos", () => {
       const continuityPanel = page.getByLabel("Continuidad clinica");
       await expect(continuityPanel).toBeVisible();
       await expect(continuityPanel.getByText("Estado de la atencion")).toBeVisible();
+      await expect(continuityPanel.getByText("Finalizada")).toBeVisible();
       await expect(continuityPanel.getByRole("link", { name: "Ficha clinica" })).toBeVisible();
       await expect(continuityPanel.getByRole("link", { name: "Crear receta" })).toBeVisible();
       await expect(continuityPanel.getByRole("link", { name: "Imprimir informe" })).toBeVisible();
@@ -1409,6 +1419,7 @@ async function createDemoConsultation(
       motivo_consulta: motivo,
       diagnostico: "Control de fusion Playwright",
       tratamiento: "Tratamiento de prueba",
+      estado: "finalizada",
     },
   });
   expect(response.ok()).toBeTruthy();

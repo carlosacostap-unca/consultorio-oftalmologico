@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
 import { loadSystemSettings } from "@/lib/system-settings-server";
 import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
+import { consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-estado";
 
 export const dynamic = "force-dynamic";
 
@@ -31,16 +32,24 @@ export async function PATCH(
       method: "PATCH",
       body: JSON.stringify(body),
     });
+    const changed = changedFields(current, body);
+    const estadoChanged =
+      Object.prototype.hasOwnProperty.call(body, "estado") &&
+      normalizeConsultaEstado(String(current.estado || "")) !== normalizeConsultaEstado(String(updated.estado || ""));
 
     await createConsultaEventoServer({
       consulta_id: id,
       paciente_id: updated.paciente_id || current.paciente_id,
-      tipo: "updated",
-      titulo: "Consulta editada",
-      detalle: "Se actualizaron datos de la consulta.",
+      tipo: estadoChanged ? "status_changed" : "updated",
+      titulo: estadoChanged ? "Estado de consulta actualizado" : "Consulta editada",
+      detalle: estadoChanged
+        ? `Estado: ${consultaEstadoLabel(String(current.estado || ""))} -> ${consultaEstadoLabel(String(updated.estado || ""))}`
+        : "Se actualizaron datos de la consulta.",
       actor: user,
       metadata: {
-        changed_fields: changedFields(current, body),
+        changed_fields: changed,
+        estado_anterior: estadoChanged ? normalizeConsultaEstado(String(current.estado || "")) : null,
+        estado_nuevo: estadoChanged ? normalizeConsultaEstado(String(updated.estado || "")) : null,
         fecha_anterior: current.fecha || null,
         fecha_nueva: updated.fecha || null,
       },

@@ -1,6 +1,6 @@
 import { pb } from "./pocketbase";
 
-export type ConsultaEventoTipo = "created" | "updated";
+export type ConsultaEventoTipo = "created" | "updated" | "status_changed";
 
 export interface ConsultaEvento {
   id: string;

@@ -55,8 +55,10 @@ export interface Mutual extends RecordModel {
 export interface Consulta extends RecordModel {
   paciente_id: string;
   fecha?: string;
+  estado?: string;
   motivo_consulta?: string;
   diagnostico?: string;
+  tratamiento?: string;
 }
 
 export interface Receta extends RecordModel {

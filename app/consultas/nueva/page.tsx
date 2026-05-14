@@ -7,6 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { appendActivePatientFilter } from "@/lib/patient-merge";
 import { createConsultaEvento } from "@/lib/consulta-eventos";
+import type { ConsultaEstado } from "@/lib/consulta-estado";
+import { consultaEstadoLabel } from "@/lib/consulta-estado";
 
 interface Paciente {
   id: string;
@@ -56,6 +58,7 @@ interface SavedConsultation {
   returnHref: string;
   returnLabel: string;
   turnoUpdated: boolean;
+  estado: ConsultaEstado;
 }
 
 interface ClinicalContextConsulta {
@@ -136,6 +139,7 @@ function NuevaConsultaForm() {
   const initialFormState = {
     paciente_id: initialPacienteId,
     numero_ficha: "",
+    estado: "en_curso" as ConsultaEstado,
     fecha: new Date().toISOString().split('T')[0],
     motivo_consulta: "",
     
@@ -492,15 +496,18 @@ function NuevaConsultaForm() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (savedConsultation) return;
 
+    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
+    const targetEstado: ConsultaEstado = submitter?.value === "finalizada" ? "finalizada" : "en_curso";
     setIsLoading(true);
     try {
       // Aseguramos formato ISO para la fecha
       const dataToSave = {
         ...formData,
+        estado: targetEstado,
         fecha: new Date(formData.fecha).toISOString(),
       };
       
@@ -515,20 +522,22 @@ function NuevaConsultaForm() {
         metadata: {
           turno_id: turnoId || null,
           origen: turnoId ? "turno" : "manual",
+          estado: targetEstado,
           fecha: dataToSave.fecha,
         },
       });
       let turnoUpdated = false;
+      const targetTurnoEstado = targetEstado === "finalizada" ? "Atendido" : "En consulta";
       
       // Si venimos desde un turno, lo actualizamos para enlazarlo y marcarlo como Atendido
       if (turnoId) {
         try {
           await pb.collection("turnos").update(turnoId, {
             consulta_id: nuevaConsulta.id,
-            estado: "Atendido"
+            estado: targetTurnoEstado
           });
           turnoUpdated = true;
-          setSelectedTurnoData((prev) => prev ? { ...prev, consulta_id: nuevaConsulta.id, estado: "Atendido" } : prev);
+          setSelectedTurnoData((prev) => prev ? { ...prev, consulta_id: nuevaConsulta.id, estado: targetTurnoEstado } : prev);
         } catch (turnoError: any) {
           console.error("Error al actualizar el turno:", turnoError);
           alert(`La consulta se guardó, pero hubo un error al enlazarla con el turno. Detalle: ${turnoError?.message || 'Error desconocido'}. Verifica que el campo 'consulta_id' exista y sea de tipo relación simple.`);
@@ -542,6 +551,7 @@ function NuevaConsultaForm() {
         returnHref: returnAction.href,
         returnLabel: returnAction.label,
         turnoUpdated,
+        estado: targetEstado,
       });
       setIsLoading(false);
     } catch (error) {
@@ -710,15 +720,17 @@ function NuevaConsultaForm() {
               <section aria-label="Cierre de consulta" className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">Consulta guardada correctamente</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                      {savedConsultation.estado === "finalizada" ? "Consulta finalizada correctamente" : "Avance guardado correctamente"}
+                    </p>
                     <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
                       {savedConsultation.turnoUpdated
-                        ? "Consulta guardada y turno marcado como atendido"
-                        : "La consulta ya esta disponible"}
+                        ? `Consulta ${consultaEstadoLabel(savedConsultation.estado).toLowerCase()} y turno actualizado`
+                        : `La consulta quedo ${consultaEstadoLabel(savedConsultation.estado).toLowerCase()}`}
                     </h3>
                     <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                       {savedConsultation.turnoUpdated
-                        ? "El turno fue marcado como Atendido."
+                        ? `El turno fue marcado como ${savedConsultation.estado === "finalizada" ? "Atendido" : "En consulta"}.`
                         : "Podes continuar con una accion relacionada o volver al contexto anterior."}
                     </p>
                   </div>
@@ -1547,7 +1559,7 @@ function NuevaConsultaForm() {
             </div>
 
             {/* Botones de Acción */}
-            <div className="mt-3 flex justify-end gap-3 border-t-2 border-zinc-300 pt-3 dark:border-zinc-700">
+            <div className="mt-3 flex flex-wrap justify-end gap-3 border-t-2 border-zinc-300 pt-3 dark:border-zinc-700">
               <button 
                 type="button"
                 onClick={() => router.back()}
@@ -1557,10 +1569,19 @@ function NuevaConsultaForm() {
               </button>
               <button 
                 type="submit" 
+                value="en_curso"
+                disabled={isLoading || !formData.paciente_id || Boolean(savedConsultation)}
+                className="px-8 py-2 bg-zinc-700 hover:bg-zinc-800 text-white font-bold rounded shadow-md border border-zinc-800 disabled:opacity-50 flex items-center gap-2 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+              >
+                {isLoading ? 'GUARDANDO...' : savedConsultation ? 'AVANCE GUARDADO' : 'GUARDAR AVANCE'}
+              </button>
+              <button 
+                type="submit" 
+                value="finalizada"
                 disabled={isLoading || !formData.paciente_id || Boolean(savedConsultation)}
                 className="px-8 py-2 bg-[#2d8f8f] hover:bg-[#1f6b6b] text-white font-bold rounded shadow-md border border-[#1a5c5c] disabled:opacity-50 flex items-center gap-2"
               >
-                {isLoading ? 'GUARDANDO...' : savedConsultation ? 'CONSULTA GUARDADA' : 'GUARDAR CONSULTA'}
+                {isLoading ? 'GUARDANDO...' : savedConsultation ? 'CONSULTA FINALIZADA' : 'FINALIZAR CONSULTA'}
               </button>
             </div>
           </form>
