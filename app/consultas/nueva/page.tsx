@@ -81,6 +81,12 @@ interface ClinicalContextReceta {
   indicaciones?: string;
 }
 
+const completedClinicalContextFields = (consulta: ClinicalContextConsulta) =>
+  [
+    { label: "Diagnostico", value: consulta.diagnostico?.trim() || "" },
+    { label: "Tratamiento", value: consulta.tratamiento?.trim() || "" },
+  ].filter((field) => field.value.length > 0);
+
 type AntecedenteKey =
   | "ant_diabetes"
   | "ant_glaucoma"
@@ -891,29 +897,34 @@ function NuevaConsultaForm() {
                       <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
                     ) : (
                       <div className="mt-3 space-y-3">
-                        {recentConsultas.map((consulta) => (
-                          <article key={consulta.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
-                            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                              <div>
-                                <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatClinicalDate(consulta.fecha || consulta.created)}</div>
-                                <div className="mt-1 font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo registrado"}</div>
+                        {recentConsultas.map((consulta) => {
+                          const visibleFields = completedClinicalContextFields(consulta);
+                          return (
+                            <article key={consulta.id} className="rounded-lg border border-zinc-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                <div>
+                                  <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatClinicalDate(consulta.fecha || consulta.created)}</div>
+                                  {consulta.motivo_consulta?.trim() && (
+                                    <div className="mt-1 font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta}</div>
+                                  )}
+                                </div>
+                                <Link href={`/consultas/${consulta.id}?mode=view`} className="text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
+                                  Abrir
+                                </Link>
                               </div>
-                              <Link href={`/consultas/${consulta.id}?mode=view`} className="text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">
-                                Abrir
-                              </Link>
-                            </div>
-                            <dl className="mt-3 grid grid-cols-1 gap-2 text-sm text-zinc-600 dark:text-zinc-400 sm:grid-cols-2">
-                              <div>
-                                <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-500">Diagnostico</dt>
-                                <dd className="mt-1">{consulta.diagnostico || "-"}</dd>
-                              </div>
-                              <div>
-                                <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-500">Tratamiento</dt>
-                                <dd className="mt-1">{consulta.tratamiento || "-"}</dd>
-                              </div>
-                            </dl>
-                          </article>
-                        ))}
+                              {visibleFields.length > 0 && (
+                                <dl className="mt-3 grid grid-cols-1 gap-2 text-sm text-zinc-600 dark:text-zinc-400 sm:grid-cols-2">
+                                  {visibleFields.map((field) => (
+                                    <div key={field.label}>
+                                      <dt className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-500">{field.label}</dt>
+                                      <dd className="mt-1">{field.value}</dd>
+                                    </div>
+                                  ))}
+                                </dl>
+                              )}
+                            </article>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
@@ -1044,27 +1055,32 @@ function NuevaConsultaForm() {
                         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
                       ) : (
                         <div className="mt-2 space-y-2">
-                          {recentConsultas.map((consulta) => (
-                            <article key={consulta.id} className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-900">
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatClinicalDate(consulta.fecha || consulta.created)}</div>
-                                  <div className="mt-1 truncate font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo registrado"}</div>
+                          {recentConsultas.map((consulta) => {
+                            const visibleFields = completedClinicalContextFields(consulta);
+                            return (
+                              <article key={consulta.id} className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-900">
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <div className="text-xs font-semibold uppercase text-blue-600 dark:text-blue-400">{formatClinicalDate(consulta.fecha || consulta.created)}</div>
+                                    {consulta.motivo_consulta?.trim() && (
+                                      <div className="mt-1 truncate font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta}</div>
+                                    )}
+                                  </div>
+                                  <Link href={`/consultas/${consulta.id}?mode=view`} className="shrink-0 text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">Abrir</Link>
                                 </div>
-                                <Link href={`/consultas/${consulta.id}?mode=view`} className="shrink-0 text-sm font-semibold text-blue-700 hover:text-blue-800 dark:text-blue-300 dark:hover:text-blue-200">Abrir</Link>
-                              </div>
-                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-zinc-600 dark:text-zinc-400">
-                                <div>
-                                  <div className="font-semibold uppercase text-zinc-500 dark:text-zinc-500">Diagnostico</div>
-                                  <div className="mt-0.5 line-clamp-2">{consulta.diagnostico || "-"}</div>
-                                </div>
-                                <div>
-                                  <div className="font-semibold uppercase text-zinc-500 dark:text-zinc-500">Tratamiento</div>
-                                  <div className="mt-0.5 line-clamp-2">{consulta.tratamiento || "-"}</div>
-                                </div>
-                              </div>
-                            </article>
-                          ))}
+                                {visibleFields.length > 0 && (
+                                  <div className={`mt-2 grid gap-2 text-xs text-zinc-600 dark:text-zinc-400 ${visibleFields.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
+                                    {visibleFields.map((field) => (
+                                      <div key={field.label}>
+                                        <div className="font-semibold uppercase text-zinc-500 dark:text-zinc-500">{field.label}</div>
+                                        <div className="mt-0.5 line-clamp-2">{field.value}</div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </article>
+                            );
+                          })}
                         </div>
                       )}
                     </div>

@@ -224,6 +224,11 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const recetasRecientes = recetas.slice(0, 5);
   const ultimaReceta = recetasRecientes[0];
   const ultimoTratamiento = ultimaConsulta ? (ultimaConsulta as Consulta & { tratamiento?: string }).tratamiento || "" : "";
+  const ultimaConsultaSummary = ultimaConsulta
+    ? [formatDate(ultimaConsulta.fecha), ultimaConsulta.motivo_consulta?.trim(), ultimaConsulta.diagnostico?.trim()]
+        .filter(Boolean)
+        .join(" - ")
+    : "";
   const continuitySuggestedAction = !isMerged
     ? !ultimaConsulta
       ? {
@@ -419,9 +424,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
                         <div className="font-semibold text-blue-700 dark:text-blue-300">{formatDate(ultimaConsulta.fecha)}</div>
                         <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(ultimaConsulta.expand?.medico_id)}</p>
-                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Motivo:</span> {ultimaConsulta.motivo_consulta || "-"}</p>
-                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Diagnostico:</span> {ultimaConsulta.diagnostico || "-"}</p>
-                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Tratamiento:</span> {ultimoTratamiento || "-"}</p>
+                        {completedConsultaSummaryFields(ultimaConsulta, ultimoTratamiento).map((field) => (
+                          <p key={field.label}><span className="font-medium text-zinc-800 dark:text-zinc-200">{field.label}:</span> {field.value}</p>
+                        ))}
                       </div>
                     ) : (
                       <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
@@ -482,7 +487,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ultima consulta</h3>
                     {ultimaConsulta ? (
                       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-                        {formatDate(ultimaConsulta.fecha)} - {ultimaConsulta.motivo_consulta || "Sin motivo"}{ultimaConsulta.diagnostico ? ` - ${ultimaConsulta.diagnostico}` : ""}
+                        {ultimaConsultaSummary}
                       </p>
                     ) : (
                       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">No hay consultas registradas.</p>
@@ -525,6 +530,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-3">
                     {consultasRecientes.map((consulta) => {
                       const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
+                      const visibleFields = completedConsultaSummaryFields(consulta, tratamiento);
                       return (
                         <div key={consulta.id} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
                           <div className="flex items-center justify-between gap-2">
@@ -533,11 +539,14 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                               {consultaEstadoLabel(consulta.estado)}
                             </span>
                           </div>
-                          <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta || "Sin motivo"}</div>
+                          {consulta.motivo_consulta?.trim() && (
+                            <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta}</div>
+                          )}
                           <div className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
                             <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(consulta.expand?.medico_id)}</p>
-                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Diagnostico:</span> {consulta.diagnostico || "-"}</p>
-                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Tratamiento:</span> {tratamiento || "-"}</p>
+                            {visibleFields.filter((field) => field.label !== "Motivo").map((field) => (
+                              <p key={field.label}><span className="font-medium text-zinc-800 dark:text-zinc-200">{field.label}:</span> {field.value}</p>
+                            ))}
                           </div>
                           <button
                             type="button"
@@ -631,7 +640,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                           <div className="min-w-0">
                             <div className="font-semibold text-zinc-900 dark:text-zinc-100">{event.title}</div>
                             <p className="mt-1 text-xs font-semibold text-zinc-500 dark:text-zinc-500">Medico: {event.doctor}</p>
-                            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{event.description}</p>
+                            {event.description && <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{event.description}</p>}
                             {event.secondary && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-500">{event.secondary}</p>}
                             {isExpanded && (
                               <dl className="mt-4 grid grid-cols-1 gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950 sm:grid-cols-2">
@@ -1045,11 +1054,19 @@ type ClinicalTimelineEvent = {
 
 type ClinicalTimelineFilter = "all" | ClinicalTimelineEvent["type"];
 
+function completedConsultaSummaryFields(consulta: Consulta, tratamiento?: string) {
+  return [
+    { label: "Motivo", value: consulta.motivo_consulta?.trim() || "" },
+    { label: "Diagnostico", value: consulta.diagnostico?.trim() || "" },
+    { label: "Tratamiento", value: tratamiento?.trim() || "" },
+  ].filter((field) => field.value.length > 0);
+}
+
 function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): ClinicalTimelineEvent[] {
   const consultaEvents = consultas.map((consulta) => {
     const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
     const title = consulta.motivo_consulta || "Consulta sin motivo cargado";
-    const description = consulta.diagnostico ? `Diagnostico: ${consulta.diagnostico}` : "Sin diagnostico cargado.";
+    const description = consulta.diagnostico ? `Diagnostico: ${consulta.diagnostico}` : "";
     const secondary = tratamiento ? `Tratamiento: ${tratamiento}` : undefined;
     const doctor = doctorLabel(consulta.expand?.medico_id);
     return {
@@ -1067,9 +1084,7 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
         { label: "Fecha", value: formatDate(consulta.fecha) },
         { label: "Medico", value: doctor },
         { label: "Estado", value: consultaEstadoLabel(consulta.estado) },
-        { label: "Motivo", value: title },
-        { label: "Diagnostico", value: consulta.diagnostico || "-" },
-        { label: "Tratamiento", value: tratamiento || "-" },
+        ...completedConsultaSummaryFields(consulta, tratamiento),
       ],
       searchText: buildEventSearchText(["consulta", doctor, consultaEstadoLabel(consulta.estado), formatDate(consulta.fecha), title, description, secondary]),
     };
