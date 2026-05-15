@@ -1263,8 +1263,8 @@ function NuevaConsultaForm() {
                   <div className="mb-2">
                     <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Motivo de consulta</h4>
                   </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
-                    <label className="block text-sm font-bold">
+                  <div className="grid grid-cols-1 gap-3">
+                    <label className="block max-w-[150px] text-sm font-bold">
                       Fecha
                       <input
                         required
@@ -1275,15 +1275,15 @@ function NuevaConsultaForm() {
                         className="mt-1 w-full rounded-lg border border-zinc-400 bg-white px-3 py-2 font-bold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:[color-scheme:dark]"
                       />
                     </label>
-                    <label className="block text-sm font-bold">
+                    <label className="block text-base font-bold">
                       Motivo
                       <textarea
                         name="motivo_consulta"
                         value={formData.motivo_consulta}
                         onChange={handleInputChange}
-                        rows={2}
+                        rows={3}
                         placeholder="Motivo principal de la atencion..."
-                        className="mt-1 min-h-20 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
+                        className="mt-1 min-h-24 w-full resize-y rounded-lg border-2 border-zinc-400 bg-white px-3 py-2 text-base font-semibold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[96px] 2xl:resize-none"
                       />
                     </label>
                   </div>
