@@ -1116,7 +1116,7 @@ function continuityToneClass(tone: string) {
                 </div>
 
                 {/* Anteojos */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700">
+                <div className="grid grid-cols-1 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
                   {/* LEJOS */}
                   <div className="p-3 border-b lg:border-b-0 lg:border-r border-zinc-300 dark:border-zinc-700">
                     <div className="font-bold mb-2 underline decoration-zinc-400">LEJOS:</div>
@@ -1138,13 +1138,13 @@ function continuityToneClass(tone: string) {
                       <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
                       <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
                     </div>
-                    
-                    {/* ADD */}
-                    <div className="mt-3 flex justify-end items-center gap-2">
-                      <label className="font-bold text-sm text-[#2d8f8f] dark:text-emerald-500">ADD:</label>
-                      <input type="text" name="add_value" value={formData.add_value} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
-                    </div>
                   </div>
+
+                  {/* ADD */}
+                  <label className="flex items-center justify-center gap-2 border-b border-zinc-300 p-3 font-bold text-sm text-[#2d8f8f] dark:border-zinc-700 dark:text-emerald-500 lg:flex-col lg:border-b-0 lg:border-r">
+                    ADD:
+                    <input type="text" name="add_value" value={formData.add_value} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
+                  </label>
                   
                   {/* CERCA */}
                   <div className="p-3">

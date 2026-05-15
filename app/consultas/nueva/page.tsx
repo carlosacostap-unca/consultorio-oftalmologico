@@ -1334,13 +1334,9 @@ function NuevaConsultaForm() {
                         <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Anteojos</h4>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">Lejos y cerca con ESF, CIL y EJE para OD/OI.</p>
                       </div>
-                      <label className="flex items-center gap-2 rounded-lg border border-[#2d8f8f]/40 bg-white px-3 py-2 text-sm font-bold text-[#2d8f8f] dark:bg-zinc-950 dark:text-emerald-400">
-                        ADD
-                        <input type="text" name="add_value" value={formData.add_value} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-20 rounded border-2 border-[#2d8f8f] px-2 py-1 text-center font-bold text-zinc-900 dark:border-emerald-500 dark:bg-zinc-900 dark:text-zinc-100" />
-                      </label>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                    <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
                       <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                         <div className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de lejos</div>
                         <div className="grid grid-cols-[44px_repeat(3,minmax(0,1fr))] gap-2 text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">
@@ -1359,6 +1355,11 @@ function NuevaConsultaForm() {
                           <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                         </div>
                       </div>
+
+                      <label className="flex items-center justify-center gap-2 rounded-lg border border-[#2d8f8f]/40 bg-white px-3 py-2 text-sm font-bold text-[#2d8f8f] dark:bg-zinc-950 dark:text-emerald-400 lg:flex-col lg:px-2">
+                        ADD
+                        <input type="text" name="add_value" value={formData.add_value} maxLength={6} onChange={handleInputChange} placeholder="+0.00" className="w-20 rounded border-2 border-[#2d8f8f] px-2 py-1 text-center font-bold text-zinc-900 dark:border-emerald-500 dark:bg-zinc-900 dark:text-zinc-100" />
+                      </label>
 
                       <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                         <div className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de cerca</div>
