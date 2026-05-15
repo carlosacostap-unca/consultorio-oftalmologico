@@ -1260,9 +1260,6 @@ function NuevaConsultaForm() {
               <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:grid 2xl:grid-cols-[360px_minmax(540px,1fr)_minmax(520px,1fr)] 2xl:gap-3 2xl:space-y-0">
                 
                 <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-1 2xl:row-start-1">
-                  <div className="mb-2">
-                    <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Motivo de consulta</h4>
-                  </div>
                   <div className="grid grid-cols-1 gap-3">
                     <label className="block max-w-[150px] text-sm font-bold">
                       Fecha
@@ -1292,10 +1289,7 @@ function NuevaConsultaForm() {
                 <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.72fr)_minmax(620px,1.28fr)] 2xl:contents">
                   <div className="space-y-3 2xl:col-start-1 2xl:row-start-2">
                     <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
-                      <div className="mb-2 flex items-center justify-between gap-3">
-                        <div>
-                          <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Agudeza visual</h4>
-                        </div>
+                      <div className="mb-2 flex justify-end">
                         <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">/10</span>
                       </div>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -1327,12 +1321,6 @@ function NuevaConsultaForm() {
                   </div>
 
                   <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1">
-                    <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                      <div>
-                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Anteojos</h4>
-                      </div>
-                    </div>
-
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
                       <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                         <div className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de lejos</div>
@@ -1518,10 +1506,6 @@ function NuevaConsultaForm() {
 
                 <div className="border-t border-zinc-200 pt-2 dark:border-zinc-700 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1 2xl:border-t-0 2xl:pt-0">
                   <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
-                    <div className="mb-2">
-                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">PIO · BMC · FO · DX · TTO</h4>
-                    </div>
-
                     <div className="space-y-2">
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
