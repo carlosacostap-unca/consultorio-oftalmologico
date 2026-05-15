@@ -1348,27 +1348,12 @@ function NuevaConsultaForm() {
                       </div>
                     </section>
 
-                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
-                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Presion ocular</h4>
-                      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2.5 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
-                          OD
-                          <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
-                          <span className="text-xs text-zinc-500">mmHg</span>
-                        </label>
-                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2.5 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
-                          OI
-                          <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
-                          <span className="text-xs text-zinc-500">mmHg</span>
-                        </label>
-                      </div>
-                    </section>
                   </div>
 
                   <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1">
                     <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div>
-                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Refraccion</h4>
+                        <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Anteojos</h4>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400">Lejos y cerca con ESF, CIL y EJE para OD/OI.</p>
                       </div>
                       <label className="flex items-center gap-2 rounded-lg border border-[#2d8f8f]/40 bg-white px-3 py-2 text-sm font-bold text-[#2d8f8f] dark:bg-zinc-950 dark:text-emerald-400">
@@ -1555,62 +1540,44 @@ function NuevaConsultaForm() {
                   </>
                 )}
 
-                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-2 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1 2xl:grid-cols-1 2xl:border-t-0 2xl:pt-0">
+                <div className="border-t border-zinc-200 pt-2 dark:border-zinc-700 2xl:col-start-3 2xl:row-span-2 2xl:row-start-1 2xl:border-t-0 2xl:pt-0">
                   <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
                     <div className="mb-2">
-                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Examen oftalmologico</h4>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Hallazgos del segmento anterior y posterior.</p>
+                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">PIO · BMC · FO · DX · TTO</h4>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Cierre del examen en el orden de carga clinica.</p>
                     </div>
-                    <div className="space-y-2">
-                      <label className="block text-sm font-bold">
-                        Biomicroscopia
-                        <textarea
-                          name="biomicroscopia"
-                          value={formData.biomicroscopia}
-                          onChange={handleInputChange}
-                          rows={2}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
-                        />
-                      </label>
-                      <label className="block text-sm font-bold">
-                        Fondo de ojo
-                        <textarea
-                          name="fondo_ojo"
-                          value={formData.fondo_ojo}
-                          onChange={handleInputChange}
-                          rows={2}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
-                        />
-                      </label>
-                    </div>
-                  </section>
 
-                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
-                    <div className="mb-2">
-                      <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Cierre clinico</h4>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Conclusion diagnostica y conducta indicada.</p>
-                    </div>
                     <div className="space-y-2">
-                      <label className="block text-sm font-bold">
-                        Diagnostico
-                        <textarea
-                          name="diagnostico"
-                          value={formData.diagnostico}
-                          onChange={handleInputChange}
-                          rows={2}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
-                        />
-                      </label>
-                      <label className="block text-sm font-bold">
-                        Tratamiento
-                        <textarea
-                          name="tratamiento"
-                          value={formData.tratamiento}
-                          onChange={handleInputChange}
-                          rows={2}
-                          className="mt-1 min-h-24 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[56px] 2xl:resize-none"
-                        />
-                      </label>
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
+                          OD
+                          <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <span className="text-xs text-zinc-500">mmHg</span>
+                        </label>
+                        <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
+                          OI
+                          <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <span className="text-xs text-zinc-500">mmHg</span>
+                        </label>
+                      </div>
+
+                      {[
+                        { name: "biomicroscopia", label: "BMC", value: formData.biomicroscopia },
+                        { name: "fondo_ojo", label: "FO", value: formData.fondo_ojo },
+                        { name: "diagnostico", label: "DX", value: formData.diagnostico },
+                        { name: "tratamiento", label: "TTO", value: formData.tratamiento },
+                      ].map((field) => (
+                        <label key={field.name} className="grid grid-cols-[48px_minmax(0,1fr)] items-start gap-2 text-sm font-bold">
+                          <span className="pt-2">{field.label}</span>
+                          <textarea
+                            name={field.name}
+                            value={field.value}
+                            onChange={handleInputChange}
+                            rows={2}
+                            className="min-h-20 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[48px] 2xl:resize-none"
+                          />
+                        </label>
+                      ))}
                     </div>
                   </section>
                 </div>

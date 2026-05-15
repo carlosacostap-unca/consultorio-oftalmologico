@@ -1118,7 +1118,7 @@ function continuityToneClass(tone: string) {
                   </div>
                 </div>
 
-                {/* Refracción */}
+                {/* Anteojos */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700">
                   {/* LEJOS */}
                   <div className="p-3 border-b lg:border-b-0 lg:border-r border-zinc-300 dark:border-zinc-700">
@@ -1177,7 +1177,7 @@ function continuityToneClass(tone: string) {
                 {/* PIO y Textos Finales */}
                 <div className="space-y-3 pt-4 border-t border-zinc-200 dark:border-zinc-700">
                   <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-800/50 p-2 border border-zinc-300 dark:border-zinc-700">
-                    <span className="font-bold text-sm min-w-[150px]">PRESION OCULAR:</span>
+                    <span className="font-bold text-sm min-w-[150px]">PIO:</span>
                     <div className="flex items-center gap-2">
                       <span className="font-semibold text-xs">OD:</span>
                       <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} disabled={isReadOnly} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
@@ -1189,22 +1189,22 @@ function continuityToneClass(tone: string) {
                   </div>
 
                   <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">BIOMICROSCOPIA:</label>
+                    <label className="font-bold text-sm min-w-[150px] pt-1">BMC:</label>
                     <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
 
                   <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">FONDO DE OJO:</label>
+                    <label className="font-bold text-sm min-w-[150px] pt-1">FO:</label>
                     <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
                   
                   <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">DIAGNOSTICO:</label>
+                    <label className="font-bold text-sm min-w-[150px] pt-1">DX:</label>
                     <input type="text" name="diagnostico" value={formData.diagnostico} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
                   
                   <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">TRATAMIENTO:</label>
+                    <label className="font-bold text-sm min-w-[150px] pt-1">TTO:</label>
                     <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
                   </div>
                 </div>
