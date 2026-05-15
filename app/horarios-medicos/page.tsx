@@ -67,28 +67,39 @@ export default function HorariosMedicosPage() {
   const loadData = async () => {
     setIsLoading(true);
     setError("");
-    try {
-      const [medicosResponse, rulesResponse] = await Promise.all([
-        fetch("/api/medicos", { headers: { Authorization: `Bearer ${pb.authStore.token}` } }),
-        pb.collection("agenda_semanal_medico").getFullList<WeeklyScheduleRule>({
-          sort: "medico_id,dia_semana,hora_inicio",
-          requestKey: null,
-        }),
-      ]);
+    let nextError = "";
 
+    try {
+      const medicosResponse = await fetch("/api/medicos", { headers: { Authorization: `Bearer ${pb.authStore.token}` } });
       if (!medicosResponse.ok) throw new Error("No se pudieron cargar los medicos.");
+
       const medicosData = await medicosResponse.json();
       const medicosRecords = Array.isArray(medicosData.medicos) ? medicosData.medicos : [];
       setMedicos(medicosRecords);
-      setRules(rulesResponse);
 
       if (!form.medico_id && medicosRecords[0]?.id) {
         setForm((prev) => ({ ...prev, medico_id: medicosRecords[0].id }));
       }
     } catch (err) {
-      console.error("Error al cargar horarios medicos:", err);
-      setError("No se pudieron cargar los horarios medicos.");
+      console.error("Error al cargar medicos:", err);
+      setMedicos([]);
+      nextError = "No se pudieron cargar los medicos.";
+    }
+
+    try {
+      const rulesResponse = await pb.collection("agenda_semanal_medico").getFullList<WeeklyScheduleRule>({
+        sort: "medico_id,dia_semana,hora_inicio",
+        requestKey: null,
+      });
+      setRules(rulesResponse);
+    } catch (err) {
+      console.error("Error al cargar reglas semanales:", err);
+      setRules([]);
+      nextError = nextError
+        ? `${nextError} Tampoco se pudieron cargar las reglas semanales.`
+        : "No se pudieron cargar las reglas semanales. Verifica que la migracion de agenda recurrente este aplicada.";
     } finally {
+      setError(nextError);
       setIsLoading(false);
     }
   };
@@ -149,7 +160,7 @@ export default function HorariosMedicosPage() {
       await loadData();
     } catch (err) {
       console.error("Error al guardar horario medico:", err);
-      setError("No se pudo guardar el horario medico.");
+      setError("No se pudo guardar el horario medico. Verifica que la migracion de agenda recurrente este aplicada.");
     } finally {
       setIsSaving(false);
     }

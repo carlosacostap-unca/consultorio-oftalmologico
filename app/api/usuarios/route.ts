@@ -16,6 +16,28 @@ interface PocketBaseUserRecord extends RoleLikeRecord {
 
 export const dynamic = "force-dynamic";
 
+function errorMessage(error: unknown, fallback: string) {
+  if (!(error instanceof Error)) return fallback;
+
+  const match = error.message.match(/PocketBase\s+\d+:\s+([\s\S]+)$/);
+  if (!match) return error.message || fallback;
+
+  try {
+    const data = JSON.parse(match[1]) as {
+      message?: string;
+      data?: Record<string, { message?: string } | undefined>;
+    };
+    const fieldMessages = Object.values(data.data || {})
+      .map((item) => item?.message)
+      .filter(Boolean);
+
+    if (fieldMessages.length > 0) return fieldMessages.join(" ");
+    return data.message || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const admin = await requireAdmin(request);
@@ -61,7 +83,7 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Completa email y al menos un rol" }, { status: 400 });
     }
 
-    const password = `google-${randomUUID()}-${randomUUID()}`;
+    const password = `tmp-${randomUUID().replace(/-/g, "").slice(0, 24)}`;
     const legacyRole = legacyRoleForRoles(roles);
 
     const user = await pbAdmin("/api/collections/users/records", {
@@ -88,6 +110,6 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error al crear usuario:", error);
-    return Response.json({ error: "No se pudo crear el usuario" }, { status: 500 });
+    return Response.json({ error: errorMessage(error, "No se pudo crear el usuario") }, { status: 500 });
   }
 }
