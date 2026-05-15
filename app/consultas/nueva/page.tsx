@@ -9,10 +9,9 @@ import { appendActivePatientFilter } from "@/lib/patient-merge";
 import { createConsultaEvento } from "@/lib/consulta-eventos";
 import type { ConsultaEstado } from "@/lib/consulta-estado";
 import { consultaEstadoLabel } from "@/lib/consulta-estado";
-import { resolveActiveRole } from "@/lib/active-role";
-import type { UserRole } from "@/lib/permissions";
-import type { Medico } from "@/lib/types";
-import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
+import { normalizeUserRoles } from "@/lib/permissions";
+import type { AppUser, Medico } from "@/lib/types";
+import { doctorLabel } from "@/lib/doctor-attribution";
 
 interface Paciente {
   id: string;
@@ -119,7 +118,7 @@ function NuevaConsultaForm() {
   const searchParams = useSearchParams();
   const formRef = useRef<HTMLFormElement | null>(null);
   
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -173,7 +172,6 @@ function NuevaConsultaForm() {
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [medicos, setMedicos] = useState<Medico[]>([]);
 
   // Estado para la búsqueda de pacientes
@@ -270,13 +268,12 @@ function NuevaConsultaForm() {
 
   useEffect(() => {
     setIsMounted(true);
-    const authUser = pb.authStore.record;
-    const resolvedRole = resolveActiveRole(authUser, ["medico"]);
+    const authUser = pb.authStore.record as AppUser | null;
+    const accountDoctorId = normalizeUserRoles(authUser).includes("medico") ? authUser?.id || "" : "";
     setUser(authUser);
-    setActiveRole(resolvedRole);
 
-    if (resolvedRole === "medico" && authUser?.id) {
-      setFormData((prev) => ({ ...prev, medico_id: prev.medico_id || authUser.id }));
+    if (accountDoctorId) {
+      setFormData((prev) => ({ ...prev, medico_id: accountDoctorId }));
     }
 
     if (!pb.authStore.isValid) {
@@ -324,7 +321,7 @@ function NuevaConsultaForm() {
                 ...prev, 
                 motivo_consulta: turno.motivo || "",
                 paciente_id: turno.paciente_id || prev.paciente_id,
-                medico_id: turno.medico_id || prev.medico_id,
+                medico_id: accountDoctorId || turno.medico_id || prev.medico_id,
               }));
               if (turno.paciente_id && turno.paciente_id !== initialPacienteId) {
                 const pacienteTurno = await pb.collection("pacientes").getOne<Paciente>(turno.paciente_id, {
@@ -527,7 +524,7 @@ function NuevaConsultaForm() {
     const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const targetEstado: ConsultaEstado = submitter?.value === "finalizada" ? "finalizada" : "en_curso";
     if (!formData.medico_id) {
-      alert("Selecciona el medico responsable de la consulta.");
+      alert("No se pudo definir el medico responsable de la consulta.");
       return;
     }
 
@@ -631,8 +628,9 @@ function NuevaConsultaForm() {
     : formData.paciente_id
       ? "Paciente seleccionado"
       : "Sin paciente seleccionado";
-  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || null;
-  const canChooseDoctor = canAssignAnyDoctor(activeRole);
+  const accountDoctor = user?.id === formData.medico_id ? user : null;
+  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || accountDoctor;
+  const isDoctorFromAccount = Boolean(accountDoctor);
 
   const patientSummaryItems = selectedPacienteData
     ? [
@@ -1125,29 +1123,15 @@ function NuevaConsultaForm() {
               <div className="grid grid-cols-1 items-end gap-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-12">
                 <div className="col-span-12 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-900/50 dark:bg-emerald-950/20">
                   <label className="block text-xs font-semibold mb-1 text-emerald-800 dark:text-emerald-200">Medico responsable *</label>
-                  {canChooseDoctor ? (
-                    <select
-                      required
-                      name="medico_id"
-                      value={formData.medico_id}
-                      onChange={handleInputChange}
-                      disabled={Boolean(selectedTurnoData?.medico_id)}
-                      className="w-full rounded border border-emerald-300 bg-white px-2 py-1 text-sm font-semibold text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-emerald-800 dark:bg-zinc-900 dark:text-zinc-100 disabled:opacity-70"
-                    >
-                      <option value="">Seleccionar medico</option>
-                      {medicos.map((medico) => (
-                        <option key={medico.id} value={medico.id}>
-                          {doctorLabel(medico)}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="rounded border border-emerald-300 bg-white px-2 py-1 text-sm font-semibold text-zinc-900 dark:border-emerald-800 dark:bg-zinc-900 dark:text-zinc-100">
-                      {doctorLabel(selectedDoctor)}
-                    </div>
-                  )}
-                  {selectedTurnoData?.medico_id && (
+                  <div className="rounded border border-emerald-300 bg-white px-2 py-1 text-sm font-semibold text-zinc-900 dark:border-emerald-800 dark:bg-zinc-900 dark:text-zinc-100">
+                    {formData.medico_id ? doctorLabel(selectedDoctor) : "Medico no definido"}
+                  </div>
+                  {isDoctorFromAccount ? (
+                    <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">Definido por la cuenta actual.</p>
+                  ) : selectedTurnoData?.medico_id ? (
                     <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">Definido por el turno asociado.</p>
+                  ) : (
+                    <p className="mt-1 text-xs text-red-700 dark:text-red-300">No se pudo definir automaticamente el medico responsable.</p>
                   )}
                 </div>
                 <div className="col-span-12 md:col-span-5">
