@@ -34,7 +34,6 @@ export interface Patient extends RecordModel {
   ant_hipertension?: boolean;
   ant_alergico?: boolean;
   ant_reuma?: boolean;
-  ant_gota?: boolean;
   ant_herpes?: boolean;
   ant_otra?: string;
   mutual_id?: string;

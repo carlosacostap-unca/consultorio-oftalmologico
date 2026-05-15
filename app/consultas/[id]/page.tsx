@@ -100,7 +100,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     tratamiento: "",
     
     ant_alergico: false, ant_asmatico: false, ant_reuma: false,
-    ant_gota: false, ant_herpes: false, ant_diabetes: false,
+    ant_herpes: false, ant_diabetes: false,
     ant_glaucoma: false, ant_maculopatia: false, ant_hipertension: false,
     ant_otra: ""
   };
@@ -188,6 +188,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           setFormData(prev => ({
             ...prev,
             ...consultaRecord,
+            ant_gota: false,
             estado: normalizeConsultaEstado(String(consultaRecord.estado || "")),
             fecha: fechaFormateada,
             paciente_id: consultaRecord.paciente_id || prev.paciente_id
@@ -349,6 +350,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             ...formData,
             estado: targetEstado,
             fecha: new Date(formData.fecha).toISOString(),
+            ant_gota: false,
           };
       
       const response = await fetch(`/api/consultas/${consultaId}`, {
@@ -454,7 +456,6 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     formData.ant_hipertension ? "Hipertension" : "",
     formData.ant_alergico ? "Alergia" : "",
     formData.ant_reuma ? "Reuma" : "",
-    formData.ant_gota ? "Gota" : "",
     formData.ant_herpes ? "Herpes" : "",
     formData.ant_otra?.trim() || "",
   ].filter(Boolean);
@@ -1046,10 +1047,6 @@ function continuityToneClass(tone: string) {
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="ant_reuma" checked={formData.ant_reuma} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
                   <span className="font-semibold text-sm">REUMA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_gota" checked={formData.ant_gota} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">GOTA</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="ant_herpes" checked={formData.ant_herpes} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />

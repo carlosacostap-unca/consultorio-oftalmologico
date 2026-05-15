@@ -32,7 +32,6 @@ interface Paciente {
   ant_hipertension?: boolean;
   ant_alergico?: boolean;
   ant_reuma?: boolean;
-  ant_gota?: boolean;
   ant_herpes?: boolean;
   ant_otra?: string;
   estado_registro?: string;
@@ -90,7 +89,6 @@ type AntecedenteKey =
   | "ant_hipertension"
   | "ant_alergico"
   | "ant_reuma"
-  | "ant_gota"
   | "ant_herpes";
 
 const antecedentesFijos: Array<{ key: AntecedenteKey; label: string }> = [
@@ -101,7 +99,6 @@ const antecedentesFijos: Array<{ key: AntecedenteKey; label: string }> = [
   { key: "ant_hipertension", label: "HIPERTENSION" },
   { key: "ant_alergico", label: "ALERGIA" },
   { key: "ant_reuma", label: "REUMA" },
-  { key: "ant_gota", label: "GOTA" },
   { key: "ant_herpes", label: "HERPES" },
 ];
 
@@ -166,7 +163,7 @@ function NuevaConsultaForm() {
     tratamiento: "",
     
     ant_alergico: false, ant_asmatico: false, ant_reuma: false,
-    ant_gota: false, ant_herpes: false, ant_diabetes: false,
+    ant_herpes: false, ant_diabetes: false,
     ant_glaucoma: false, ant_maculopatia: false, ant_hipertension: false,
     ant_otra: ""
   };
@@ -243,7 +240,6 @@ function NuevaConsultaForm() {
     ant_hipertension: paciente.ant_hipertension || false,
     ant_alergico: paciente.ant_alergico || false,
     ant_reuma: paciente.ant_reuma || false,
-    ant_gota: paciente.ant_gota || false,
     ant_herpes: paciente.ant_herpes || false,
     ant_otra: paciente.ant_otra || "",
   });
@@ -255,7 +251,6 @@ function NuevaConsultaForm() {
     antecedentes.ant_hipertension ||
     antecedentes.ant_alergico ||
     antecedentes.ant_reuma ||
-    antecedentes.ant_gota ||
     antecedentes.ant_herpes ||
     antecedentes.ant_otra.trim() !== "";
 
@@ -415,7 +410,6 @@ function NuevaConsultaForm() {
               ant_hipertension: lastConsulta.ant_hipertension || false,
               ant_alergico: lastConsulta.ant_alergico || false,
               ant_reuma: lastConsulta.ant_reuma || false,
-              ant_gota: lastConsulta.ant_gota || false,
               ant_herpes: lastConsulta.ant_herpes || false,
               ant_otra: lastConsulta.ant_otra || "",
             }));
@@ -535,6 +529,7 @@ function NuevaConsultaForm() {
         ...formData,
         estado: targetEstado,
         fecha: new Date(formData.fecha).toISOString(),
+        ant_gota: false,
       };
       
       const nuevaConsulta = await pb.collection("consultas").create(dataToSave);
@@ -649,7 +644,6 @@ function NuevaConsultaForm() {
     formData.ant_hipertension ? "Hipertension" : "",
     formData.ant_alergico ? "Alergia" : "",
     formData.ant_reuma ? "Reuma" : "",
-    formData.ant_gota ? "Gota" : "",
     formData.ant_herpes ? "Herpes" : "",
     formData.ant_otra?.trim() || "",
   ].filter(Boolean);

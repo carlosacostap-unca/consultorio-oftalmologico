@@ -203,7 +203,6 @@ function getAntecedentesActivos(paciente: Patient) {
     paciente.ant_hipertension ? "Hipertension" : "",
     paciente.ant_alergico ? "Alergico" : "",
     paciente.ant_reuma ? "Reuma" : "",
-    paciente.ant_gota ? "Gota" : "",
     paciente.ant_herpes ? "Herpes" : "",
     paciente.ant_otra?.trim() || "",
   ].filter(Boolean);

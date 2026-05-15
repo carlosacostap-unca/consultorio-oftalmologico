@@ -16,14 +16,13 @@ const UI_ANTECEDENTES = [
   "ant_hipertension",
   "ant_alergico",
   "ant_reuma",
-  "ant_gota",
   "ant_herpes",
   "ant_otra",
 ];
 
 const csvRows = readPacienteCsv(CSV_PATH);
 const pacientes = await listAll("pacientes", {
-  fields: "id,numero_ficha,numero_documento,ant_diabetes,ant_glaucoma,ant_maculopatia,ant_asmatico,ant_hipertension,ant_alergico,ant_reuma,ant_gota,ant_herpes,ant_otra",
+  fields: "id,numero_ficha,numero_documento,ant_diabetes,ant_glaucoma,ant_maculopatia,ant_asmatico,ant_hipertension,ant_alergico,ant_reuma,ant_herpes,ant_otra",
 });
 
 const pacientesByFicha = groupBy(pacientes, (paciente) => normalizeKey(paciente.numero_ficha));
@@ -189,7 +188,6 @@ function readPacienteCsv(path) {
         ant_hipertension: false,
         ant_alergico: toBool(row.ALERGIA),
         ant_reuma: toBool(row.REUMA),
-        ant_gota: toBool(row.GOTA),
         ant_herpes: toBool(row.HERPES),
         ant_otra: String(row.OTROANTEC || "").trim(),
       },

@@ -55,7 +55,6 @@ interface PrintableConsulta {
   ant_alergico?: boolean;
   ant_asmatico?: boolean;
   ant_reuma?: boolean;
-  ant_gota?: boolean;
   ant_herpes?: boolean;
   ant_diabetes?: boolean;
   ant_glaucoma?: boolean;
@@ -300,7 +299,6 @@ function activeAntecedentes(consulta: PrintableConsulta) {
     consulta.ant_hipertension ? "Hipertension" : "",
     consulta.ant_alergico ? "Alergia" : "",
     consulta.ant_reuma ? "Reuma" : "",
-    consulta.ant_gota ? "Gota" : "",
     consulta.ant_herpes ? "Herpes" : "",
     consulta.ant_otra?.trim() || "",
   ].filter(Boolean);

@@ -89,7 +89,7 @@ export default function SeedPage() {
             fondo_ojo: "Normal, papila de bordes netos, mácula conservada.",
             diagnostico: i === 0 ? "Miopía leve y astigmatismo miópico." : "Síndrome de ojo seco leve.",
             tratamiento: i === 0 ? "Se receta nueva corrección óptica para lejos." : "Lágrimas artificiales cada 6 horas.",
-            ant_alergico: false, ant_asmatico: false, ant_reuma: false, ant_gota: false, ant_herpes: false, ant_diabetes: false
+            ant_alergico: false, ant_asmatico: false, ant_reuma: false, ant_herpes: false, ant_diabetes: false
           });
 
           // Enlazar la consulta al turno explícitamente y asegurar el estado
