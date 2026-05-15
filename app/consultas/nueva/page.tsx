@@ -1262,7 +1262,6 @@ function NuevaConsultaForm() {
                 <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-1 2xl:row-start-1">
                   <div className="mb-2">
                     <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Motivo de consulta</h4>
-                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Fecha de atencion y motivo principal referido por el paciente.</p>
                   </div>
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-[140px_minmax(0,1fr)]">
                     <label className="block text-sm font-bold">
@@ -1296,7 +1295,6 @@ function NuevaConsultaForm() {
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div>
                           <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Agudeza visual</h4>
-                          <p className="text-xs text-zinc-500 dark:text-zinc-400">Sin correccion y con correccion por ojo.</p>
                         </div>
                         <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">/10</span>
                       </div>
@@ -1332,7 +1330,6 @@ function NuevaConsultaForm() {
                     <div className="mb-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                       <div>
                         <h4 className="font-bold text-zinc-900 dark:text-zinc-100">Anteojos</h4>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400">Lejos y cerca con ESF, CIL y EJE para OD/OI.</p>
                       </div>
                     </div>
 
@@ -1523,7 +1520,6 @@ function NuevaConsultaForm() {
                   <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
                     <div className="mb-2">
                       <h4 className="font-bold text-zinc-900 dark:text-zinc-100">PIO · BMC · FO · DX · TTO</h4>
-                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Cierre del examen en el orden de carga clinica.</p>
                     </div>
 
                     <div className="space-y-2">
