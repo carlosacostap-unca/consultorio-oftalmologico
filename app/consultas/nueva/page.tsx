@@ -1120,12 +1120,12 @@ function NuevaConsultaForm() {
                   <div className="rounded border border-emerald-300 bg-white px-2 py-1 text-sm font-semibold text-zinc-900 dark:border-emerald-800 dark:bg-zinc-900 dark:text-zinc-100">
                     {formData.medico_id ? doctorLabel(selectedDoctor) : "Medico no definido"}
                   </div>
-                  {isDoctorFromAccount ? (
-                    <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">Definido por la cuenta actual.</p>
-                  ) : selectedTurnoData?.medico_id ? (
-                    <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">Definido por el turno asociado.</p>
-                  ) : (
-                    <p className="mt-1 text-xs text-red-700 dark:text-red-300">No se pudo definir automaticamente el medico responsable.</p>
+                  {!isDoctorFromAccount && (
+                    selectedTurnoData?.medico_id ? (
+                      <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">Definido por el turno asociado.</p>
+                    ) : (
+                      <p className="mt-1 text-xs text-red-700 dark:text-red-300">No se pudo definir automaticamente el medico responsable.</p>
+                    )
                   )}
                 </div>
                 <div className="col-span-12 md:col-span-5">
