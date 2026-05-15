@@ -1287,7 +1287,7 @@ function NuevaConsultaForm() {
                 </section>
 
                 <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.72fr)_minmax(620px,1.28fr)] 2xl:contents">
-                  <div className="space-y-3 2xl:col-start-1 2xl:row-start-2">
+                  <div className="space-y-3 2xl:col-start-2 2xl:row-start-1">
                     <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
                       <div className="mb-2 flex justify-end">
                         <span className="rounded-full bg-zinc-200 px-2 py-1 text-xs font-semibold text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">/10</span>
@@ -1320,7 +1320,7 @@ function NuevaConsultaForm() {
 
                   </div>
 
-                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1">
+                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:col-start-2 2xl:row-start-2">
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
                       <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                         <div className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de lejos</div>
