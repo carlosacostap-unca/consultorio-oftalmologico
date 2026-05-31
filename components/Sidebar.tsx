@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { pb } from "@/lib/pocketbase";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { AppUser } from "@/lib/types";
 import {
   ACTIVE_ROLE_CHANGED_EVENT,
@@ -26,7 +26,10 @@ export function Sidebar() {
   const [assignedRoles, setAssignedRoles] = useState<UserRole[]>([]);
   const [activeRole, setCurrentActiveRole] = useState<UserRole | null>(null);
   const [currentHash, setCurrentHash] = useState("");
+  const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
+  const roleMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
     const updateHash = () => setCurrentHash(window.location.hash);
@@ -105,6 +108,30 @@ export function Sidebar() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isRoleMenuOpen) return;
+
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      if (!roleMenuRef.current?.contains(event.target as Node)) {
+        setIsRoleMenuOpen(false);
+      }
+    };
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsRoleMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isRoleMenuOpen]);
+
   if (!isMounted || !isLoggedIn) {
     return null;
   }
@@ -112,6 +139,7 @@ export function Sidebar() {
   const menuSections = getMenuSections(activeRole);
 
   const toggleCollapsed = () => {
+    setIsRoleMenuOpen(false);
     setIsCollapsed((current) => {
       const next = !current;
       try {
@@ -129,6 +157,18 @@ export function Sidebar() {
     setActiveRole(user.id, role);
     setCurrentActiveRole(role);
   };
+
+  const logout = () => {
+    setIsRoleMenuOpen(false);
+    pb.authStore.clear();
+    setIsLoggedIn(false);
+    setUser(null);
+    setAssignedRoles([]);
+    setCurrentActiveRole(null);
+    router.push("/");
+  };
+
+  const activeRoleName = activeRoleLabel(activeRole);
 
   return (
     <aside className={`${isCollapsed ? "w-20" : "w-64"} bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 h-screen flex flex-col shrink-0 print:hidden transition-[width] duration-200 ease-in-out`}>
@@ -195,6 +235,65 @@ export function Sidebar() {
             </div>
             )}
           </div>
+          {isCollapsed && (
+            <div className="mt-3 flex flex-col items-center gap-2">
+              {assignedRoles.length > 1 ? (
+                <div ref={roleMenuRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsRoleMenuOpen((current) => !current)}
+                    aria-label="Cambiar rol"
+                    aria-expanded={isRoleMenuOpen}
+                    title={`Cambiar rol${activeRoleName ? `: ${activeRoleName}` : ""}`}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-xs font-bold text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-950 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  >
+                    {getRoleAbbreviation(activeRole)}
+                  </button>
+                  {isRoleMenuOpen && (
+                    <div className="absolute bottom-0 left-full z-50 ml-2 w-44 rounded-xl border border-zinc-200 bg-white p-1 shadow-xl shadow-zinc-900/10 dark:border-zinc-800 dark:bg-zinc-950 dark:shadow-black/40">
+                      {assignedRoles.map((role) => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => {
+                            changeActiveRole(role);
+                            setIsRoleMenuOpen(false);
+                          }}
+                          className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+                            role === activeRole
+                              ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300"
+                              : "text-zinc-700 hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                          }`}
+                        >
+                          <span>{ROLE_LABELS[role]}</span>
+                          {role === activeRole && <CheckIcon className="h-4 w-4" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                activeRole && (
+                  <div
+                    aria-label={activeRoleName}
+                    title={activeRoleName}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-xs font-bold text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+                  >
+                    {getRoleAbbreviation(activeRole)}
+                  </div>
+                )
+              )}
+              <button
+                type="button"
+                onClick={logout}
+                aria-label="Cerrar sesion"
+                title="Cerrar sesion"
+                className="flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-700 transition-colors hover:bg-red-100 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500/40 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300 dark:hover:bg-red-950/40"
+              >
+                <LogoutIcon className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {!isCollapsed && assignedRoles.length > 1 ? (
             <select
               value={activeRole || ""}
@@ -213,6 +312,16 @@ export function Sidebar() {
                 {activeRoleLabel(activeRole)}
               </div>
             )
+          )}
+          {!isCollapsed && (
+            <button
+              type="button"
+              onClick={logout}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-500/40 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-300 dark:hover:bg-red-950/40"
+            >
+              <LogoutIcon className="h-4 w-4" />
+              Cerrar sesion
+            </button>
           )}
         </div>
       )}
@@ -349,4 +458,32 @@ function getMenuItemInitials(name: string) {
     .slice(0, 2)
     .map((word) => word[0]?.toUpperCase())
     .join("");
+}
+
+function getRoleAbbreviation(role: UserRole | null) {
+  if (role === "admin") return "A";
+  if (role === "medico") return "M";
+  if (role === "secretaria") return "S";
+  return "R";
+}
+
+function LogoutIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3-3H9.75m9 0-3-3m3 3-3 3"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m5 13 4 4L19 7" />
+    </svg>
+  );
 }

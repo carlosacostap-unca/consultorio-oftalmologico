@@ -685,6 +685,16 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     formData.ant_herpes ? "Herpes" : "",
     formData.ant_otra?.trim() || "",
   ].filter(Boolean);
+  const fixedAntecedenteChips = [
+    { key: "ant_diabetes", label: "DIABETES" },
+    { key: "ant_glaucoma", label: "GLAUCOMA" },
+    { key: "ant_maculopatia", label: "MACULOPATIA" },
+    { key: "ant_asmatico", label: "ASMA" },
+    { key: "ant_hipertension", label: "HIPERTENSION" },
+    { key: "ant_alergico", label: "ALERGIA" },
+    { key: "ant_reuma", label: "REUMA" },
+    { key: "ant_herpes", label: "HERPES" },
+  ] as const;
   const currentConsultaEstado = normalizeConsultaEstado(formData.estado);
   const isConsultaFinalizada = currentConsultaEstado === "finalizada" || currentConsultaEstado === "anulada";
 
@@ -817,7 +827,7 @@ function continuityToneClass(tone: string) {
         )}
 
         <div className="flex flex-col">
-        <section aria-label="Continuidad clinica" className="order-2 mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section id="clinical-context-panel" aria-label="Continuidad clinica" className="order-2 mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Continuidad clinica</p>
@@ -1077,6 +1087,14 @@ function continuityToneClass(tone: string) {
             <h2 className="w-full px-32 text-center text-2xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
               Datos Médicos del Paciente
             </h2>
+            <button
+              type="button"
+              onClick={() => document.getElementById("clinical-context-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
+              aria-controls="clinical-context-panel"
+            >
+              Ver contexto
+            </button>
           </div>
           
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
@@ -1156,29 +1174,7 @@ function continuityToneClass(tone: string) {
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
-                <div className="col-span-12 md:col-span-5">
-                  <label className="block text-xs font-semibold mb-1">Medico responsable</label>
-                  {canEditDoctorAttribution ? (
-                    <select
-                      name="medico_id"
-                      value={formData.medico_id}
-                      onChange={handleInputChange}
-                      className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]"
-                    >
-                      <option value="">Medico no registrado</option>
-                      {assignableDoctors.map((medico) => (
-                        <option key={medico.id} value={medico.id}>
-                          {doctorLabel(medico)}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700">
-                      {doctorLabel(selectedDoctor)}
-                    </div>
-                  )}
-                </div>
-                <div className="col-span-12 md:col-span-7">
+                <div className="col-span-12">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
@@ -1191,39 +1187,29 @@ function continuityToneClass(tone: string) {
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Antecedentes Fijos</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
-              <div className="p-3 border-2 border-zinc-300 dark:border-zinc-600 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex flex-wrap items-center gap-6 shadow-inner">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_diabetes" checked={formData.ant_diabetes} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">DIABETES</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_glaucoma" checked={formData.ant_glaucoma} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">GLAUCOMA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_maculopatia" checked={formData.ant_maculopatia} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">MACULOPATIA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_asmatico" checked={formData.ant_asmatico} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">ASMA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_hipertension" checked={formData.ant_hipertension} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">HIPERTENSION</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_alergico" checked={formData.ant_alergico} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">ALERGIA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_reuma" checked={formData.ant_reuma} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">REUMA</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" name="ant_herpes" checked={formData.ant_herpes} onChange={handleInputChange} disabled={isReadOnly} className="w-4 h-4 text-[#2d8f8f]" />
-                  <span className="font-semibold text-sm">HERPES</span>
-                </label>
+              <div className="p-3 border-2 border-zinc-300 dark:border-zinc-600 rounded-xl bg-zinc-50 dark:bg-zinc-800 flex flex-wrap items-center gap-2 shadow-inner">
+                {fixedAntecedenteChips.map((antecedente) => {
+                  const isActive = Boolean(formData[antecedente.key]);
+
+                  return (
+                    <button
+                      key={antecedente.key}
+                      type="button"
+                      aria-pressed={isActive}
+                      onClick={() => {
+                        if (isReadOnly) return;
+                        setFormData((prev) => ({ ...prev, [antecedente.key]: !prev[antecedente.key] }));
+                      }}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+                        isActive
+                          ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-700"
+                          : "border-zinc-400 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200"
+                      } ${isReadOnly ? "cursor-default" : "hover:border-[#2d8f8f] hover:text-[#2d8f8f] dark:hover:border-emerald-500 dark:hover:text-emerald-400"}`}
+                    >
+                      {antecedente.label}
+                    </button>
+                  );
+                })}
                 <div className="flex items-center gap-2 flex-grow">
                   <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
                   <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
@@ -1303,7 +1289,7 @@ function continuityToneClass(tone: string) {
                   </div>
                 </div>
 
-                <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:grid 2xl:grid-cols-[360px_minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-3 2xl:space-y-0">
+                <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:grid 2xl:grid-cols-[360px_minmax(0,1.25fr)_minmax(0,0.75fr)] 2xl:gap-3 2xl:space-y-0">
                 <section className="flex h-full min-w-0 flex-col rounded-lg border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
                   <label className="mb-4 flex items-center gap-3">
                     <span className="text-sm font-bold">Fecha</span>
@@ -1361,22 +1347,22 @@ function continuityToneClass(tone: string) {
                   <div className="grid flex-1 grid-cols-1 items-center gap-3 rounded-lg border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950/40 xl:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)]">
                     <div className="min-w-0 rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
                       <div className="mb-2 font-bold">Refraccion de lejos</div>
-                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2 text-center text-xs font-bold text-blue-900 dark:text-blue-200">
+                      <div className="mb-2 grid grid-cols-[42px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2 text-center text-xs font-bold text-blue-900 dark:text-blue-200">
                         <div></div>
                         <div>ESF</div>
                         <div>CIL</div>
                         <div>EJE</div>
                       </div>
-                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                      <div className="mb-2 grid grid-cols-[42px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                         <div className="font-bold">OD</div>
-                        <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
-                        <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                         <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                       </div>
-                      <div className="grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                      <div className="grid grid-cols-[42px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                         <div className="font-bold">OI</div>
-                        <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
-                        <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                         <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                       </div>
                     </div>
@@ -1387,32 +1373,32 @@ function continuityToneClass(tone: string) {
                         type="text"
                         name="add_value"
                         value={formData.add_value}
-                        maxLength={6}
+                        maxLength={7}
                         onChange={handleInputChange}
                         disabled={isReadOnly}
                         placeholder="+0.00"
-                        className="h-9 w-full rounded border-2 border-[#2d8f8f] bg-white px-1 text-center font-bold focus:outline-none disabled:opacity-80 dark:border-emerald-500 dark:bg-zinc-900"
+                        className="h-9 w-full rounded border-2 border-[#2d8f8f] bg-white px-1 text-center text-sm font-bold tabular-nums focus:outline-none disabled:opacity-80 dark:border-emerald-500 dark:bg-zinc-900"
                       />
                     </label>
 
                     <div className="min-w-0 rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
                       <div className="mb-2 font-bold">Refraccion de cerca</div>
-                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2 text-center text-xs font-bold text-blue-900 dark:text-blue-200">
+                      <div className="mb-2 grid grid-cols-[42px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2 text-center text-xs font-bold text-blue-900 dark:text-blue-200">
                         <div></div>
                         <div>ESF</div>
                         <div>CIL</div>
                         <div>EJE</div>
                       </div>
-                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                      <div className="mb-2 grid grid-cols-[42px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                         <div className="font-bold">OD</div>
-                        <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
-                        <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                         <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                       </div>
-                      <div className="grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                      <div className="grid grid-cols-[42px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                         <div className="font-bold">OI</div>
-                        <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
-                        <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={7} onChange={handleInputChange} disabled={isReadOnly} className="h-8 w-full min-w-0 rounded border border-zinc-400 bg-white px-1 text-center text-sm font-semibold tabular-nums focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                         <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
                       </div>
                     </div>
