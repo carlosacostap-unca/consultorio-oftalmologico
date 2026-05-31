@@ -192,13 +192,6 @@ function NuevaConsultaForm() {
   };
 
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
-  const toLocalDateValue = (value?: string) => {
-    if (!value) return "";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "";
-    const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-    return localDate.toISOString().split("T")[0];
-  };
   const formatClinicalDate = (value?: string) => {
     if (!value) return "Sin fecha";
     const date = new Date(value);
@@ -210,35 +203,6 @@ function NuevaConsultaForm() {
     });
   };
 
-  const buildReturnAction = () => {
-    if (selectedTurnoData?.fecha_hora) {
-      const params = new URLSearchParams({
-        tab: "daily",
-        date: toLocalDateValue(selectedTurnoData.fecha_hora),
-      });
-
-      if (selectedTurnoData.medico_id) {
-        params.set("medico_id", selectedTurnoData.medico_id);
-      }
-
-      return {
-        href: `/turnos?${params.toString()}`,
-        label: "Volver a jornada",
-      };
-    }
-
-    if (formData.paciente_id) {
-      return {
-        href: `/pacientes/${formData.paciente_id}?mode=view`,
-        label: "Volver al paciente",
-      };
-    }
-
-    return {
-      href: "/consultas",
-      label: "Volver a consultas",
-    };
-  };
   const getAntecedentesFromPaciente = (paciente: Paciente) => ({
     ant_diabetes: paciente.ant_diabetes || false,
     ant_glaucoma: paciente.ant_glaucoma || false,
@@ -573,16 +537,17 @@ function NuevaConsultaForm() {
         }
       }
 
-      const returnAction = buildReturnAction();
+      const patientClinicalRecordHref = `/pacientes/${dataToSave.paciente_id}?mode=view`;
       setSavedConsultation({
         id: nuevaConsulta.id,
         pacienteId: dataToSave.paciente_id,
-        returnHref: returnAction.href,
-        returnLabel: returnAction.label,
+        returnHref: patientClinicalRecordHref,
+        returnLabel: "Ver ficha clinica",
         turnoUpdated,
         estado: targetEstado,
       });
       setIsLoading(false);
+      router.push(patientClinicalRecordHref);
     } catch (error) {
       console.error("Error al crear consulta:", error);
       alert("Error al guardar. Verifica que la colección 'consultas' exista con los campos correspondientes.");
