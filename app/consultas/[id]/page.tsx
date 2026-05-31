@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -14,6 +14,7 @@ import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
 import type { Medico } from "@/lib/types";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
+import { refractionHasValues } from "@/lib/refraction";
 
 interface Paciente {
   id: string;
@@ -56,13 +57,27 @@ export default function EditarConsultaPage({ params }: { params: Promise<{ id: s
 function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const pendingConsultaScrollYRef = useRef<number | null>(null);
+  const pendingConsultaAnchorRef = useRef(false);
+  const forceMedicalSectionFocusRef = useRef(false);
+  const medicalFormRef = useRef<HTMLDivElement | null>(null);
+  const consultaCacheRef = useRef<Map<string, any>>(new Map());
+  const consultaEventosCacheRef = useRef<Map<string, ConsultaEvento[]>>(new Map());
+  const consultasPacienteCacheRef = useRef<Map<string, ConsultaNavigationItem[]>>(new Map());
+  const pacienteCacheRef = useRef<Map<string, Paciente>>(new Map());
+  const recetasCacheRef = useRef<Map<string, any[]>>(new Map());
+  const hasLoadedConfigRef = useRef(false);
+  const hasLoadedMedicosRef = useRef(false);
+  const hasLoadedPacientesRef = useRef(false);
   
   const isViewMode = searchParams.get("mode") === "view";
+  const initialActiveConsultaId = searchParams.get("consulta_actual") || consultaId;
   
   console.log("Consulta ID recibido:", consultaId);
   
   const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
+  const [activeConsultaId, setActiveConsultaId] = useState(initialActiveConsultaId);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -110,6 +125,9 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [primeraConsulta, setPrimeraConsulta] = useState<ConsultaNavigationItem | null>(null);
   const [consultaAnterior, setConsultaAnterior] = useState<ConsultaNavigationItem | null>(null);
   const [consultaPosterior, setConsultaPosterior] = useState<ConsultaNavigationItem | null>(null);
+  const [ultimaConsulta, setUltimaConsulta] = useState<ConsultaNavigationItem | null>(null);
+  const [consultaPosition, setConsultaPosition] = useState({ current: 0, total: 0 });
+  const [isLoadingConsultaPosition, setIsLoadingConsultaPosition] = useState(false);
   const [consultaEditLimitDays, setConsultaEditLimitDays] = useState(7);
   const [consultaEventos, setConsultaEventos] = useState<ConsultaEvento[]>([]);
   const [isLoadingConsultaEventos, setIsLoadingConsultaEventos] = useState(true);
@@ -138,6 +156,148 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     (canChooseDoctor || (activeRole === "medico" && (!formData.medico_id || formData.medico_id === user?.id)));
   const doctorAttributionChanged = formData.medico_id !== originalMedicoId;
   const showSaveActions = !isReadOnly || (canEditDoctorAttribution && doctorAttributionChanged);
+  const shouldAnchorConsultaNavigation = () => {
+    const formTop = medicalFormRef.current
+      ? medicalFormRef.current.getBoundingClientRect().top + window.scrollY
+      : 0;
+
+    return Boolean(medicalFormRef.current) && window.scrollY + 80 >= formTop;
+  };
+  const rememberConsultaScroll = () => {
+    const shouldAnchor = shouldAnchorConsultaNavigation();
+    pendingConsultaAnchorRef.current = shouldAnchor;
+    pendingConsultaScrollYRef.current = window.scrollY;
+    window.sessionStorage.setItem("consulta-detail-scroll-y", String(window.scrollY));
+    window.sessionStorage.setItem("consulta-detail-anchor", shouldAnchor ? "1" : "0");
+  };
+  const getRememberedConsultaScroll = () => {
+    const shouldAnchor = pendingConsultaAnchorRef.current || window.sessionStorage.getItem("consulta-detail-anchor") === "1";
+    if (shouldAnchor && medicalFormRef.current) {
+      return Math.max(0, medicalFormRef.current.getBoundingClientRect().top + window.scrollY - 12);
+    }
+
+    const savedScrollY = pendingConsultaScrollYRef.current ?? window.sessionStorage.getItem("consulta-detail-scroll-y");
+    if (savedScrollY === null) return null;
+
+    const top = Number(savedScrollY);
+    return Number.isFinite(top) ? top : null;
+  };
+  const scheduleConsultaScrollRestore = () => {
+    const top = getRememberedConsultaScroll();
+    if (top === null) return;
+
+    const restoreScroll = () => window.scrollTo({ top, left: 0, behavior: "auto" });
+    window.requestAnimationFrame(restoreScroll);
+    window.setTimeout(restoreScroll, 0);
+    window.setTimeout(restoreScroll, 50);
+    window.setTimeout(restoreScroll, 180);
+    window.setTimeout(restoreScroll, 320);
+  };
+  const restoreConsultaScroll = () => {
+    if (getRememberedConsultaScroll() === null) return;
+
+    scheduleConsultaScrollRestore();
+    pendingConsultaScrollYRef.current = null;
+    pendingConsultaAnchorRef.current = false;
+    window.sessionStorage.removeItem("consulta-detail-scroll-y");
+    window.sessionStorage.removeItem("consulta-detail-anchor");
+  };
+  const focusMedicalSection = () => {
+    const element = medicalFormRef.current;
+    if (!element) return;
+
+    const top = Math.max(0, element.getBoundingClientRect().top + window.scrollY - 12);
+    window.scrollTo({ top, left: 0, behavior: "auto" });
+  };
+  const scheduleMedicalSectionFocus = () => {
+    if (!forceMedicalSectionFocusRef.current) return;
+
+    focusMedicalSection();
+    window.requestAnimationFrame(focusMedicalSection);
+    window.setTimeout(focusMedicalSection, 0);
+    window.setTimeout(focusMedicalSection, 60);
+    window.setTimeout(focusMedicalSection, 180);
+    window.setTimeout(focusMedicalSection, 360);
+    window.setTimeout(() => {
+      focusMedicalSection();
+      forceMedicalSectionFocusRef.current = false;
+    }, 700);
+  };
+  useLayoutEffect(() => {
+    if (forceMedicalSectionFocusRef.current) {
+      focusMedicalSection();
+      window.requestAnimationFrame(focusMedicalSection);
+      return;
+    }
+
+    const top = getRememberedConsultaScroll();
+    if (top === null) return;
+
+    const restoreScroll = () => window.scrollTo({ top, left: 0, behavior: "auto" });
+    restoreScroll();
+    window.requestAnimationFrame(restoreScroll);
+  }, [activeConsultaId, consultaId]);
+  const cacheConsulta = (consulta: any) => {
+    if (consulta?.id) {
+      consultaCacheRef.current.set(consulta.id, consulta);
+    }
+    return consulta;
+  };
+  const prefetchConsulta = (id?: string) => {
+    if (!id || consultaCacheRef.current.has(id)) return;
+
+    pb.collection("consultas")
+      .getOne(id, { requestKey: null })
+      .then(cacheConsulta)
+      .catch((error) => console.error("Error al precargar consulta:", error));
+  };
+  const prefetchConsultaSideData = (id?: string) => {
+    if (!id) return;
+
+    if (!recetasCacheRef.current.has(id)) {
+      pb.collection("recetas")
+        .getFullList({
+          filter: `consulta_id = "${id}"`,
+          sort: "-created",
+          requestKey: null,
+        })
+        .then((records) => recetasCacheRef.current.set(id, records))
+        .catch((error) => console.error("Error al precargar recetas:", error));
+    }
+
+    if (!consultaEventosCacheRef.current.has(id)) {
+      pb.collection("consulta_eventos")
+        .getFullList<ConsultaEvento>({
+          filter: `consulta_id = "${id}"`,
+          sort: "-created",
+          requestKey: null,
+        })
+        .then((records) => consultaEventosCacheRef.current.set(id, records))
+        .catch((error) => console.error("Error al precargar auditoria:", error));
+    }
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setActiveConsultaId(params.get("consulta_actual") || consultaId);
+  }, [consultaId]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const queryConsultaId = params.get("consulta_actual");
+      const match = window.location.pathname.match(/\/consultas\/([^/]+)/);
+      const nextConsultaId = queryConsultaId || match?.[1];
+      if (nextConsultaId) {
+        rememberConsultaScroll();
+        setIsLoadingConsultaPosition(true);
+        setActiveConsultaId(nextConsultaId);
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -152,29 +312,43 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
     const loadData = async () => {
       try {
-        fetch("/api/configuracion", {
-          headers: { Authorization: `Bearer ${pb.authStore.token}` },
-        })
-          .then((response) => (response.ok ? response.json() : null))
-          .then((settings) => {
-            if (settings?.consultaEditLimitDays !== undefined) {
-              setConsultaEditLimitDays(settings.consultaEditLimitDays);
-            }
+        if (!hasLoadedConfigRef.current) {
+          hasLoadedConfigRef.current = true;
+          fetch("/api/configuracion", {
+            headers: { Authorization: `Bearer ${pb.authStore.token}` },
           })
-          .catch((error) => console.error("Error al cargar configuracion:", error));
+            .then((response) => (response.ok ? response.json() : null))
+            .then((settings) => {
+              if (settings?.consultaEditLimitDays !== undefined) {
+                setConsultaEditLimitDays(settings.consultaEditLimitDays);
+              }
+            })
+            .catch((error) => {
+              hasLoadedConfigRef.current = false;
+              console.error("Error al cargar configuracion:", error);
+            });
+        }
 
-        const medicosResponse = await fetch("/api/medicos", {
-          headers: { Authorization: `Bearer ${pb.authStore.token}` },
-        });
-        if (medicosResponse.ok) {
-          const medicosData = await medicosResponse.json();
-          setMedicos(Array.isArray(medicosData.medicos) ? medicosData.medicos : []);
+        if (!hasLoadedMedicosRef.current) {
+          hasLoadedMedicosRef.current = true;
+          const medicosResponse = await fetch("/api/medicos", {
+            headers: { Authorization: `Bearer ${pb.authStore.token}` },
+          });
+          if (medicosResponse.ok) {
+            const medicosData = await medicosResponse.json();
+            setMedicos(Array.isArray(medicosData.medicos) ? medicosData.medicos : []);
+          } else {
+            hasLoadedMedicosRef.current = false;
+          }
         }
 
         // Cargar datos de la consulta existente PRIMERO para que la UI se actualice rápido
         let currentPacienteId = "";
-        if (consultaId) {
-          const consultaRecord = await pb.collection("consultas").getOne(consultaId);
+        if (activeConsultaId) {
+          const cachedConsulta = consultaCacheRef.current.get(activeConsultaId);
+          const consultaRecord = cachedConsulta || cacheConsulta(
+            await pb.collection("consultas").getOne(activeConsultaId, { requestKey: null })
+          );
           
           let fechaFormateada = new Date().toISOString().split('T')[0];
           try {
@@ -200,11 +374,15 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           try {
             setIsLoadingConsultaEventos(true);
             setConsultaEventosError("");
-            const eventosRecords = await pb.collection("consulta_eventos").getFullList<ConsultaEvento>({
-              filter: `consulta_id = "${consultaId}"`,
-              sort: "-created",
-              requestKey: null,
-            });
+            const cachedEventos = consultaEventosCacheRef.current.get(activeConsultaId);
+            const eventosRecords = cachedEventos || await pb.collection("consulta_eventos").getFullList<ConsultaEvento>({
+                filter: `consulta_id = "${activeConsultaId}"`,
+                sort: "-created",
+                requestKey: null,
+              });
+            if (!cachedEventos) {
+              consultaEventosCacheRef.current.set(activeConsultaId, eventosRecords);
+            }
             setConsultaEventos(eventosRecords);
           } catch (e) {
             console.error("Error al cargar auditoria de consulta:", e);
@@ -215,30 +393,58 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           }
 
           if (currentPacienteId) {
-            const consultasPaciente = await pb.collection("consultas").getFullList<ConsultaNavigationItem>({
-              filter: `paciente_id = "${currentPacienteId}"`,
-              sort: "fecha,created",
-            });
-            const currentIndex = consultasPaciente.findIndex((consulta) => consulta.id === consultaId);
+            const cachedConsultasPaciente = consultasPacienteCacheRef.current.get(currentPacienteId);
+            const consultasPaciente = cachedConsultasPaciente || await pb.collection("consultas").getFullList<ConsultaNavigationItem>({
+                filter: `paciente_id = "${currentPacienteId}"`,
+                sort: "fecha,created",
+                requestKey: null,
+              });
+            if (!cachedConsultasPaciente) {
+              consultasPacienteCacheRef.current.set(currentPacienteId, consultasPaciente);
+              consultasPaciente.forEach((consulta) => {
+                if (!consultaCacheRef.current.has(consulta.id)) {
+                  cacheConsulta(consulta);
+                }
+              });
+            }
+            const currentIndex = consultasPaciente.findIndex((consulta) => consulta.id === activeConsultaId);
             setPrimeraConsulta(consultasPaciente.length > 0 ? consultasPaciente[0] : null);
+            setUltimaConsulta(consultasPaciente.length > 0 ? consultasPaciente[consultasPaciente.length - 1] : null);
             setConsultaAnterior(currentIndex > 0 ? consultasPaciente[currentIndex - 1] : null);
             setConsultaPosterior(
               currentIndex >= 0 && currentIndex < consultasPaciente.length - 1
                 ? consultasPaciente[currentIndex + 1]
                 : null
             );
+            setConsultaPosition({
+              current: currentIndex >= 0 ? currentIndex + 1 : 0,
+              total: consultasPaciente.length,
+            });
+            prefetchConsulta(consultasPaciente[currentIndex - 1]?.id);
+            prefetchConsulta(consultasPaciente[currentIndex + 1]?.id);
+            prefetchConsultaSideData(consultasPaciente[currentIndex - 1]?.id);
+            prefetchConsultaSideData(consultasPaciente[currentIndex + 1]?.id);
+            setIsLoadingConsultaPosition(false);
           } else {
             setPrimeraConsulta(null);
             setConsultaAnterior(null);
             setConsultaPosterior(null);
+            setUltimaConsulta(null);
+            setConsultaPosition({ current: 0, total: 0 });
+            setIsLoadingConsultaPosition(false);
           }
 
           // Cargar recetas asociadas
           try {
-            const recetasRecords = await pb.collection("recetas").getFullList({
-              filter: `consulta_id = "${consultaId}"`,
-              sort: "-created",
-            });
+            const cachedRecetas = recetasCacheRef.current.get(activeConsultaId);
+            const recetasRecords = cachedRecetas || await pb.collection("recetas").getFullList({
+                filter: `consulta_id = "${activeConsultaId}"`,
+                sort: "-created",
+                requestKey: null,
+              });
+            if (!cachedRecetas) {
+              recetasCacheRef.current.set(activeConsultaId, recetasRecords);
+            }
             setRecetasAsociadas(recetasRecords);
           } catch (e) {
             console.log("Error al cargar recetas o no existen aún");
@@ -247,34 +453,54 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           // Cargar el paciente específico de esta consulta rápido
           if (currentPacienteId) {
              try {
-               const p = await pb.collection("pacientes").getOne<Paciente>(currentPacienteId, {
-                 expand: "mutual_id",
-               });
+               const cachedPaciente = pacienteCacheRef.current.get(currentPacienteId);
+               const p = cachedPaciente || await pb.collection("pacientes").getOne<Paciente>(currentPacienteId, {
+                   expand: "mutual_id",
+                   requestKey: null,
+                 });
+               if (!cachedPaciente) {
+                 pacienteCacheRef.current.set(currentPacienteId, p);
+               }
                setSelectedPacienteData(p);
-               setPacientes([p]); // Temporalmente ponemos solo este paciente para que el select no se rompa
+               if (!hasLoadedPacientesRef.current) {
+                 setPacientes([p]); // Temporalmente ponemos solo este paciente para que el select no se rompa
+               }
              } catch(e) {
                console.error("Error cargando paciente de la consulta", e);
              }
           }
+          restoreConsultaScroll();
+          scheduleMedicalSectionFocus();
         }
 
-        // Luego cargar todos los pacientes para el select (puede tardar por ser 70k+)
-        // NOTA: Para producción con 70k registros esto debería ser un autocompletado con búsqueda en API.
-        const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
-          sort: "apellido,nombre",
-          filter: ACTIVE_PATIENT_FILTER,
-          expand: "mutual_id",
-        });
-        setPacientes(pacientesRecords);
+        if (!hasLoadedPacientesRef.current) {
+          hasLoadedPacientesRef.current = true;
+          // Luego cargar todos los pacientes para el select (puede tardar por ser 70k+)
+          // NOTA: Para producción con 70k registros esto debería ser un autocompletado con búsqueda en API.
+          const pacientesRecords = await pb.collection("pacientes").getFullList<Paciente>({
+            sort: "apellido,nombre",
+            filter: ACTIVE_PATIENT_FILTER,
+            expand: "mutual_id",
+            requestKey: null,
+          });
+          pacientesRecords.forEach((paciente) => pacienteCacheRef.current.set(paciente.id, paciente));
+          setPacientes(pacientesRecords);
+        }
+        restoreConsultaScroll();
+        scheduleMedicalSectionFocus();
 
       } catch (error) {
         console.error("Error al cargar datos:", error);
+        hasLoadedPacientesRef.current = false;
+        setIsLoadingConsultaPosition(false);
+        restoreConsultaScroll();
+        scheduleMedicalSectionFocus();
         alert("Error al cargar los datos de la consulta. Verifica la consola.");
       }
     };
 
     loadData();
-  }, [router, consultaId]);
+  }, [router, activeConsultaId]);
 
   // Actualizar cabecera de paciente cuando se selecciona uno
   useEffect(() => {
@@ -353,7 +579,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             ant_gota: false,
           };
       
-      const response = await fetch(`/api/consultas/${consultaId}`, {
+      const response = await fetch(`/api/consultas/${activeConsultaId}`, {
         method: "PATCH",
         headers: activeRoleJsonHeaders(pb.authStore.token, activeRole),
         body: JSON.stringify(dataToSave),
@@ -369,7 +595,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       if (turnoId) {
         try {
           await pb.collection("turnos").update(turnoId, {
-            consulta_id: consultaId,
+            consulta_id: activeConsultaId,
             estado: targetEstado === "finalizada" ? "Atendido" : "En consulta"
           });
         } catch (turnoError: any) {
@@ -525,8 +751,17 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     },
   ];
 
-  const goToConsulta = (id: string) => {
-    router.push(`/consultas/${id}${isViewMode ? "?mode=view" : ""}`);
+  const goToConsulta = (id: string, options?: { focusMedicalSection?: boolean }) => {
+    if (id === activeConsultaId) return;
+
+    forceMedicalSectionFocusRef.current = Boolean(options?.focusMedicalSection);
+    rememberConsultaScroll();
+    setIsLoadingConsultaPosition(true);
+    scheduleConsultaScrollRestore();
+    scheduleMedicalSectionFocus();
+    setActiveConsultaId(id);
+    window.setTimeout(scheduleConsultaScrollRestore, 0);
+    window.setTimeout(scheduleMedicalSectionFocus, 0);
   };
 
   const goToPatientDetail = () => {
@@ -556,23 +791,6 @@ function startOfDay(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-function refractionHasValues(formData: Record<string, unknown>) {
-  return [
-    formData.ref_lejos_od_esf,
-    formData.ref_lejos_od_cil,
-    formData.ref_lejos_od_eje,
-    formData.ref_lejos_oi_esf,
-    formData.ref_lejos_oi_cil,
-    formData.ref_lejos_oi_eje,
-    formData.ref_cerca_od_esf,
-    formData.ref_cerca_od_cil,
-    formData.ref_cerca_od_eje,
-    formData.ref_cerca_oi_esf,
-    formData.ref_cerca_oi_cil,
-    formData.ref_cerca_oi_eje,
-  ].some((value) => String(value ?? "").trim() !== "");
-}
-
 function continuityToneClass(tone: string) {
   switch (tone) {
     case "emerald":
@@ -592,72 +810,14 @@ function continuityToneClass(tone: string) {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
       <div className="max-w-[1500px] mx-auto">
-        
-        {/* Cabecera */}
-      <div className="flex flex-col gap-4 mb-8 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-center gap-4">
-        <button 
-            onClick={goToPatientDetail}
-          className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
-        >
-          <svg className="w-5 h-5 text-zinc-600 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-        </button>
-        <div>
-            <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">
-              {isReadOnly ? "Ver Consulta Medica" : "Editar Consulta Medica"}
-            </h1>
-            <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-              {isReadOnly ? "Detalles de la consulta y examen" : "Modifica los datos de la consulta y el examen"}
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
-          <button
-            type="button"
-            onClick={() => primeraConsulta && goToConsulta(primeraConsulta.id)}
-            disabled={!primeraConsulta || primeraConsulta.id === consultaId}
-            className="px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Primera consulta
-          </button>
-          <button
-            type="button"
-            onClick={() => consultaAnterior && goToConsulta(consultaAnterior.id)}
-            disabled={!consultaAnterior}
-            className="px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Consulta anterior
-          </button>
-          <button
-            type="button"
-            onClick={() => consultaPosterior && goToConsulta(consultaPosterior.id)}
-            disabled={!consultaPosterior}
-            className="px-4 py-2.5 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 rounded-xl font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Consulta posterior
-          </button>
-          <Link
-            href={`/consultas/nueva?paciente_id=${formData.paciente_id}`}
-            className={`px-4 py-2.5 rounded-xl font-medium text-center transition-colors ${
-              formData.paciente_id
-                ? "bg-[#2d8f8f] text-white hover:bg-[#1f6b6b]"
-                : "pointer-events-none bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
-            }`}
-          >
-            Nueva consulta
-          </Link>
-        </div>
-      </div>
-
         {!isViewMode && !canEditConsulta && (
           <div className="mb-6 rounded-xl border border-amber-300 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
             Esta consulta ya no se puede editar porque excede el plazo configurado de {consultaEditLimitDays} dias.
           </div>
         )}
 
-        <section aria-label="Continuidad clinica" className="mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-col">
+        <section aria-label="Continuidad clinica" className="order-2 mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Continuidad clinica</p>
@@ -668,13 +828,13 @@ function continuityToneClass(tone: string) {
               <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                 Ficha clinica
               </Link>
-              <Link href={`/recetas/nueva?consulta_id=${consultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg bg-orange-600 px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-orange-700 ${formData.paciente_id ? "" : "pointer-events-none opacity-50"}`}>
+              <Link href={`/recetas/nueva?consulta_id=${activeConsultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg bg-orange-600 px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-orange-700 ${formData.paciente_id ? "" : "pointer-events-none opacity-50"}`}>
                 Crear receta
               </Link>
-              <Link href={`/consultas/${consultaId}/imprimir`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+              <Link href={`/consultas/${activeConsultaId}/imprimir`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                 Imprimir informe
               </Link>
-              <Link href={`/consultas/${consultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+              <Link href={`/consultas/${activeConsultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                 Imprimir anteojos
               </Link>
               <Link href={formData.paciente_id ? `/consultas/nueva?paciente_id=${formData.paciente_id}` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
@@ -725,7 +885,7 @@ function continuityToneClass(tone: string) {
         </section>
 
         {/* Contenedor del Formulario (Diseño estilo Legacy) */}
-        <section className="mb-6 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section className="order-3 mb-6 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="border-b border-zinc-200 p-5 dark:border-zinc-800">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div>
@@ -750,13 +910,13 @@ function continuityToneClass(tone: string) {
                 <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                   Ver paciente
                 </Link>
-                <Link href={`/recetas/nueva?consulta_id=${consultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
+                <Link href={`/recetas/nueva?consulta_id=${activeConsultaId}&paciente_id=${formData.paciente_id}`} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                   Crear receta
                 </Link>
-                <Link href={`/consultas/${consultaId}/imprimir`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                <Link href={`/consultas/${activeConsultaId}/imprimir`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                   Imprimir informe
                 </Link>
-                <Link href={`/consultas/${consultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
+                <Link href={`/consultas/${activeConsultaId}/imprimir-anteojos`} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-center text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800">
                   Imprimir anteojos
                 </Link>
                 <Link href={formData.paciente_id ? `/consultas/nueva?paciente_id=${formData.paciente_id}` : "#"} className={`rounded-lg px-3 py-2 text-center text-sm font-bold transition-colors ${formData.paciente_id ? "bg-[#2d8f8f] text-white hover:bg-[#1f6b6b]" : "pointer-events-none bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"}`}>
@@ -855,7 +1015,7 @@ function continuityToneClass(tone: string) {
           </div>
         </section>
 
-        <section aria-label="Auditoria de consulta" className="mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <section aria-label="Auditoria de consulta" className="order-4 mb-6 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-400">Auditoria</p>
@@ -898,11 +1058,23 @@ function continuityToneClass(tone: string) {
           )}
         </section>
 
-        <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
+        <div ref={medicalFormRef} className="order-1 mb-6 bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
           {/* Header del Formulario */}
-          <div className="bg-[#2d8f8f] dark:bg-emerald-800 text-white p-3 border-b-4 border-[#1f6b6b] dark:border-emerald-950 shadow-inner">
-            <h2 className="text-2xl font-bold italic tracking-wide text-center w-full shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
+          <div className="relative bg-[#2d8f8f] dark:bg-emerald-800 text-white p-3 border-b-4 border-[#1f6b6b] dark:border-emerald-950 shadow-inner">
+            <button
+              type="button"
+              onClick={goToPatientDetail}
+              aria-label="Volver"
+              title="Volver"
+              className="absolute left-3 top-1/2 flex -translate-y-1/2 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Volver
+            </button>
+            <h2 className="w-full px-32 text-center text-2xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
               Datos Médicos del Paciente
             </h2>
           </div>
@@ -1006,7 +1178,7 @@ function continuityToneClass(tone: string) {
                     </div>
                   )}
                 </div>
-                <div className="col-span-12">
+                <div className="col-span-12 md:col-span-7">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
@@ -1060,155 +1232,232 @@ function continuityToneClass(tone: string) {
             </div>
 
             {/* Sección: DATOS MEDICOS */}
-            <div className="mb-4">
-              <div className="flex items-center mb-2">
-                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Datos Médicos</h3>
-                <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
-              </div>
-
-              <div className="bg-white dark:bg-zinc-800 p-4 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm space-y-4">
-                
-                {/* Fecha y Motivo */}
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center border-2 border-zinc-400 dark:border-zinc-600 p-1 bg-zinc-100 dark:bg-zinc-900 shadow-inner">
-                    <label className="font-bold mr-2 ml-1 text-sm tracking-wide">FECHA:</label>
-                    <input required type="date" name="fecha" value={formData.fecha} onChange={handleInputChange} disabled={isReadOnly} className="px-2 py-1 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 font-bold text-center focus:outline-none dark:[color-scheme:dark]" />
+            <div className="mb-3">
+              <div className="min-w-0">
+                <div className="mb-1.5 flex items-center gap-2">
+                  <h3 className="mr-2 whitespace-nowrap text-[#1f6b6b] font-bold uppercase dark:text-emerald-500">
+                    Examen y cierre clinico
+                    {isLoadingConsultaPosition ? (
+                      <span className="ml-2 normal-case text-xs font-semibold opacity-80">(Cargando posicion...)</span>
+                    ) : consultaPosition.total > 0 && (
+                      <span className="ml-2 normal-case text-xs font-semibold">(CONSULTA {consultaPosition.current} de {consultaPosition.total})</span>
+                    )}
+                  </h3>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => primeraConsulta && goToConsulta(primeraConsulta.id, { focusMedicalSection: true })}
+                      disabled={!primeraConsulta || primeraConsulta.id === activeConsultaId}
+                      aria-label="Primera consulta"
+                      title="Primera consulta"
+                      className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-300 bg-white px-2 text-sm font-bold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      &lt;&lt;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => consultaAnterior && goToConsulta(consultaAnterior.id, { focusMedicalSection: true })}
+                      disabled={!consultaAnterior}
+                      aria-label="Consulta anterior"
+                      title="Consulta anterior"
+                      className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-300 bg-white px-2 text-sm font-bold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      &lt;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => consultaPosterior && goToConsulta(consultaPosterior.id, { focusMedicalSection: true })}
+                      disabled={!consultaPosterior}
+                      aria-label="Consulta posterior"
+                      title="Consulta posterior"
+                      className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-300 bg-white px-2 text-sm font-bold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      &gt;
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => ultimaConsulta && goToConsulta(ultimaConsulta.id, { focusMedicalSection: true })}
+                      disabled={!ultimaConsulta || ultimaConsulta.id === activeConsultaId}
+                      aria-label="Ultima consulta"
+                      title="Ultima consulta"
+                      className="flex h-8 min-w-8 items-center justify-center rounded-lg border border-zinc-300 bg-white px-2 text-sm font-bold text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                    >
+                      &gt;&gt;
+                    </button>
+                    <Link
+                      href={`/consultas/nueva?paciente_id=${formData.paciente_id}`}
+                      aria-label="Nueva consulta"
+                      title="Nueva consulta"
+                      className={`flex h-8 min-w-8 items-center justify-center rounded-lg px-2 text-base font-bold transition-colors ${
+                        formData.paciente_id
+                          ? "bg-[#2d8f8f] text-white hover:bg-[#1f6b6b]"
+                          : "pointer-events-none bg-zinc-200 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-500"
+                      }`}
+                    >
+                      +
+                    </Link>
                   </div>
-                  
-                  <div className="flex-grow flex items-center gap-2">
-                    <label className="font-bold text-sm whitespace-nowrap">MOTIVO DE CONSULTA:</label>
-                    <input type="text" name="motivo_consulta" value={formData.motivo_consulta} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  <div className="h-px flex-grow bg-[#1f6b6b] dark:bg-emerald-500"></div>
+                  <div className="whitespace-nowrap text-xs font-semibold text-[#1f6b6b] dark:text-emerald-500">
+                    Medico responsable: <span className="font-bold">{doctorLabel(selectedDoctor)}</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 xl:grid-cols-[minmax(320px,0.8fr)_minmax(620px,1.2fr)] gap-4 pt-2 border-t border-zinc-200 dark:border-zinc-700">
-                {/* Agudeza Visual */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-1 gap-x-8 gap-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">AV S/C OD:</span>
-                    <div className="flex items-center gap-1">
-                      <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
-                      <span>/10</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">AV S/C OI:</span>
-                    <div className="flex items-center gap-1">
-                      <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
-                      <span>/10</span>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">AV C/C OD:</span>
-                    <div className="flex items-center gap-1">
-                      <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
-                      <span>/10</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-sm">AV C/C OI:</span>
-                    <div className="flex items-center gap-1">
-                      <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} disabled={isReadOnly} className="w-12 px-1 py-1 border border-zinc-400 text-center" />
-                      <span>/10</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Anteojos */}
-                <div className="grid grid-cols-1 bg-zinc-100 dark:bg-zinc-800/50 border border-zinc-300 dark:border-zinc-700 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
-                  {/* LEJOS */}
-                  <div className="p-3 border-b lg:border-b-0 lg:border-r border-zinc-300 dark:border-zinc-700">
-                    <div className="font-bold mb-2 underline decoration-zinc-400">LEJOS:</div>
-                    <div className="grid grid-cols-4 gap-2 mb-2 items-center text-center text-xs font-semibold">
-                      <div className="text-right pr-2"></div>
-                      <div>ESF.</div>
-                      <div>CIL.</div>
-                      <div>GRADO</div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 mb-2 items-center">
-                      <div className="text-right font-bold text-xs pr-2">OD:</div>
-                      <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 items-center">
-                      <div className="text-right font-bold text-xs pr-2">OI:</div>
-                      <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
-                    </div>
-                  </div>
-
-                  {/* ADD */}
-                  <label className="flex items-center justify-center gap-2 border-b border-zinc-300 p-3 font-bold text-sm text-[#2d8f8f] dark:border-zinc-700 dark:text-emerald-500 lg:flex-col lg:border-b-0 lg:border-r">
-                    ADD:
-                    <input type="text" name="add_value" value={formData.add_value} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} placeholder="+0.00" className="w-16 border-2 border-[#2d8f8f] dark:border-emerald-500 px-1 py-1 text-center font-bold" />
+                <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:grid 2xl:grid-cols-[360px_minmax(0,1fr)_minmax(0,1fr)] 2xl:gap-3 2xl:space-y-0">
+                <section className="flex h-full min-w-0 flex-col rounded-lg border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
+                  <label className="mb-4 flex items-center gap-3">
+                    <span className="text-sm font-bold">Fecha</span>
+                    <input
+                      required
+                      type="date"
+                      name="fecha"
+                      value={formData.fecha}
+                      onChange={handleInputChange}
+                      disabled={isReadOnly}
+                      className="w-[168px] rounded-md border border-zinc-400 bg-white px-3 py-2 text-center font-bold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900 dark:[color-scheme:dark]"
+                    />
                   </label>
-                  
-                  {/* CERCA */}
-                  <div className="p-3">
-                    <div className="font-bold mb-2 underline decoration-zinc-400">CERCA:</div>
-                    <div className="grid grid-cols-4 gap-2 mb-2 items-center text-center text-xs font-semibold">
-                      <div className="text-right pr-2"></div>
-                      <div>ESF.</div>
-                      <div>CIL.</div>
-                      <div>GRADO</div>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 mb-2 items-center">
-                      <div className="text-right font-bold text-xs pr-2">OD:</div>
-                      <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 items-center">
-                      <div className="text-right font-bold text-xs pr-2">OI:</div>
-                      <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="w-16 border border-zinc-400 px-1 py-1 text-center" />
-                      <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="w-14 border border-zinc-400 px-1 py-1 text-center" />
-                    </div>
-                  </div>
-                </div>
-                </div>
 
-                {/* PIO y Textos Finales */}
-                <div className="space-y-3 pt-4 border-t border-zinc-200 dark:border-zinc-700">
-                  <div className="flex items-center gap-4 bg-zinc-100 dark:bg-zinc-800/50 p-2 border border-zinc-300 dark:border-zinc-700">
-                    <span className="font-bold text-sm min-w-[150px]">PIO:</span>
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-xs">OD:</span>
-                      <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} disabled={isReadOnly} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
-                    </div>
-                    <div className="flex items-center gap-2 ml-4">
-                      <span className="font-semibold text-xs">OI:</span>
-                      <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} disabled={isReadOnly} className="w-16 px-1 py-1 border border-zinc-400 text-center" />
-                    </div>
-                  </div>
+                  <label className="flex min-h-[170px] flex-1 flex-col">
+                    <span className="mb-2 text-lg font-bold">Motivo</span>
+                    <textarea
+                      name="motivo_consulta"
+                      value={formData.motivo_consulta}
+                      onChange={handleInputChange}
+                      disabled={isReadOnly}
+                      placeholder="Motivo principal de la atencion..."
+                      className="min-h-[150px] flex-1 resize-none rounded-md border border-zinc-400 bg-white px-3 py-3 font-semibold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-950"
+                    />
+                  </label>
+                </section>
 
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">BMC:</label>
-                    <input type="text" name="biomicroscopia" value={formData.biomicroscopia} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                <section className="flex h-full min-w-0 flex-col gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
+                  <div className="grid gap-2 lg:grid-cols-2">
+                    <div className="rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                      <div className="mb-3 text-xs font-bold text-blue-900 dark:text-blue-200">OD</div>
+                      <label className="mb-2 grid grid-cols-[78px_minmax(0,1fr)] items-center gap-3">
+                        <span className="text-sm font-bold">AV S/C</span>
+                        <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} disabled={isReadOnly} className="h-8 rounded border border-zinc-400 bg-white px-2 text-center font-bold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </label>
+                      <label className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-3">
+                        <span className="text-sm font-bold">AV C/C</span>
+                        <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} disabled={isReadOnly} className="h-8 rounded border border-zinc-400 bg-white px-2 text-center font-bold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </label>
+                    </div>
+
+                    <div className="rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                      <div className="mb-3 text-xs font-bold text-blue-900 dark:text-blue-200">OI</div>
+                      <label className="mb-2 grid grid-cols-[78px_minmax(0,1fr)] items-center gap-3">
+                        <span className="text-sm font-bold">AV S/C</span>
+                        <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} disabled={isReadOnly} className="h-8 rounded border border-zinc-400 bg-white px-2 text-center font-bold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </label>
+                      <label className="grid grid-cols-[78px_minmax(0,1fr)] items-center gap-3">
+                        <span className="text-sm font-bold">AV C/C</span>
+                        <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} disabled={isReadOnly} className="h-8 rounded border border-zinc-400 bg-white px-2 text-center font-bold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </label>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">FO:</label>
-                    <input type="text" name="fondo_ojo" value={formData.fondo_ojo} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                  <div className="grid flex-1 grid-cols-1 items-center gap-3 rounded-lg border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950/40 xl:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)]">
+                    <div className="min-w-0 rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                      <div className="mb-2 font-bold">Refraccion de lejos</div>
+                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2 text-center text-xs font-bold text-blue-900 dark:text-blue-200">
+                        <div></div>
+                        <div>ESF</div>
+                        <div>CIL</div>
+                        <div>EJE</div>
+                      </div>
+                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                        <div className="font-bold">OD</div>
+                        <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </div>
+                      <div className="grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                        <div className="font-bold">OI</div>
+                        <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </div>
+                    </div>
+
+                    <label className="flex w-[88px] shrink-0 flex-col items-center gap-2 rounded-md border border-[#2d8f8f] bg-white p-3 text-center font-bold text-[#2d8f8f] dark:border-emerald-500 dark:bg-zinc-950 dark:text-emerald-500">
+                      ADD
+                      <input
+                        type="text"
+                        name="add_value"
+                        value={formData.add_value}
+                        maxLength={6}
+                        onChange={handleInputChange}
+                        disabled={isReadOnly}
+                        placeholder="+0.00"
+                        className="h-9 w-full rounded border-2 border-[#2d8f8f] bg-white px-1 text-center font-bold focus:outline-none disabled:opacity-80 dark:border-emerald-500 dark:bg-zinc-900"
+                      />
+                    </label>
+
+                    <div className="min-w-0 rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                      <div className="mb-2 font-bold">Refraccion de cerca</div>
+                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2 text-center text-xs font-bold text-blue-900 dark:text-blue-200">
+                        <div></div>
+                        <div>ESF</div>
+                        <div>CIL</div>
+                        <div>EJE</div>
+                      </div>
+                      <div className="mb-2 grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                        <div className="font-bold">OD</div>
+                        <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </div>
+                      <div className="grid grid-cols-[42px_repeat(3,1fr)] items-center gap-2">
+                        <div className="font-bold">OI</div>
+                        <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={6} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                        <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} maxLength={3} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-1 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      </div>
+                    </div>
                   </div>
-                  
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">DX:</label>
-                    <input type="text" name="diagnostico" value={formData.diagnostico} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+                </section>
+
+                <section className="flex h-full min-w-0 flex-col rounded-lg border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    <label className="grid grid-cols-[42px_minmax(0,1fr)_42px] items-center gap-2 rounded-md border border-zinc-300 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                      <span className="font-bold">OD</span>
+                      <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-2 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      <span className="text-xs text-blue-900 dark:text-blue-200">mmHg</span>
+                    </label>
+                    <label className="grid grid-cols-[42px_minmax(0,1fr)_42px] items-center gap-2 rounded-md border border-zinc-300 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
+                      <span className="font-bold">OI</span>
+                      <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} disabled={isReadOnly} className="h-8 min-w-0 rounded border border-zinc-400 bg-white px-2 text-center focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900" />
+                      <span className="text-xs text-blue-900 dark:text-blue-200">mmHg</span>
+                    </label>
                   </div>
-                  
-                  <div className="flex gap-2 items-start">
-                    <label className="font-bold text-sm min-w-[150px] pt-1">TTO:</label>
-                    <input type="text" name="tratamiento" value={formData.tratamiento} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 focus:border-[#2d8f8f] focus:outline-none" />
+
+                  <div className="flex flex-1 flex-col gap-2 rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
+                    {[
+                      { name: "biomicroscopia", label: "BMC", value: formData.biomicroscopia },
+                      { name: "fondo_ojo", label: "FO", value: formData.fondo_ojo },
+                      { name: "diagnostico", label: "DX", value: formData.diagnostico },
+                      { name: "tratamiento", label: "TTO", value: formData.tratamiento },
+                    ].map((field) => (
+                      <label key={field.name} className="grid flex-1 grid-cols-[48px_minmax(0,1fr)] gap-2">
+                        <span className="pt-2 font-bold">{field.label}</span>
+                        <textarea
+                          name={field.name}
+                          value={field.value}
+                          onChange={handleInputChange}
+                          disabled={isReadOnly}
+                          rows={2}
+                          className="min-h-[56px] resize-none rounded-md border border-zinc-400 bg-white px-3 py-2 focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-950"
+                        />
+                      </label>
+                    ))}
                   </div>
-                </div>
+                </section>
               </div>
             </div>
-
             {/* Sección: RECETAS ASOCIADAS */}
+              </div>
             <div className="mb-4">
               <div className="flex items-center mb-2">
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Recetas Generadas</h3>
@@ -1221,7 +1470,7 @@ function continuityToneClass(tone: string) {
                     Recetas emitidas en esta consulta.
                   </p>
                   <Link
-                    href={`/recetas/nueva?consulta_id=${consultaId}&paciente_id=${formData.paciente_id}`}
+                    href={`/recetas/nueva?consulta_id=${activeConsultaId}&paciente_id=${formData.paciente_id}`}
                     className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center gap-2"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1313,6 +1562,7 @@ function continuityToneClass(tone: string) {
               )}
             </div>
           </form>
+        </div>
         </div>
       </div>
     </div>

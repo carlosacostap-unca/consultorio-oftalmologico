@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import {
   ACTIVE_ROLE_CHANGED_EVENT,
@@ -11,8 +10,115 @@ import {
   resolveActiveRole,
   setActiveRole,
 } from "@/lib/active-role";
+import { pb } from "@/lib/pocketbase";
 import type { UserRole } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
+
+type DashboardAction = {
+  title: string;
+  href: string;
+  accentClass: string;
+  iconPath: string;
+};
+
+type RoleDashboard = {
+  title: string;
+  subtitle: string;
+  actions: DashboardAction[];
+};
+
+const ROLE_DASHBOARDS: Record<UserRole, RoleDashboard> = {
+  secretaria: {
+    title: "Agenda del consultorio",
+    subtitle: "Turnos, pacientes y mutuales",
+    actions: [
+      {
+        title: "Turnos",
+        href: "/turnos",
+        accentClass: "text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-500/10",
+        iconPath: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z",
+      },
+      {
+        title: "Nuevo turno",
+        href: "/turnos/nuevo",
+        accentClass: "text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10",
+        iconPath: "M12 4v16m8-8H4",
+      },
+      {
+        title: "Pacientes",
+        href: "/pacientes",
+        accentClass: "text-sky-600 bg-sky-50 dark:text-sky-300 dark:bg-sky-500/10",
+        iconPath: "M15 19a6 6 0 00-12 0m12 0h6m-6 0v2m-6-9a4 4 0 110-8 4 4 0 010 8zm10 1v6m3-3h-6",
+      },
+      {
+        title: "Mutuales",
+        href: "/mutuales",
+        accentClass: "text-amber-600 bg-amber-50 dark:text-amber-300 dark:bg-amber-500/10",
+        iconPath: "M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v14l-4-2-3 2-3-2-4 2V6a2 2 0 012-2z",
+      },
+    ],
+  },
+  medico: {
+    title: "Mi jornada medica",
+    subtitle: "Atencion, pacientes y recetas",
+    actions: [
+      {
+        title: "Mi jornada",
+        href: "/turnos",
+        accentClass: "text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10",
+        iconPath: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2m-6 0a2 2 0 114 0m-4 0a2 2 0 104 0m-1 8l-2 2-1-1",
+      },
+      {
+        title: "Consultas",
+        href: "/consultas",
+        accentClass: "text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-500/10",
+        iconPath: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z",
+      },
+      {
+        title: "Pacientes",
+        href: "/pacientes",
+        accentClass: "text-sky-600 bg-sky-50 dark:text-sky-300 dark:bg-sky-500/10",
+        iconPath: "M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m0 0a4 4 0 100-7.75 4 4 0 000 7.75zm8 0a4 4 0 10-1-7.87",
+      },
+      {
+        title: "Recetas",
+        href: "/recetas",
+        accentClass: "text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-500/10",
+        iconPath: "M19 21H5a2 2 0 01-2-2V7a2 2 0 012-2h8l6 6v8a2 2 0 01-2 2zM13 5v6h6",
+      },
+    ],
+  },
+  admin: {
+    title: "Administracion",
+    subtitle: "Configuracion y calidad de datos",
+    actions: [
+      {
+        title: "Usuarios",
+        href: "/usuarios",
+        accentClass: "text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-500/10",
+        iconPath: "M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m0 0a4 4 0 100-7.75 4 4 0 000 7.75zm8 0a4 4 0 10-1-7.87",
+      },
+      {
+        title: "Permisos",
+        href: "/permisos",
+        accentClass: "text-amber-600 bg-amber-50 dark:text-amber-300 dark:bg-amber-500/10",
+        iconPath: "M12 11c1.657 0 3-1.343 3-3V6a3 3 0 10-6 0v2c0 1.657 1.343 3 3 3zm-7 9v-1a7 7 0 0114 0v1",
+      },
+      {
+        title: "Horarios medicos",
+        href: "/horarios-medicos",
+        accentClass: "text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10",
+        iconPath: "M12 8v4l3 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z",
+      },
+      {
+        title: "Duplicados",
+        href: "/pacientes/duplicados",
+        accentClass: "text-rose-600 bg-rose-50 dark:text-rose-300 dark:bg-rose-500/10",
+        iconPath: "M8 7h8M8 11h8M8 15h5M5 4h14a2 2 0 012 2v12a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z",
+      },
+    ],
+  },
+};
 
 export default function Home() {
   const [user, setUser] = useState<AppUser | null>(null);
@@ -25,6 +131,7 @@ export default function Home() {
 
   useEffect(() => {
     setIsMounted(true);
+
     const loadUser = async (record: AppUser | null) => {
       if (!pb.authStore.isValid || !record?.id) {
         setUser(null);
@@ -56,8 +163,7 @@ export default function Home() {
         }
       }
     };
-    
-    // Escuchar cambios en la autenticación
+
     const unsubscribe = pb.authStore.onChange((_token, record) => {
       loadUser(record as AppUser | null);
     }, true);
@@ -79,12 +185,12 @@ export default function Home() {
   const loginWithGoogle = async () => {
     setIsLoading(true);
     setLoginError("");
+
     try {
-      // Iniciar sesión con Google usando OAuth2
       await pb.collection("users").authWithOAuth2({ provider: "google" });
     } catch (error) {
-      console.error("Error al iniciar sesión con Google:", error);
-      alert("Hubo un error al intentar iniciar sesión. Verifica la consola.");
+      console.error("Error al iniciar sesion con Google:", error);
+      alert("Hubo un error al intentar iniciar sesion. Verifica la consola.");
     } finally {
       setIsLoading(false);
     }
@@ -117,36 +223,35 @@ export default function Home() {
   };
 
   if (!isMounted) {
-    return null; // O un spinner de carga
+    return null;
   }
 
   if (user) {
+    const dashboard = ROLE_DASHBOARDS[activeRole || "secretaria"];
+
     return (
-      <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
-        <div className="max-w-5xl mx-auto">
-          {/* Cabecera */}
-          <div className="flex flex-col sm:flex-row items-center justify-between bg-white dark:bg-zinc-900 rounded-2xl shadow-sm p-6 mb-8 border border-zinc-200 dark:border-zinc-800">
-            <div className="flex items-center gap-4 mb-4 sm:mb-0">
+      <div className="min-h-screen bg-zinc-50 p-4 dark:bg-zinc-950 sm:p-8">
+        <div className="mx-auto max-w-5xl">
+          <div className="mb-8 flex flex-col items-center justify-between rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row">
+            <div className="mb-4 flex items-center gap-4 sm:mb-0">
               {user.avatar ? (
-                <img 
-                  src={pb.files.getURL(user, user.avatar)} 
-                  alt="Avatar" 
-                  className="w-16 h-16 rounded-full border-2 border-blue-500 object-cover"
+                <img
+                  src={pb.files.getURL(user, user.avatar)}
+                  alt="Avatar"
+                  className="h-16 w-16 rounded-full border-2 border-blue-500 object-cover"
                 />
               ) : (
-                <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 text-2xl font-bold">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-2xl font-bold text-blue-600 dark:bg-blue-900/50 dark:text-blue-400">
                   {user.name?.charAt(0) || user.email?.charAt(0) || "U"}
                 </div>
               )}
               <div>
                 <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
-                  ¡Bienvenido/a, {user.name || "Usuario"}!
+                  Bienvenido/a, {user.name || "Usuario"}
                 </h1>
-                <p className="text-zinc-500 dark:text-zinc-400 text-sm">
-                  {user.email}
-                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">{user.email}</p>
                 {activeRole && (
-                  <p className="text-blue-600 dark:text-blue-400 text-sm font-medium mt-1">
+                  <p className="mt-1 text-sm font-medium text-blue-600 dark:text-blue-400">
                     Rol activo: {activeRoleLabel(activeRole)}
                   </p>
                 )}
@@ -154,116 +259,84 @@ export default function Home() {
             </div>
             <button
               onClick={logout}
-              className="py-2.5 px-5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-800 dark:text-zinc-200 rounded-xl font-medium transition-colors"
+              className="rounded-xl bg-zinc-100 px-5 py-2.5 font-medium text-zinc-800 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-700"
             >
-              Cerrar sesión
+              Cerrar sesion
             </button>
           </div>
 
-          {/* Panel de Control */}
-          <h2 className="text-2xl font-bold text-zinc-800 dark:text-zinc-200 mb-6">Panel de Control</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            
-            {/* Gestión de Pacientes */}
-            <Link 
-              href="/pacientes" 
-              className="group bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-blue-500 dark:hover:border-blue-500 transition-all hover:shadow-md flex flex-col h-full"
-            >
-              <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
+          <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                  {activeRole ? activeRoleLabel(activeRole) : "Rol activo"}
+                </p>
+                <h2 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">{dashboard.title}</h2>
               </div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Gestión de Pacientes</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 flex-grow">Registra nuevos pacientes, actualiza sus datos personales y mantén su historial al día.</p>
-            </Link>
+              <p className="max-w-md text-sm text-zinc-500 dark:text-zinc-400">{dashboard.subtitle}</p>
+            </div>
 
-            {/* Gestión de Turnos */}
-            <Link 
-              href="/turnos" 
-              className="group bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-green-500 dark:hover:border-green-500 transition-all hover:shadow-md flex flex-col h-full"
-            >
-              <div className="w-12 h-12 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Gestión de Turnos</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 flex-grow">Agenda, reprograma o cancela citas médicas. Visualiza el calendario de atenciones.</p>
-            </Link>
-
-            {/* Gestión de Consultas */}
-            <Link 
-              href="/consultas" 
-              className="group bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-purple-500 dark:hover:border-purple-500 transition-all hover:shadow-md flex flex-col h-full"
-            >
-              <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Gestión de Consultas</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 flex-grow">Registra diagnósticos, recetas, órdenes de estudios y la evolución clínica detallada.</p>
-            </Link>
-
-            {/* Gestión de Recetas */}
-            <Link 
-              href="/recetas" 
-              className="group bg-white dark:bg-zinc-900 p-6 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800 hover:border-orange-500 dark:hover:border-orange-500 transition-all hover:shadow-md flex flex-col h-full"
-            >
-              <div className="w-12 h-12 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9.5a2.5 2.5 0 00-2.5-2.5H15" />
-                </svg>
-              </div>
-              <h3 className="text-lg font-bold text-zinc-900 dark:text-zinc-100 mb-2">Gestión de Recetas</h3>
-              <p className="text-sm text-zinc-500 dark:text-zinc-400 flex-grow">Emite y administra recetas médicas vinculadas a las consultas de los pacientes.</p>
-            </Link>
-
-          </div>
+            <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              {dashboard.actions.map((action) => (
+                <Link
+                  key={action.title}
+                  href={action.href}
+                  className="group flex min-h-32 flex-col justify-between rounded-xl border border-zinc-200 bg-zinc-50 p-4 transition-colors hover:border-blue-400 hover:bg-white dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-blue-500 dark:hover:bg-zinc-900"
+                >
+                  <span className={`flex h-11 w-11 items-center justify-center rounded-xl ${action.accentClass}`}>
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d={action.iconPath} />
+                    </svg>
+                  </span>
+                  <span className="mt-5 flex items-center justify-between gap-3 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                    {action.title}
+                    <span className="text-blue-600 transition-transform group-hover:translate-x-1 dark:text-blue-400" aria-hidden="true">
+                      &gt;
+                    </span>
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </section>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-zinc-50 dark:bg-zinc-900 p-4">
-      <div className="max-w-md w-full bg-white dark:bg-black rounded-2xl shadow-lg p-8 text-center border border-zinc-200 dark:border-zinc-800">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 p-4 dark:bg-zinc-900">
+      <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-lg dark:border-zinc-800 dark:bg-black">
         <div className="mb-8 flex justify-center">
-          <div className="w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/30">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 text-white">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/30">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-8 w-8 text-white">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z" />
             </svg>
           </div>
         </div>
-        
-        <h1 className="text-3xl font-bold text-zinc-900 dark:text-zinc-100 mb-3">
-          Consultorio Oftalmológico
-        </h1>
-        <p className="text-zinc-500 dark:text-zinc-400 mb-10">
-          Inicia sesión para acceder a tu portal de paciente y gestionar tus turnos.
-        </p>
+
+        <h1 className="mb-3 text-3xl font-bold text-zinc-900 dark:text-zinc-100">Consultorio Oftalmologico</h1>
+        <p className="mb-10 text-zinc-500 dark:text-zinc-400">Inicia sesion para acceder al sistema.</p>
 
         <form onSubmit={loginWithPassword} className="space-y-4 text-left">
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Email</label>
+            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Email</label>
             <input
               required
               type="email"
               value={emailLogin}
               onChange={(event) => setEmailLogin(event.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Contrasena</label>
+            <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Contrasena</label>
             <input
               required
               type="password"
               value={passwordLogin}
               onChange={(event) => setPasswordLogin(event.target.value)}
-              className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+              className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
             />
           </div>
           {loginError && (
@@ -274,27 +347,27 @@ export default function Home() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isLoading ? "Conectando..." : "Ingresar"}
           </button>
         </form>
 
         <div className="my-6 flex items-center gap-3 text-xs text-zinc-400">
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"></div>
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
           <span>o</span>
-          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800"></div>
+          <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
         </div>
 
         <button
           onClick={loginWithGoogle}
           disabled={isLoading}
-          className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-white dark:bg-zinc-900 border border-zinc-300 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-800 dark:text-zinc-200 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="flex w-full items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white px-4 py-3 font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
         >
           {isLoading ? (
-            <div className="w-5 h-5 border-2 border-zinc-400 border-t-transparent rounded-full animate-spin"></div>
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-400 border-t-transparent" />
           ) : (
-            <svg className="w-5 h-5" viewBox="0 0 24 24">
+            <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path
                 fill="currentColor"
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"

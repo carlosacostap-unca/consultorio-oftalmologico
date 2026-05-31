@@ -25,3 +25,10 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+@media screen {
+  body:has(> aside) main > [class*="min-h-screen"] > .mx-auto[class*="max-w-"] {
+    width: 100%;
+    max-width: 100% !important;
+  }
+}

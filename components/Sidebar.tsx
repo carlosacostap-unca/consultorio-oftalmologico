@@ -14,9 +14,14 @@ import {
 } from "@/lib/active-role";
 import { ROLE_LABELS, normalizeUserRoles, type UserRole } from "@/lib/permissions";
 
+type MenuItem = { name: string; href: string };
+type MenuSectionDefinition = { title: string; items: MenuItem[] };
+const SIDEBAR_COLLAPSED_STORAGE_KEY = "consultorio.sidebarCollapsed";
+
 export function Sidebar() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(true);
   const [user, setUser] = useState<AppUser | null>(null);
   const [assignedRoles, setAssignedRoles] = useState<UserRole[]>([]);
   const [activeRole, setCurrentActiveRole] = useState<UserRole | null>(null);
@@ -68,6 +73,12 @@ export function Sidebar() {
     const init = async () => {
       setIsMounted(true);
       setIsLoggedIn(pb.authStore.isValid);
+      try {
+        const storedSidebarState = window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY);
+        setIsCollapsed(storedSidebarState === null ? true : storedSidebarState === "true");
+      } catch {
+        setIsCollapsed(true);
+      }
       await loadUserRole();
     };
     init();
@@ -98,24 +109,19 @@ export function Sidebar() {
     return null;
   }
 
-  const isAdmin = activeRole === "admin";
-  const dataMenuItems = [
-    { name: "Pacientes", href: "/pacientes" },
-    { name: "Mutuales", href: "/mutuales" },
-    { name: "Turnos", href: "/turnos" },
-    ...(activeRole === "secretaria" ? [{ name: "Horarios medicos", href: "/horarios-medicos" }] : []),
-    ...(activeRole === "secretaria" || activeRole === "medico" ? [{ name: "Bloqueos y feriados", href: "/bloqueos-agenda" }] : []),
-    { name: "Consultas", href: "/consultas" },
-    { name: "Recetas", href: "/recetas" },
-  ];
-  const configMenuItems = [
-    { name: "Usuarios", href: "/usuarios" },
-    { name: "Permisos", href: "/permisos" },
-    { name: "Edicion de consultas", href: "/edicion-consultas" },
-    { name: "Horarios medicos", href: "/horarios-medicos" },
-    { name: "Bloqueos y feriados", href: "/bloqueos-agenda" },
-    { name: "Duplicados", href: "/pacientes/duplicados" },
-  ];
+  const menuSections = getMenuSections(activeRole);
+
+  const toggleCollapsed = () => {
+    setIsCollapsed((current) => {
+      const next = !current;
+      try {
+        window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(next));
+      } catch {
+        // Si el navegador bloquea localStorage, el estado igual funciona durante la sesion.
+      }
+      return next;
+    });
+  };
 
   const changeActiveRole = (role: UserRole) => {
     if (!user?.id || !assignedRoles.includes(role)) return;
@@ -125,46 +131,71 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="w-64 bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 h-screen flex flex-col shrink-0 print:hidden">
-      <div className="p-6 border-b border-zinc-200 dark:border-zinc-800">
-        <Link href="/" className="text-xl font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shadow-blue-500/20">
+    <aside className={`${isCollapsed ? "w-20" : "w-64"} bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 h-screen flex flex-col shrink-0 print:hidden transition-[width] duration-200 ease-in-out`}>
+      <div className={`${isCollapsed ? "p-3" : "p-4"} border-b border-zinc-200 dark:border-zinc-800`}>
+        <div className={`flex items-center ${isCollapsed ? "flex-col gap-3" : "justify-between gap-3"}`}>
+          <Link
+            href="/"
+            aria-label="Ir al inicio"
+            title="Consultorio"
+            className={`min-w-0 text-xl font-bold text-zinc-900 dark:text-zinc-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors flex items-center gap-2 ${isCollapsed ? "justify-center" : ""}`}
+          >
+          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-sm shadow-blue-500/20 shrink-0">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 text-white">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
             </svg>
           </div>
-          Consultorio
-        </Link>
+            {!isCollapsed && <span className="truncate">Consultorio</span>}
+          </Link>
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            aria-label={isCollapsed ? "Expandir menu lateral" : "Contraer menu lateral"}
+            aria-pressed={isCollapsed}
+            title={isCollapsed ? "Expandir menu" : "Contraer menu"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-600 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              {isCollapsed ? (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              ) : (
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              )}
+            </svg>
+          </button>
+        </div>
       </div>
-      <nav className="flex-1 p-4 space-y-6 overflow-y-auto">
-        {isAdmin && (
-          <MenuSection title="Configuracion" items={configMenuItems} pathname={pathname} currentHash={currentHash} />
-        )}
-        <MenuSection title={isAdmin ? "Datos" : ""} items={dataMenuItems} pathname={pathname} currentHash={currentHash} />
+      <nav className={`${isCollapsed ? "space-y-3 p-3" : "space-y-6 p-4"} flex-1 overflow-y-auto overflow-x-hidden`}>
+        {menuSections.map((section) => (
+          <MenuSection key={section.title} title={section.title} items={section.items} pathname={pathname} currentHash={currentHash} isCollapsed={isCollapsed} />
+        ))}
       </nav>
       {user && (
-        <div className="p-4 border-t border-zinc-200 dark:border-zinc-800">
-          <div className="flex items-center gap-3">
+        <div className={`${isCollapsed ? "p-3" : "p-4"} border-t border-zinc-200 dark:border-zinc-800`}>
+          <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
             {user.avatar ? (
               <div
                 aria-label="Avatar"
+                title={user.name || user.email || "Usuario"}
                 className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-700 bg-cover bg-center shrink-0"
                 style={{ backgroundImage: `url(${pb.files.getURL(user, user.avatar)})` }}
               />
             ) : (
-              <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold">
+              <div title={user.name || user.email || "Usuario"} className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
                 {user.name?.charAt(0) || user.email?.charAt(0) || "U"}
               </div>
             )}
+            {!isCollapsed && (
             <div className="min-w-0">
               <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
                 {user.name || user.email || "Usuario"}
               </div>
               <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">{user.email}</div>
             </div>
+            )}
           </div>
-          {assignedRoles.length > 1 ? (
+          {!isCollapsed && assignedRoles.length > 1 ? (
             <select
               value={activeRole || ""}
               onChange={(event) => changeActiveRole(event.target.value as UserRole)}
@@ -177,7 +208,7 @@ export function Sidebar() {
               ))}
             </select>
           ) : (
-            activeRole && (
+            !isCollapsed && activeRole && (
               <div className="mt-3 text-xs font-medium text-blue-600 dark:text-blue-400">
                 {activeRoleLabel(activeRole)}
               </div>
@@ -189,20 +220,98 @@ export function Sidebar() {
   );
 }
 
+function getMenuSections(activeRole: UserRole | null): MenuSectionDefinition[] {
+  if (activeRole === "admin") {
+    return [
+      {
+        title: "Configuracion",
+        items: [
+          { name: "Usuarios", href: "/usuarios" },
+          { name: "Permisos", href: "/permisos" },
+          { name: "Edicion de consultas", href: "/edicion-consultas" },
+          { name: "Horarios medicos", href: "/horarios-medicos" },
+          { name: "Bloqueos y feriados", href: "/bloqueos-agenda" },
+        ],
+      },
+      {
+        title: "Datos",
+        items: [
+          { name: "Pacientes", href: "/pacientes" },
+          { name: "Mutuales", href: "/mutuales" },
+          { name: "Turnos", href: "/turnos" },
+          { name: "Consultas", href: "/consultas" },
+          { name: "Recetas", href: "/recetas" },
+        ],
+      },
+      {
+        title: "Calidad de datos",
+        items: [{ name: "Duplicados", href: "/pacientes/duplicados" }],
+      },
+    ];
+  }
+
+  if (activeRole === "medico") {
+    return [
+      {
+        title: "Atencion",
+        items: [
+          { name: "Mi jornada", href: "/turnos" },
+          { name: "Consultas", href: "/consultas" },
+          { name: "Recetas", href: "/recetas" },
+        ],
+      },
+      {
+        title: "Pacientes",
+        items: [{ name: "Pacientes", href: "/pacientes" }],
+      },
+      {
+        title: "Agenda",
+        items: [{ name: "Mis bloqueos", href: "/bloqueos-agenda" }],
+      },
+    ];
+  }
+
+  return [
+    {
+      title: "Agenda",
+      items: [
+        { name: "Turnos", href: "/turnos" },
+        { name: "Bloqueos y feriados", href: "/bloqueos-agenda" },
+      ],
+    },
+    {
+      title: "Pacientes",
+      items: [
+        { name: "Pacientes", href: "/pacientes" },
+        { name: "Mutuales", href: "/mutuales" },
+      ],
+    },
+    {
+      title: "Clinica",
+      items: [
+        { name: "Consultas", href: "/consultas" },
+        { name: "Recetas", href: "/recetas" },
+      ],
+    },
+  ];
+}
+
 function MenuSection({
   title,
   items,
   pathname,
   currentHash,
+  isCollapsed,
 }: {
   title: string;
-  items: { name: string; href: string }[];
+  items: MenuItem[];
   pathname: string;
   currentHash: string;
+  isCollapsed: boolean;
 }) {
   return (
     <div className="space-y-2">
-      {title && (
+      {title && !isCollapsed && (
         <div className="px-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
           {title}
         </div>
@@ -217,16 +326,27 @@ function MenuSection({
           <Link
             key={item.name}
             href={item.href}
-            className={`block px-4 py-3 rounded-xl transition-colors font-medium ${
+            title={isCollapsed ? item.name : undefined}
+            aria-label={item.name}
+            className={`${isCollapsed ? "flex h-11 w-full items-center justify-center px-0 text-sm" : "block px-4 py-3"} rounded-xl transition-colors font-medium ${
               isActive
                 ? "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-400"
                 : "text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-100"
             }`}
           >
-            {item.name}
+            {isCollapsed ? getMenuItemInitials(item.name) : item.name}
           </Link>
         );
       })}
     </div>
   );
+}
+
+function getMenuItemInitials(name: string) {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase())
+    .join("");
 }

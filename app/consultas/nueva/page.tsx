@@ -12,6 +12,7 @@ import { consultaEstadoLabel } from "@/lib/consulta-estado";
 import { normalizeUserRoles } from "@/lib/permissions";
 import type { AppUser, Medico } from "@/lib/types";
 import { doctorLabel } from "@/lib/doctor-attribution";
+import { refractionHasValues } from "@/lib/refraction";
 
 interface Paciente {
   id: string;
@@ -665,21 +666,7 @@ function NuevaConsultaForm() {
     : "";
 
   const hasTreatmentForCompletion = formData.tratamiento.trim() !== "";
-  const hasRefractionForCompletion = [
-    formData.ref_lejos_od_esf,
-    formData.ref_lejos_od_cil,
-    formData.ref_lejos_od_eje,
-    formData.ref_lejos_oi_esf,
-    formData.ref_lejos_oi_cil,
-    formData.ref_lejos_oi_eje,
-    formData.ref_cerca_od_esf,
-    formData.ref_cerca_od_cil,
-    formData.ref_cerca_od_eje,
-    formData.ref_cerca_oi_esf,
-    formData.ref_cerca_oi_cil,
-    formData.ref_cerca_oi_eje,
-    formData.add_value,
-  ].some((value) => value.trim() !== "");
+  const hasRefractionForCompletion = refractionHasValues(formData);
   const completionRecommendation = savedConsultation
     ? hasTreatmentForCompletion
       ? {

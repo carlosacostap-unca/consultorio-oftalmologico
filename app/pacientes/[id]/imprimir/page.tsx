@@ -26,7 +26,7 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
           }),
           pb.collection("consultas").getFullList<PrintableConsulta>({
             filter: `paciente_id = "${pacienteId}"`,
-            sort: "-fecha",
+            sort: "-fecha,-created",
             expand: "medico_id",
           }),
           pb.collection("recetas").getFullList<Receta>({

@@ -5,7 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
-import type { AppUser, Patient } from "@/lib/types";
+import type { AppUser, Consulta, Patient } from "@/lib/types";
 import { appendActivePatientFilter } from "@/lib/patient-merge";
 
 export default function PacientesPage() {
@@ -19,6 +19,7 @@ export default function PacientesPage() {
   const [selectedLetter, setSelectedLetter] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [openingPatientId, setOpeningPatientId] = useState<string | null>(null);
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
   // Debounce para la búsqueda
@@ -86,8 +87,24 @@ export default function PacientesPage() {
     // y miles de registros, puede causar comportamientos inesperados en la vista.
   }, [router, selectedLetter, debouncedSearchQuery, page]);
 
-  const openPatientDetail = (id: string) => {
-    router.push(`/pacientes/${id}?mode=view`);
+  const openPatientDetail = async (id: string) => {
+    if (openingPatientId) return;
+
+    setOpeningPatientId(id);
+    try {
+      const latestConsulta = await pb.collection("consultas").getList<Consulta>(1, 1, {
+        filter: `paciente_id = "${id}"`,
+        sort: "-fecha,-created",
+        requestKey: null,
+      });
+      const consulta = latestConsulta.items[0];
+      router.push(consulta ? `/consultas/${consulta.id}?mode=view` : `/pacientes/${id}?mode=view`);
+    } catch (error) {
+      console.error("Error al abrir la ultima consulta del paciente:", error);
+      router.push(`/pacientes/${id}?mode=view`);
+    } finally {
+      setOpeningPatientId(null);
+    }
   };
 
   if (!isMounted) return null; // Evita el error de hidratación
@@ -201,10 +218,14 @@ export default function PacientesPage() {
                     </td>
                   </tr>
                 ) : (
-                  pacientes.map((paciente, index) => (
+                  pacientes.map((paciente, index) => {
+                    const isOpening = openingPatientId === paciente.id;
+
+                    return (
                     <tr
                       key={paciente.id || `temp-key-${index}`}
                       tabIndex={0}
+                      aria-busy={isOpening}
                       onClick={() => openPatientDetail(paciente.id)}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
@@ -219,7 +240,7 @@ export default function PacientesPage() {
                           {paciente.apellido.toUpperCase()}, {paciente.nombre.toUpperCase()}
                         </div>
                         <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                          Nac: {paciente.fecha_nacimiento ? formatDate(paciente.fecha_nacimiento) : '-'}
+                          {isOpening ? "Abriendo ultima consulta..." : `Nac: ${paciente.fecha_nacimiento ? formatDate(paciente.fecha_nacimiento) : '-'}`}
                         </div>
                       </td>
                       <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
@@ -248,7 +269,8 @@ export default function PacientesPage() {
                         )}
                       </td>
                     </tr>
-                  ))
+                  );
+                  })
                 )}
               </tbody>
             </table>

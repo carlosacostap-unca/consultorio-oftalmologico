@@ -79,7 +79,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
         try {
           const consultasRecords = await pb.collection("consultas").getFullList<Consulta>({
             filter: `paciente_id = "${pacienteId}"`,
-            sort: "-fecha",
+            sort: "-fecha,-created",
             expand: "medico_id",
           });
           setConsultas(consultasRecords);
