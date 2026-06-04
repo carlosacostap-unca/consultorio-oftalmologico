@@ -340,7 +340,7 @@ function NuevaRecetaForm() {
                   </label>
                   <div className="relative">
                     <input
-                      required
+                      aria-required="true"
                       type="text"
                       value={patientSearchQuery}
                       onChange={(e) => {
