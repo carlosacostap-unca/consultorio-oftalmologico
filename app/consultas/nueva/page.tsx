@@ -6,13 +6,14 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { appendActivePatientFilter } from "@/lib/patient-merge";
-import { createConsultaEvento } from "@/lib/consulta-eventos";
 import type { ConsultaEstado } from "@/lib/consulta-estado";
 import { consultaEstadoLabel } from "@/lib/consulta-estado";
 import { normalizeUserRoles } from "@/lib/permissions";
 import type { AppUser, Medico } from "@/lib/types";
 import { doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
+import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
+import type { UserRole } from "@/lib/permissions";
 
 interface Paciente {
   id: string;
@@ -123,6 +124,7 @@ function NuevaConsultaForm() {
   const formRef = useRef<HTMLFormElement | null>(null);
   
   const [user, setUser] = useState<AppUser | null>(null);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -237,6 +239,7 @@ function NuevaConsultaForm() {
     const authUser = pb.authStore.record as AppUser | null;
     const accountDoctorId = normalizeUserRoles(authUser).includes("medico") ? authUser?.id || "" : "";
     setUser(authUser);
+    setActiveRole(resolveActiveRole(authUser, ["medico"]));
 
     if (accountDoctorId) {
       setFormData((prev) => ({ ...prev, medico_id: accountDoctorId }));
@@ -501,24 +504,21 @@ function NuevaConsultaForm() {
         estado: targetEstado,
         fecha: new Date(formData.fecha).toISOString(),
         ant_gota: false,
+        turno_id: turnoId || "",
       };
-      
-      const nuevaConsulta = await pb.collection("consultas").create(dataToSave);
-      await createConsultaEvento({
-        consulta_id: nuevaConsulta.id,
-        paciente_id: dataToSave.paciente_id,
-        tipo: "created",
-        titulo: "Consulta creada",
-        detalle: turnoId ? "Consulta creada desde un turno." : "Consulta creada manualmente.",
-        actor: user,
-        metadata: {
-          turno_id: turnoId || null,
-          origen: turnoId ? "turno" : "manual",
-          estado: targetEstado,
-          fecha: dataToSave.fecha,
-          medico_id: dataToSave.medico_id,
-        },
+
+      const response = await fetch("/api/consultas", {
+        method: "POST",
+        headers: activeRoleJsonHeaders(pb.authStore.token, activeRole),
+        body: JSON.stringify(dataToSave),
       });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        throw new Error(errorData?.error || "No se pudo crear la consulta");
+      }
+
+      const nuevaConsulta = await response.json();
       let turnoUpdated = false;
       const targetTurnoEstado = targetEstado === "finalizada" ? "Atendido" : "En consulta";
       

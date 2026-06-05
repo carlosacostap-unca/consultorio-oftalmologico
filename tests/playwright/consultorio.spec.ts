@@ -1004,6 +1004,49 @@ test.describe("roles y otorgamiento de turnos", () => {
     }
   });
 
+  test("api crea consulta manual atribuyendo el medico activo", async ({ request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const medicoToken = await getUserToken(request, env, "medico.demo@consultorio.local");
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const motivo = `Playwright consulta manual medico ${Date.now()}`;
+    let createdConsultaId = "";
+
+    try {
+      const response = await request.post("/api/consultas", {
+        headers: {
+          Authorization: `Bearer ${medicoToken}`,
+          [ACTIVE_ROLE_HEADER]: "medico",
+        },
+        data: {
+          paciente_id: patient!.id,
+          fecha: new Date(`${DEMO_DATE}T12:30:00`).toISOString(),
+          motivo_consulta: motivo,
+          diagnostico: "Diagnostico manual con medico activo",
+          tratamiento: "Tratamiento manual con medico activo",
+          estado: "finalizada",
+        },
+      });
+      expect(response.ok()).toBeTruthy();
+      const created = await response.json();
+      createdConsultaId = created.id as string;
+      expect(created.medico_id).toBe(medicoId);
+
+      const stored = await pbGet(request, env, adminToken, "consultas", createdConsultaId);
+      expect(stored.medico_id).toBe(medicoId);
+    } finally {
+      if (createdConsultaId) {
+        await cleanupConsultationEvents(request, env, adminToken, createdConsultaId);
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+    }
+  });
+
   test("medico inicia consulta desde su jornada diaria", async ({ page, request }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -1150,6 +1193,7 @@ test.describe("roles y otorgamiento de turnos", () => {
       createdConsultaId = String(updatedTurno.consulta_id || "");
       const updatedConsulta = await pbGet(request, env, adminToken, "consultas", createdConsultaId);
       expect(updatedConsulta.estado).toBe("finalizada");
+      expect(updatedConsulta.medico_id).toBe(medicoId);
 
       const completionPanel = page.getByLabel("Cierre de consulta");
       if (await completionPanel.isVisible().catch(() => false)) {
