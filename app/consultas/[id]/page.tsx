@@ -15,6 +15,7 @@ import type { UserRole } from "@/lib/permissions";
 import type { Medico } from "@/lib/types";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
+import { emptyIfOptionalClinicalZero, normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 
 interface Paciente {
   id: string;
@@ -359,17 +360,18 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             console.error("Error al formatear fecha:", e);
           }
 
+          const normalizedConsulta = normalizeOptionalClinicalZeros(consultaRecord);
           setFormData(prev => ({
             ...prev,
-            ...consultaRecord,
+            ...normalizedConsulta,
             ant_gota: false,
-            estado: normalizeConsultaEstado(String(consultaRecord.estado || "")),
+            estado: normalizeConsultaEstado(String(normalizedConsulta.estado || "")),
             fecha: fechaFormateada,
-            paciente_id: consultaRecord.paciente_id || prev.paciente_id
+            paciente_id: normalizedConsulta.paciente_id || prev.paciente_id
           }));
-          setOriginalMedicoId(consultaRecord.medico_id || "");
+          setOriginalMedicoId(normalizedConsulta.medico_id || "");
           
-          currentPacienteId = consultaRecord.paciente_id;
+          currentPacienteId = normalizedConsulta.paciente_id;
 
           try {
             setIsLoadingConsultaEventos(true);
@@ -533,7 +535,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         const esfOiNum = parseFloat(prev.ref_lejos_oi_esf.replace(',', '.')) || 0;
         
         const formatNum = (num: number) => {
-          if (isNaN(num)) return "";
+          if (!Number.isFinite(num) || num === 0) return "";
           return num > 0 ? `+${num}` : `${num}`;
         };
 
@@ -573,7 +575,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       const dataToSave = onlyDoctorAttributionChange
         ? { medico_id: formData.medico_id }
         : {
-            ...formData,
+            ...normalizeOptionalClinicalZeros(formData),
             estado: targetEstado,
             fecha: new Date(formData.fecha).toISOString(),
             ant_gota: false,
@@ -628,6 +630,11 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   const displayValue = (value?: string | number | null) => {
     const normalized = String(value ?? "").trim();
+    return normalized || "-";
+  };
+
+  const displayOptionalClinicalValue = (field: string, value?: string | number | null) => {
+    const normalized = String(emptyIfOptionalClinicalZero(field, value) ?? "").trim();
     return normalized || "-";
   };
 
@@ -737,24 +744,28 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const refractionRows = [
     {
       label: "Lejos OD",
+      key: "lejos_od",
       esf: formData.ref_lejos_od_esf,
       cil: formData.ref_lejos_od_cil,
       eje: formData.ref_lejos_od_eje,
     },
     {
       label: "Lejos OI",
+      key: "lejos_oi",
       esf: formData.ref_lejos_oi_esf,
       cil: formData.ref_lejos_oi_cil,
       eje: formData.ref_lejos_oi_eje,
     },
     {
       label: "Cerca OD",
+      key: "cerca_od",
       esf: formData.ref_cerca_od_esf,
       cil: formData.ref_cerca_od_cil,
       eje: formData.ref_cerca_od_eje,
     },
     {
       label: "Cerca OI",
+      key: "cerca_oi",
       esf: formData.ref_cerca_oi_esf,
       cil: formData.ref_cerca_oi_cil,
       eje: formData.ref_cerca_oi_eje,
@@ -958,17 +969,17 @@ function continuityToneClass(tone: string) {
                 <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
                   <h4 className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Agudeza visual</h4>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                    <span>SC OD: <strong>{displayValue(formData.av_sc_od)}</strong></span>
-                    <span>SC OI: <strong>{displayValue(formData.av_sc_oi)}</strong></span>
-                    <span>CC OD: <strong>{displayValue(formData.av_cc_od)}</strong></span>
-                    <span>CC OI: <strong>{displayValue(formData.av_cc_oi)}</strong></span>
+                    <span>SC OD: <strong>{displayOptionalClinicalValue("av_sc_od", formData.av_sc_od)}</strong></span>
+                    <span>SC OI: <strong>{displayOptionalClinicalValue("av_sc_oi", formData.av_sc_oi)}</strong></span>
+                    <span>CC OD: <strong>{displayOptionalClinicalValue("av_cc_od", formData.av_cc_od)}</strong></span>
+                    <span>CC OI: <strong>{displayOptionalClinicalValue("av_cc_oi", formData.av_cc_oi)}</strong></span>
                   </div>
                 </div>
                 <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
                   <h4 className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Presion ocular</h4>
                   <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                    <span>OD: <strong>{displayValue(formData.pio_od)}</strong></span>
-                    <span>OI: <strong>{displayValue(formData.pio_oi)}</strong></span>
+                    <span>OD: <strong>{displayOptionalClinicalValue("pio_od", formData.pio_od)}</strong></span>
+                    <span>OI: <strong>{displayOptionalClinicalValue("pio_oi", formData.pio_oi)}</strong></span>
                   </div>
                 </div>
                 <div className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
@@ -1005,9 +1016,9 @@ function continuityToneClass(tone: string) {
                     {refractionRows.map((row) => (
                       <tr key={row.label}>
                         <td className="px-3 py-2 font-semibold text-zinc-900 dark:text-zinc-100">{row.label}</td>
-                        <td className="px-3 py-2">{displayValue(row.esf)}</td>
-                        <td className="px-3 py-2">{displayValue(row.cil)}</td>
-                        <td className="px-3 py-2">{displayValue(row.eje)}</td>
+                        <td className="px-3 py-2">{displayOptionalClinicalValue(`ref_${row.key}_esf`, row.esf)}</td>
+                        <td className="px-3 py-2">{displayOptionalClinicalValue(`ref_${row.key}_cil`, row.cil)}</td>
+                        <td className="px-3 py-2">{displayOptionalClinicalValue(`ref_${row.key}_eje`, row.eje)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1100,7 +1111,7 @@ function continuityToneClass(tone: string) {
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
             
             {/* Sección: DATOS DEL PACIENTE */}
-            <div className="mb-6">
+            <div className="mb-3">
               <div className="flex items-center mb-2">
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Datos del Paciente</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
@@ -1152,14 +1163,14 @@ function continuityToneClass(tone: string) {
                     </div>
                   )}
                 </div>
-                <div className="col-span-4 md:col-span-2">
+                <div className="col-span-6 md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
-                  <div className="flex items-center gap-1">
+                  <div className="[&>span]:hidden">
                     <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center" />
                     <span className="text-xs">Años</span>
                   </div>
                 </div>
-                <div className="col-span-4 md:col-span-2">
+                <div className="hidden">
                   <label className="block text-xs font-semibold mb-1">Nº Ficha</label>
                   <input 
                     type="text" 
@@ -1170,20 +1181,48 @@ function continuityToneClass(tone: string) {
                     className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isReadOnly ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-white dark:bg-zinc-800'}`}
                   />
                 </div>
-                <div className="col-span-4 md:col-span-3">
+                <div className="col-span-12 sm:col-span-6 md:col-span-2">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
-                <div className="col-span-12">
+                <div className="col-span-12 md:col-span-4">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+                <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
+                  {fixedAntecedenteChips.map((antecedente) => {
+                    const isActive = Boolean(formData[antecedente.key]);
+
+                    return (
+                      <button
+                        key={antecedente.key}
+                        type="button"
+                        aria-pressed={isActive}
+                        onClick={() => {
+                          if (isReadOnly) return;
+                          setFormData((prev) => ({ ...prev, [antecedente.key]: !prev[antecedente.key] }));
+                        }}
+                        className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
+                          isActive
+                            ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-700"
+                            : "border-zinc-400 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200"
+                        } ${isReadOnly ? "cursor-default" : "hover:border-[#2d8f8f] hover:text-[#2d8f8f] dark:hover:border-emerald-500 dark:hover:text-emerald-400"}`}
+                      >
+                        {antecedente.label}
+                      </button>
+                    );
+                  })}
+                  <div className="flex flex-grow items-center gap-2">
+                    <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
+                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Sección: ANTECEDENTES */}
-            <div className="mb-6">
-              <div className="flex items-center mb-2">
+            <div className="hidden">
+              <div className="hidden">
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Antecedentes Fijos</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
@@ -1289,9 +1328,9 @@ function continuityToneClass(tone: string) {
                   </div>
                 </div>
 
-                <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:grid 2xl:grid-cols-[360px_minmax(0,1.25fr)_minmax(0,0.75fr)] 2xl:gap-3 2xl:space-y-0">
-                <section className="flex h-full min-w-0 flex-col rounded-lg border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
-                  <label className="mb-4 flex items-center gap-3">
+                <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
+                <section className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+                  <label className="flex max-w-[220px] items-center gap-3">
                     <span className="text-sm font-bold">Fecha</span>
                     <input
                       required
@@ -1304,7 +1343,7 @@ function continuityToneClass(tone: string) {
                     />
                   </label>
 
-                  <label className="flex min-h-[170px] flex-1 flex-col">
+                  <label className="flex min-h-0 flex-col">
                     <span className="mb-2 text-lg font-bold">Motivo</span>
                     <textarea
                       name="motivo_consulta"
@@ -1312,12 +1351,15 @@ function continuityToneClass(tone: string) {
                       onChange={handleInputChange}
                       disabled={isReadOnly}
                       placeholder="Motivo principal de la atencion..."
-                      className="min-h-[150px] flex-1 resize-none rounded-md border border-zinc-400 bg-white px-3 py-3 font-semibold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-950"
+                      rows={1}
+                      className="min-h-10 flex-1 resize-y rounded-md border border-zinc-400 bg-white px-3 py-2 font-semibold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-950"
                     />
                   </label>
                 </section>
 
-                <section className="flex h-full min-w-0 flex-col gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
+                <section className="grid min-w-0 grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(280px,0.68fr)_minmax(0,1.32fr)]">
+                  <div className="h-full min-w-0 rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30">
+                  <h4 className="mb-2 text-center text-base font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-100">Agudeza visual</h4>
                   <div className="grid gap-2 lg:grid-cols-2">
                     <div className="rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
                       <div className="mb-3 text-xs font-bold text-blue-900 dark:text-blue-200">OD</div>
@@ -1344,7 +1386,10 @@ function continuityToneClass(tone: string) {
                     </div>
                   </div>
 
-                  <div className="grid flex-1 grid-cols-1 items-center gap-3 rounded-lg border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950/40 xl:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)]">
+                  </div>
+
+                  <div className="grid min-w-0 grid-cols-1 items-center gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30 xl:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)]">
+                    <h4 className="xl:col-span-3 mb-0 text-center text-base font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-100">Refraccion</h4>
                     <div className="min-w-0 rounded-md border border-zinc-300 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-950">
                       <div className="mb-2 font-bold">Refraccion de lejos</div>
                       <div className="mb-2 grid grid-cols-[42px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2 text-center text-xs font-bold text-blue-900 dark:text-blue-200">
@@ -1405,7 +1450,7 @@ function continuityToneClass(tone: string) {
                   </div>
                 </section>
 
-                <section className="flex h-full min-w-0 flex-col rounded-lg border border-zinc-300 bg-zinc-100 p-3 dark:border-zinc-700 dark:bg-zinc-900/30">
+                <section className="flex min-w-0 flex-col rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30">
                   <div className="mb-3 grid grid-cols-2 gap-2">
                     <label className="grid grid-cols-[42px_minmax(0,1fr)_42px] items-center gap-2 rounded-md border border-zinc-300 bg-white p-2 dark:border-zinc-700 dark:bg-zinc-950">
                       <span className="font-bold">OD</span>
@@ -1433,8 +1478,8 @@ function continuityToneClass(tone: string) {
                           value={field.value}
                           onChange={handleInputChange}
                           disabled={isReadOnly}
-                          rows={2}
-                          className="min-h-[56px] resize-none rounded-md border border-zinc-400 bg-white px-3 py-2 focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-950"
+                          rows={1}
+                          className="min-h-10 resize-y rounded-md border border-zinc-400 bg-white px-3 py-2 focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-950"
                         />
                       </label>
                     ))}

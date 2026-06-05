@@ -14,6 +14,7 @@ import { doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
 import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
+import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 
 interface Paciente {
   id: string;
@@ -465,7 +466,7 @@ function NuevaConsultaForm() {
         
         // Función para formatear el número (si es >0 añadir +, si no, dejar como string)
         const formatNum = (num: number) => {
-          if (isNaN(num)) return "";
+          if (!Number.isFinite(num) || num === 0) return "";
           return num > 0 ? `+${num}` : `${num}`;
         };
 
@@ -500,7 +501,7 @@ function NuevaConsultaForm() {
     try {
       // Aseguramos formato ISO para la fecha
       const dataToSave = {
-        ...formData,
+        ...normalizeOptionalClinicalZeros(formData),
         estado: targetEstado,
         fecha: new Date(formData.fecha).toISOString(),
         ant_gota: false,
@@ -1143,14 +1144,14 @@ function NuevaConsultaForm() {
                     Cargando datos del paciente seleccionado...
                   </div>
                 )}
-                <div className="col-span-4 md:col-span-2">
+                <div className="col-span-6 md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
-                  <div className="flex items-center gap-1">
+                  <div className="[&>span]:hidden">
                     <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                     <span className="text-xs">Años</span>
                   </div>
                 </div>
-                <div className="col-span-4 md:col-span-2">
+                <div className="hidden">
                   <label className="block text-xs font-semibold mb-1">Nº Ficha</label>
                   <input 
                     type="text" 
@@ -1160,20 +1161,45 @@ function NuevaConsultaForm() {
                     className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-800 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isLoadingSelectedPatient ? "animate-pulse" : ""}`}
                   />
                 </div>
-                <div className="col-span-4 md:col-span-3">
+                <div className="col-span-12 sm:col-span-6 md:col-span-2">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
-                <div className="col-span-12">
+                <div className="col-span-12 md:col-span-4">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
+                </div>
+                <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
+                  {antecedentesFijos.map((antecedente) => {
+                    const isSelected = formData[antecedente.key];
+
+                    return (
+                      <button
+                        key={antecedente.key}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => toggleAntecedente(antecedente.key)}
+                        className={`rounded-full border px-3 py-1.5 text-sm font-bold transition ${
+                          isSelected
+                            ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                            : "border-zinc-300 bg-white text-zinc-700 hover:border-[#2d8f8f] hover:text-[#1f6b6b] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-500 dark:hover:text-emerald-300"
+                        }`}
+                      >
+                        {antecedente.label}
+                      </button>
+                    );
+                  })}
+                  <div className="flex min-w-[260px] flex-grow items-center gap-2">
+                    <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
+                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  </div>
                 </div>
               </div>
             </div>
 
             {/* Sección: ANTECEDENTES */}
-            <div className="mb-3">
-              <div className="mb-1.5 flex items-center">
+            <div className="hidden">
+              <div className="hidden">
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Antecedentes Fijos</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
@@ -1214,10 +1240,10 @@ function NuevaConsultaForm() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 2xl:grid 2xl:grid-cols-[360px_minmax(0,1.25fr)_minmax(0,0.75fr)] 2xl:gap-3 2xl:space-y-0">
+              <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
                 
-                <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:h-full">
-                  <div className="grid h-full grid-cols-1 gap-3 2xl:grid-rows-[auto_minmax(0,1fr)]">
+                <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/50">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
                     <label className="grid max-w-[220px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-sm font-bold">
                       Fecha
                       <input
@@ -1235,38 +1261,39 @@ function NuevaConsultaForm() {
                         name="motivo_consulta"
                         value={formData.motivo_consulta}
                         onChange={handleInputChange}
-                        rows={3}
+                        rows={1}
                         placeholder="Motivo principal de la atencion..."
-                        className="mt-1 min-h-24 w-full flex-1 resize-y rounded-lg border-2 border-zinc-400 bg-white px-3 py-2 text-base font-semibold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-0 2xl:resize-none"
+                        className="mt-1 min-h-10 w-full flex-1 resize-y rounded-lg border-2 border-zinc-400 bg-white px-3 py-2 text-base font-semibold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
                       />
                     </label>
                   </div>
                 </section>
 
-                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(300px,0.72fr)_minmax(620px,1.28fr)] 2xl:flex 2xl:h-full 2xl:flex-col 2xl:border-t-0 2xl:pt-0">
-                  <div className="space-y-3 2xl:shrink-0">
-                    <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                <div className="grid grid-cols-1 gap-3 border-t border-zinc-200 pt-2 dark:border-zinc-700 xl:grid-cols-[minmax(280px,0.68fr)_minmax(0,1.32fr)]">
+                  <div className="min-w-0">
+                    <section className="h-full rounded-xl border border-zinc-300 bg-zinc-50 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/50">
+                      <h4 className="mb-2 text-center text-base font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-100">Agudeza visual</h4>
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">OD</div>
                           <label className="mb-2 grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
                             AV S/C
-                            <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                            <input type="text" name="av_sc_od" value={formData.av_sc_od} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           </label>
                           <label className="grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
                             AV C/C
-                            <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                            <input type="text" name="av_cc_od" value={formData.av_cc_od} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           </label>
                         </div>
                         <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                           <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">OI</div>
                           <label className="mb-2 grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
                             AV S/C
-                            <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                            <input type="text" name="av_sc_oi" value={formData.av_sc_oi} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           </label>
                           <label className="grid grid-cols-[1fr_88px] items-center gap-2 text-sm font-semibold">
                             AV C/C
-                            <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                            <input type="text" name="av_cc_oi" value={formData.av_cc_oi} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           </label>
                         </div>
                       </div>
@@ -1274,7 +1301,8 @@ function NuevaConsultaForm() {
 
                   </div>
 
-                  <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50 2xl:flex-1">
+                  <section className="h-full rounded-xl border border-zinc-300 bg-zinc-50 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/50">
+                    <h4 className="mb-2 text-center text-base font-bold uppercase tracking-wide text-zinc-900 dark:text-zinc-100">Refraccion</h4>
                     <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
                       <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
                         <div className="mb-2 font-bold text-zinc-900 dark:text-zinc-100">Refraccion de lejos</div>
@@ -1283,21 +1311,21 @@ function NuevaConsultaForm() {
                         </div>
                         <div className="mt-2 grid grid-cols-[44px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                           <span className="text-sm font-bold">OD</span>
-                          <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={7} onChange={handleInputChange} placeholder="+0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={7} onChange={handleInputChange} placeholder="-0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_od_esf" value={formData.ref_lejos_od_esf} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_od_cil" value={formData.ref_lejos_od_cil} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_od_eje" value={formData.ref_lejos_od_eje} maxLength={3} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                         </div>
                         <div className="mt-2 grid grid-cols-[44px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                           <span className="text-sm font-bold">OI</span>
-                          <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={7} onChange={handleInputChange} placeholder="+0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={7} onChange={handleInputChange} placeholder="-0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_oi_esf" value={formData.ref_lejos_oi_esf} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_oi_cil" value={formData.ref_lejos_oi_cil} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_lejos_oi_eje" value={formData.ref_lejos_oi_eje} maxLength={3} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                         </div>
                       </div>
 
                       <label className="flex items-center justify-center gap-2 rounded-lg border border-[#2d8f8f]/40 bg-white px-3 py-2 text-sm font-bold text-[#2d8f8f] dark:bg-zinc-950 dark:text-emerald-400 lg:flex-col lg:px-2">
                         ADD
-                        <input type="text" name="add_value" value={formData.add_value} maxLength={7} onChange={handleInputChange} placeholder="+0.00" className="w-20 rounded border-2 border-[#2d8f8f] px-2 py-1 text-center text-sm font-bold tabular-nums text-zinc-900 dark:border-emerald-500 dark:bg-zinc-900 dark:text-zinc-100" />
+                        <input type="text" name="add_value" value={formData.add_value} maxLength={7} onChange={handleInputChange} className="w-20 rounded border-2 border-[#2d8f8f] px-2 py-1 text-center text-sm font-bold tabular-nums text-zinc-900 dark:border-emerald-500 dark:bg-zinc-900 dark:text-zinc-100" />
                       </label>
 
                       <div className="rounded-lg border border-zinc-200 bg-white p-2.5 dark:border-zinc-700 dark:bg-zinc-950">
@@ -1307,15 +1335,15 @@ function NuevaConsultaForm() {
                         </div>
                         <div className="mt-2 grid grid-cols-[44px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                           <span className="text-sm font-bold">OD</span>
-                          <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={7} onChange={handleInputChange} placeholder="+0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={7} onChange={handleInputChange} placeholder="-0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_od_esf" value={formData.ref_cerca_od_esf} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_od_cil" value={formData.ref_cerca_od_cil} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_od_eje" value={formData.ref_cerca_od_eje} maxLength={3} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                         </div>
                         <div className="mt-2 grid grid-cols-[44px_repeat(2,minmax(64px,1fr))_minmax(52px,0.8fr)] items-center gap-2">
                           <span className="text-sm font-bold">OI</span>
-                          <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={7} onChange={handleInputChange} placeholder="+0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={7} onChange={handleInputChange} placeholder="-0.00" className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
-                          <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} maxLength={3} onChange={handleInputChange} placeholder="0" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_oi_esf" value={formData.ref_cerca_oi_esf} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_oi_cil" value={formData.ref_cerca_oi_cil} maxLength={7} onChange={handleInputChange} className="w-full min-w-0 rounded border border-zinc-400 px-2 py-1 text-center text-sm font-semibold tabular-nums dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="ref_cerca_oi_eje" value={formData.ref_cerca_oi_eje} maxLength={3} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                         </div>
                       </div>
                     </div>
@@ -1458,18 +1486,18 @@ function NuevaConsultaForm() {
                   </>
                 )}
 
-                <div className="border-t border-zinc-200 pt-2 dark:border-zinc-700 2xl:h-full 2xl:border-t-0 2xl:pt-0">
-                  <section className="h-full rounded-xl border border-zinc-300 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900/50">
+                <div className="border-t border-zinc-200 pt-2 dark:border-zinc-700">
+                  <section className="h-full rounded-xl border border-zinc-300 bg-zinc-50 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/50">
                     <div className="space-y-2">
                       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                         <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
                           OD
-                          <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="pio_od" value={formData.pio_od} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           <span className="text-xs text-zinc-500">mmHg</span>
                         </label>
                         <label className="grid grid-cols-[44px_1fr_auto] items-center gap-2 rounded-lg border border-zinc-200 bg-white p-2 text-sm font-semibold dark:border-zinc-700 dark:bg-zinc-950">
                           OI
-                          <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} placeholder="mmHg" className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
+                          <input type="text" name="pio_oi" value={formData.pio_oi} onChange={handleInputChange} className="w-full rounded border border-zinc-400 px-2 py-1 text-center dark:border-zinc-600 dark:bg-zinc-900" />
                           <span className="text-xs text-zinc-500">mmHg</span>
                         </label>
                       </div>
@@ -1486,8 +1514,8 @@ function NuevaConsultaForm() {
                             name={field.name}
                             value={field.value}
                             onChange={handleInputChange}
-                            rows={2}
-                            className="min-h-20 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 2xl:min-h-[48px] 2xl:resize-none"
+                            rows={1}
+                            className="min-h-10 w-full resize-y rounded-lg border border-zinc-400 bg-white px-3 py-2 text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
                           />
                         </label>
                       ))}

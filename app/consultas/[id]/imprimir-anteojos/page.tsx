@@ -5,6 +5,7 @@ import { use } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
 import { doctorLabel } from "@/lib/doctor-attribution";
+import { emptyIfOptionalClinicalZero } from "@/lib/clinical-empty-values";
 
 interface Consulta {
   id: string;
@@ -90,13 +91,13 @@ export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id:
           <Info label="Afiliado" value={paciente?.numero_afiliado || "-"} />
         </section>
 
-        {(consulta.diagnostico || consulta.tratamiento || consulta.add_value) && (
+        {(consulta.diagnostico || consulta.tratamiento || displayOptional("add_value", consulta.add_value) !== "---") && (
           <section className="mt-6 rounded-lg border border-gray-300 p-4 text-sm">
             <h2 className="mb-3 text-base font-bold uppercase">Contexto clinico</h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               <Info label="Diagnostico" value={consulta.diagnostico || "-"} />
               <Info label="Tratamiento" value={consulta.tratamiento || "-"} />
-              <Info label="ADD" value={consulta.add_value || "-"} />
+              <Info label="ADD" value={displayOptional("add_value", consulta.add_value)} />
             </div>
           </section>
         )}
@@ -105,8 +106,8 @@ export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id:
           <h2 className="mb-3 border-b border-gray-300 pb-2 text-lg font-bold uppercase">Lejos</h2>
           <RefractionTable
             rows={[
-              ["Ojo derecho", consulta.ref_lejos_od_esf, consulta.ref_lejos_od_cil, consulta.ref_lejos_od_eje],
-              ["Ojo izquierdo", consulta.ref_lejos_oi_esf, consulta.ref_lejos_oi_cil, consulta.ref_lejos_oi_eje],
+              ["Ojo derecho", consulta.ref_lejos_od_esf, consulta.ref_lejos_od_cil, consulta.ref_lejos_od_eje, "ref_lejos_od"],
+              ["Ojo izquierdo", consulta.ref_lejos_oi_esf, consulta.ref_lejos_oi_cil, consulta.ref_lejos_oi_eje, "ref_lejos_oi"],
             ]}
           />
         </section>
@@ -114,12 +115,12 @@ export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id:
         <section className="mt-8">
           <div className="mb-3 flex items-center justify-between gap-3 border-b border-gray-300 pb-2">
             <h2 className="text-lg font-bold uppercase">Cerca</h2>
-            {consulta.add_value && <span className="text-sm font-bold">ADD {consulta.add_value}</span>}
+            {displayOptional("add_value", consulta.add_value) !== "---" && <span className="text-sm font-bold">ADD {displayOptional("add_value", consulta.add_value)}</span>}
           </div>
           <RefractionTable
             rows={[
-              ["Ojo derecho", consulta.ref_cerca_od_esf, consulta.ref_cerca_od_cil, consulta.ref_cerca_od_eje],
-              ["Ojo izquierdo", consulta.ref_cerca_oi_esf, consulta.ref_cerca_oi_cil, consulta.ref_cerca_oi_eje],
+              ["Ojo derecho", consulta.ref_cerca_od_esf, consulta.ref_cerca_od_cil, consulta.ref_cerca_od_eje, "ref_cerca_od"],
+              ["Ojo izquierdo", consulta.ref_cerca_oi_esf, consulta.ref_cerca_oi_cil, consulta.ref_cerca_oi_eje, "ref_cerca_oi"],
             ]}
           />
         </section>
@@ -166,7 +167,7 @@ function Info({ label, value }: { label: string; value: string }) {
   );
 }
 
-function RefractionTable({ rows }: { rows: Array<[string, string?, string?, string?]> }) {
+function RefractionTable({ rows }: { rows: Array<[string, string | undefined, string | undefined, string | undefined, string]> }) {
   return (
     <table className="w-full border-collapse text-base">
       <thead>
@@ -178,12 +179,12 @@ function RefractionTable({ rows }: { rows: Array<[string, string?, string?, stri
         </tr>
       </thead>
       <tbody>
-        {rows.map(([label, esf, cil, eje]) => (
+        {rows.map(([label, esf, cil, eje, fieldPrefix]) => (
           <tr key={label}>
             <td className="border border-gray-400 p-2 font-bold">{label}</td>
-            <td className="border border-gray-400 p-2 text-center">{display(esf)}</td>
-            <td className="border border-gray-400 p-2 text-center">{display(cil)}</td>
-            <td className="border border-gray-400 p-2 text-center">{display(eje)}</td>
+            <td className="border border-gray-400 p-2 text-center">{displayOptional(`${fieldPrefix}_esf`, esf)}</td>
+            <td className="border border-gray-400 p-2 text-center">{displayOptional(`${fieldPrefix}_cil`, cil)}</td>
+            <td className="border border-gray-400 p-2 text-center">{displayOptional(`${fieldPrefix}_eje`, eje)}</td>
           </tr>
         ))}
       </tbody>
@@ -191,6 +192,6 @@ function RefractionTable({ rows }: { rows: Array<[string, string?, string?, stri
   );
 }
 
-function display(value?: string) {
-  return String(value || "").trim() || "---";
+function displayOptional(field: string, value?: string) {
+  return String(emptyIfOptionalClinicalZero(field, value) || "").trim() || "---";
 }

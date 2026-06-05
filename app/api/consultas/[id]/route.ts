@@ -3,6 +3,7 @@ import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
 import { loadSystemSettings } from "@/lib/system-settings-server";
 import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
 import { consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-estado";
+import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export async function PATCH(
 
     const { id } = await context.params;
     const current = await pbAdmin(`/api/collections/consultas/records/${encodeURIComponent(id)}`);
-    const body = await request.json();
+    const body = normalizeOptionalClinicalZeros(await request.json());
     const settings = await loadSystemSettings();
     const isOnlyDoctorAttributionChange = onlyDoctorAttributionChanged(body);
     const activeRole = activeRoleFromRequest(request, user);

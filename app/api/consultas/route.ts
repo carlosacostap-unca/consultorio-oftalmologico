@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
+import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
 import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
 import { normalizeUserRoles, type UserRole } from "@/lib/permissions";
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
     }
 
     const dataToSave = {
-      ...consultaBody,
+      ...normalizeOptionalClinicalZeros(consultaBody),
       medico_id: medicoId,
     };
 

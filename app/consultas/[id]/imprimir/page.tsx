@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
 import { doctorLabel } from "@/lib/doctor-attribution";
+import { emptyIfOptionalClinicalZero } from "@/lib/clinical-empty-values";
 
 interface PrintablePatient {
   nombre?: string;
@@ -154,14 +155,14 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
               title="Agudeza visual"
               headers={["", "OD", "OI"]}
               rows={[
-                ["Sin correccion", display(consulta.av_sc_od), display(consulta.av_sc_oi)],
-                ["Con correccion", display(consulta.av_cc_od), display(consulta.av_cc_oi)],
+                ["Sin correccion", displayOptional("av_sc_od", consulta.av_sc_od), displayOptional("av_sc_oi", consulta.av_sc_oi)],
+                ["Con correccion", displayOptional("av_cc_od", consulta.av_cc_od), displayOptional("av_cc_oi", consulta.av_cc_oi)],
               ]}
             />
             <Table
               title="Presion ocular"
               headers={["", "OD", "OI"]}
-              rows={[["PIO", display(consulta.pio_od), display(consulta.pio_oi)]]}
+              rows={[["PIO", displayOptional("pio_od", consulta.pio_od), displayOptional("pio_oi", consulta.pio_oi)]]}
             />
           </div>
           <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -171,16 +172,21 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
         </Section>
 
         <Section title="Refraccion">
+          {(() => {
+            const addValue = displayOptional("add_value", consulta.add_value);
+            return (
           <Table
-            title={consulta.add_value ? `ADD ${consulta.add_value}` : ""}
+            title={addValue !== "-" ? `ADD ${addValue}` : ""}
             headers={["", "Esferico", "Cilindrico", "Eje"]}
             rows={[
-              ["Lejos OD", display(consulta.ref_lejos_od_esf), display(consulta.ref_lejos_od_cil), display(consulta.ref_lejos_od_eje)],
-              ["Lejos OI", display(consulta.ref_lejos_oi_esf), display(consulta.ref_lejos_oi_cil), display(consulta.ref_lejos_oi_eje)],
-              ["Cerca OD", display(consulta.ref_cerca_od_esf), display(consulta.ref_cerca_od_cil), display(consulta.ref_cerca_od_eje)],
-              ["Cerca OI", display(consulta.ref_cerca_oi_esf), display(consulta.ref_cerca_oi_cil), display(consulta.ref_cerca_oi_eje)],
+              ["Lejos OD", displayOptional("ref_lejos_od_esf", consulta.ref_lejos_od_esf), displayOptional("ref_lejos_od_cil", consulta.ref_lejos_od_cil), displayOptional("ref_lejos_od_eje", consulta.ref_lejos_od_eje)],
+              ["Lejos OI", displayOptional("ref_lejos_oi_esf", consulta.ref_lejos_oi_esf), displayOptional("ref_lejos_oi_cil", consulta.ref_lejos_oi_cil), displayOptional("ref_lejos_oi_eje", consulta.ref_lejos_oi_eje)],
+              ["Cerca OD", displayOptional("ref_cerca_od_esf", consulta.ref_cerca_od_esf), displayOptional("ref_cerca_od_cil", consulta.ref_cerca_od_cil), displayOptional("ref_cerca_od_eje", consulta.ref_cerca_od_eje)],
+              ["Cerca OI", displayOptional("ref_cerca_oi_esf", consulta.ref_cerca_oi_esf), displayOptional("ref_cerca_oi_cil", consulta.ref_cerca_oi_cil), displayOptional("ref_cerca_oi_eje", consulta.ref_cerca_oi_eje)],
             ]}
           />
+            );
+          })()}
         </Section>
 
         <Section title="Diagnostico y tratamiento">
@@ -288,6 +294,10 @@ function Table({ title, headers, rows }: { title?: string; headers: string[]; ro
 
 function display(value?: string) {
   return String(value || "").trim() || "-";
+}
+
+function displayOptional(field: string, value?: string) {
+  return String(emptyIfOptionalClinicalZero(field, value) || "").trim() || "-";
 }
 
 function activeAntecedentes(consulta: PrintableConsulta) {
