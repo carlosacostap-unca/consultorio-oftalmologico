@@ -1243,7 +1243,7 @@ function NuevaConsultaForm() {
               <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
                 
                 <section className="rounded-xl border border-zinc-300 bg-zinc-50 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/50">
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
                     <label className="grid max-w-[220px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-sm font-bold">
                       Fecha
                       <input
@@ -1255,15 +1255,15 @@ function NuevaConsultaForm() {
                         className="w-full rounded-lg border border-zinc-400 bg-white px-3 py-2 font-bold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:[color-scheme:dark]"
                       />
                     </label>
-                    <label className="flex min-h-0 flex-col text-base font-bold">
-                      Motivo
+                    <label className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-base font-bold">
+                      <span>Motivo</span>
                       <textarea
                         name="motivo_consulta"
                         value={formData.motivo_consulta}
                         onChange={handleInputChange}
                         rows={1}
                         placeholder="Motivo principal de la atencion..."
-                        className="mt-1 min-h-10 w-full flex-1 resize-y rounded-lg border-2 border-zinc-400 bg-white px-3 py-2 text-base font-semibold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
+                        className="min-h-10 w-full flex-1 resize-y rounded-lg border-2 border-zinc-400 bg-white px-3 py-2 text-base font-semibold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
                       />
                     </label>
                   </div>

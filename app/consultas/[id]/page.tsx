@@ -1329,7 +1329,7 @@ function continuityToneClass(tone: string) {
                 </div>
 
                 <div className="space-y-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800">
-                <section className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+                <section className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
                   <label className="flex max-w-[220px] items-center gap-3">
                     <span className="text-sm font-bold">Fecha</span>
                     <input
@@ -1343,8 +1343,8 @@ function continuityToneClass(tone: string) {
                     />
                   </label>
 
-                  <label className="flex min-h-0 flex-col">
-                    <span className="mb-2 text-lg font-bold">Motivo</span>
+                  <label className="grid min-h-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3">
+                    <span className="text-lg font-bold">Motivo</span>
                     <textarea
                       name="motivo_consulta"
                       value={formData.motivo_consulta}
