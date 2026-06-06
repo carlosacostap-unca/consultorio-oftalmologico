@@ -581,6 +581,26 @@ test.describe("roles y otorgamiento de turnos", () => {
     expect(secretaryResponse.status()).toBe(403);
   });
 
+  test("admin configura recordatorios de turnos sin exponer App Password", async ({ page }) => {
+    await login(page, "admin.demo@consultorio.local");
+    await page.goto("/edicion-consultas");
+
+    await expect(page.getByRole("heading", { name: "Configuracion clinica" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recordatorios de turnos por email" })).toBeVisible();
+
+    await page.getByLabel("Horas de anticipacion").fill("24");
+    await page.getByLabel("Host SMTP").fill("smtp.gmail.com");
+    await page.getByLabel("Puerto SMTP").fill("465");
+    await page.getByLabel("Usuario SMTP").fill("recordatorios@consultorio.local");
+    await page.getByLabel("Email remitente").fill("recordatorios@consultorio.local");
+    await page.getByLabel("Nombre remitente").fill("Consultorio oftalmologico");
+
+    const passwordInput = page.getByLabel("App Password SMTP");
+    await expect(passwordInput).toHaveAttribute("type", "password");
+    await passwordInput.fill("clave-no-enviada");
+    await expect(page.getByText("clave-no-enviada")).toHaveCount(0);
+  });
+
   test("admin fusiona pacientes duplicados desde la pantalla administrativa", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
