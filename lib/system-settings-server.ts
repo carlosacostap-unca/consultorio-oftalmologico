@@ -2,8 +2,12 @@ import { pbAdmin } from "@/lib/pocketbase-admin";
 import { canEncryptEmailSettings, encryptEmailSecret } from "@/lib/email-settings-secret";
 import {
   APPOINTMENT_REMINDER_HOURS_BEFORE_KEY,
+  APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE_KEY,
+  APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE_KEY,
   APPOINTMENT_REMINDERS_ENABLED_KEY,
   CONSULTA_EDIT_LIMIT_DAYS_KEY,
+  DEFAULT_APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE,
+  DEFAULT_APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE,
   DEFAULT_CONSULTA_EDIT_LIMIT_DAYS,
   EMAIL_SMTP_FROM_ADDRESS_KEY,
   EMAIL_SMTP_FROM_NAME_KEY,
@@ -20,6 +24,7 @@ import {
   normalizeEmailSmtpPort,
   normalizeEmailSmtpSecure,
   normalizeOptionalText,
+  normalizeTemplateText,
 } from "@/lib/system-settings";
 
 export async function loadSystemSettings(): Promise<SystemSettings> {
@@ -42,6 +47,14 @@ export async function loadSystemSettings(): Promise<SystemSettings> {
     emailSmtpFromName: normalizeOptionalText(settings.get(EMAIL_SMTP_FROM_NAME_KEY)?.value),
     emailSmtpFromAddress: normalizeOptionalText(settings.get(EMAIL_SMTP_FROM_ADDRESS_KEY)?.value),
     emailSmtpPasswordConfigured: Boolean(normalizeOptionalText(settings.get(EMAIL_SMTP_PASSWORD_ENCRYPTED_KEY)?.value)),
+    appointmentReminderEmailSubjectTemplate: normalizeTemplateText(
+      settings.get(APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE_KEY)?.value,
+      DEFAULT_APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE
+    ),
+    appointmentReminderEmailBodyTemplate: normalizeTemplateText(
+      settings.get(APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE_KEY)?.value,
+      DEFAULT_APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE
+    ),
   };
 }
 
@@ -67,6 +80,18 @@ export async function saveSystemSettings(body: Record<string, unknown>) {
   if ("emailSmtpUser" in body) updates.push([EMAIL_SMTP_USER_KEY, normalizeOptionalText(body.emailSmtpUser)]);
   if ("emailSmtpFromName" in body) updates.push([EMAIL_SMTP_FROM_NAME_KEY, normalizeOptionalText(body.emailSmtpFromName)]);
   if ("emailSmtpFromAddress" in body) updates.push([EMAIL_SMTP_FROM_ADDRESS_KEY, normalizeOptionalText(body.emailSmtpFromAddress)]);
+  if ("appointmentReminderEmailSubjectTemplate" in body) {
+    updates.push([
+      APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE_KEY,
+      normalizeTemplateText(body.appointmentReminderEmailSubjectTemplate, DEFAULT_APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE),
+    ]);
+  }
+  if ("appointmentReminderEmailBodyTemplate" in body) {
+    updates.push([
+      APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE_KEY,
+      normalizeTemplateText(body.appointmentReminderEmailBodyTemplate, DEFAULT_APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE),
+    ]);
+  }
 
   const smtpPassword = normalizeOptionalText(body.emailSmtpPassword);
   if (smtpPassword) {

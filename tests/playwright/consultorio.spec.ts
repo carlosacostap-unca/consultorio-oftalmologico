@@ -594,6 +594,14 @@ test.describe("roles y otorgamiento de turnos", () => {
     await page.getByLabel("Usuario SMTP").fill("recordatorios@consultorio.local");
     await page.getByLabel("Email remitente").fill("recordatorios@consultorio.local");
     await page.getByLabel("Nombre remitente").fill("Consultorio oftalmologico");
+    await page.getByLabel("Asunto del recordatorio").fill("Recordatorio para {{paciente}}");
+    await page.getByLabel("Mensaje del recordatorio").fill("Hola {{paciente}}, tu turno es el {{fecha}} a las {{hora}}.");
+    await expect(page.locator("code").filter({ hasText: "{{paciente}}" })).toBeVisible();
+    await expect(page.locator("code").filter({ hasText: "{{fecha}}" })).toBeVisible();
+    await expect(page.getByLabel("Email para prueba")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enviar prueba" })).toBeDisabled();
+    await page.getByLabel("Email para prueba").fill("prueba@consultorio.local");
+    await expect(page.getByRole("button", { name: "Enviar prueba" })).toBeEnabled();
 
     const passwordInput = page.getByLabel("App Password SMTP");
     await expect(passwordInput).toHaveAttribute("type", "password");

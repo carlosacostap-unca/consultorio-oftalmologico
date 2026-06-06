@@ -7,7 +7,10 @@ import ts from "typescript";
 
 const require = createRequire(import.meta.url);
 
+const moduleCache = new Map();
+
 function loadTsModule(path) {
+  if (moduleCache.has(path)) return moduleCache.get(path);
   const source = fs.readFileSync(path, "utf8");
   const output = ts.transpileModule(source, {
     compilerOptions: {
@@ -17,21 +20,29 @@ function loadTsModule(path) {
     },
   }).outputText;
   const module = { exports: {} };
+  moduleCache.set(path, module.exports);
+  const localRequire = (specifier) => {
+    if (specifier === "@/lib/system-settings") return loadTsModule("lib/system-settings.ts");
+    return require(specifier);
+  };
   const context = {
     module,
     exports: module.exports,
-    require,
+    require: localRequire,
     process,
     Buffer,
     console,
   };
   vm.runInNewContext(output, context, { filename: path });
+  moduleCache.set(path, module.exports);
   return module.exports;
 }
 
 const core = loadTsModule("lib/appointment-reminder-core.ts");
 const auth = loadTsModule("lib/appointment-reminder-auth.ts");
 const secret = loadTsModule("lib/email-settings-secret.ts");
+const template = loadTsModule("lib/appointment-reminder-template.ts");
+const settings = loadTsModule("lib/system-settings.ts");
 
 test("calcula ventana de recordatorio con horas previas y margen", () => {
   const window = core.reminderWindow({
@@ -74,4 +85,40 @@ test("cifra y descifra App Password sin exponer texto plano", () => {
 
   assert.notEqual(encrypted, "app-password");
   assert.equal(secret.decryptEmailSecret(encrypted), "app-password");
+});
+
+test("renderiza plantilla de recordatorio con variables permitidas", () => {
+  const rendered = template.renderAppointmentReminderTemplate(
+    "Hola {{ paciente }}, turno {{fecha}} a las {{hora}} en {{consultorio}} {{desconocida}}",
+    {
+      paciente: "Ana Perez",
+      fecha: "10/06/2026",
+      hora: "09:30",
+      consultorio: "Consultorio",
+    }
+  );
+
+  assert.equal(rendered, "Hola Ana Perez, turno 10/06/2026 a las 09:30 en Consultorio ");
+});
+
+test("usa defaults cuando asunto o cuerpo quedan vacios", () => {
+  const email = template.renderAppointmentReminderEmail(
+    {
+      appointmentReminderEmailSubjectTemplate: "{{desconocida}}",
+      appointmentReminderEmailBodyTemplate: "",
+    },
+    {
+      paciente: "Ana Perez",
+      fecha: "10/06/2026",
+      hora: "09:30",
+      medico: "Medico Demo",
+      tipo: "Consulta",
+      motivo: "Control",
+      consultorio: "Consultorio",
+    }
+  );
+
+  assert.equal(email.subject, settings.DEFAULT_APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE);
+  assert.match(email.text, /Ana Perez/);
+  assert.match(email.text, /10\/06\/2026/);
 });

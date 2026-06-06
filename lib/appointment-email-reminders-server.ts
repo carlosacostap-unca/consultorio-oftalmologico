@@ -12,6 +12,10 @@ import {
   reminderWindow,
   shouldSendAppointmentReminder,
 } from "@/lib/appointment-reminder-core";
+import {
+  AppointmentReminderTemplateValues,
+  renderAppointmentReminderEmail,
+} from "@/lib/appointment-reminder-template";
 import { sendSmtpMail } from "@/lib/smtp-client";
 
 interface ReminderTurno {
@@ -80,6 +84,7 @@ export async function processAppointmentEmailReminders(options: ProcessOptions =
     }
 
     try {
+      const emailContent = appointmentReminderEmail(turno, settings);
       await (options.sendMail || sendSmtpMail)({
         host: settings.emailSmtpHost,
         port: settings.emailSmtpPort,
@@ -89,8 +94,8 @@ export async function processAppointmentEmailReminders(options: ProcessOptions =
         from: settings.emailSmtpFromAddress,
         fromName: settings.emailSmtpFromName,
         to: String(turno.expand?.paciente_id?.email || "").trim(),
-        subject: "Recordatorio de turno",
-        text: appointmentReminderText(turno, settings),
+        subject: emailContent.subject,
+        text: emailContent.text,
       });
 
       await markAppointmentReminderSent(turno.id);
@@ -134,13 +139,66 @@ export async function markAppointmentReminderError(turnoId: string, error: strin
   });
 }
 
-async function loadSmtpPassword() {
+export async function sendAppointmentReminderTestEmail(to: string, sampleValues?: Partial<AppointmentReminderTemplateValues>) {
+  const settings = await loadSystemSettings();
+  const recipient = normalizeOptionalText(to).toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
+    throw new Error("Ingresa un email de prueba valido");
+  }
+
+  const smtpPassword = await loadSmtpPassword();
+  ensureSmtpReady(settings, smtpPassword);
+  const values = {
+    paciente: "Paciente Demo",
+    fecha: new Date().toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }),
+    hora: "09:30",
+    medico: "Medico Demo",
+    tipo: "Consulta",
+    motivo: "Control oftalmologico",
+    consultorio: settings.emailSmtpFromName || "Consultorio oftalmologico",
+    ...sampleValues,
+  };
+  const emailContent = renderAppointmentReminderEmail(settings, values);
+
+  await sendSmtpMail({
+    host: settings.emailSmtpHost,
+    port: settings.emailSmtpPort,
+    secure: settings.emailSmtpSecure,
+    user: settings.emailSmtpUser,
+    password: smtpPassword,
+    from: settings.emailSmtpFromAddress,
+    fromName: settings.emailSmtpFromName,
+    to: recipient,
+    subject: emailContent.subject,
+    text: emailContent.text,
+  });
+
+  return { sent: true, to: recipient };
+}
+
+export async function loadSmtpPassword() {
   const setting = await findSetting(EMAIL_SMTP_PASSWORD_ENCRYPTED_KEY);
   const encrypted = normalizeOptionalText(setting?.value);
   return encrypted ? decryptEmailSecret(encrypted) : "";
 }
 
-function appointmentReminderText(turno: ReminderTurno, settings: SystemSettings) {
+function ensureSmtpReady(settings: SystemSettings, smtpPassword: string) {
+  if (
+    !settings.emailSmtpHost ||
+    !settings.emailSmtpPort ||
+    !settings.emailSmtpUser ||
+    !settings.emailSmtpFromAddress ||
+    !smtpPassword
+  ) {
+    throw new Error("Configuracion SMTP incompleta");
+  }
+}
+
+function appointmentReminderEmail(turno: ReminderTurno, settings: SystemSettings) {
+  return renderAppointmentReminderEmail(settings, appointmentReminderValues(turno, settings));
+}
+
+function appointmentReminderValues(turno: ReminderTurno, settings: SystemSettings): AppointmentReminderTemplateValues {
   const patient = turno.expand?.paciente_id;
   const doctor = turno.expand?.medico_id;
   const patientName = [patient?.apellido, patient?.nombre].filter(Boolean).join(", ") || "paciente";
@@ -154,18 +212,13 @@ function appointmentReminderText(turno: ReminderTurno, settings: SystemSettings)
   const doctorName = doctor?.name || doctor?.email || "";
   const fromName = settings.emailSmtpFromName || "Consultorio oftalmologico";
 
-  return [
-    `Hola ${patientName}.`,
-    "",
-    `Te recordamos tu turno en ${fromName}:`,
-    `Fecha: ${date}`,
-    `Hora: ${time}`,
-    doctorName ? `Medico: ${doctorName}` : "",
-    turno.tipo ? `Tipo: ${turno.tipo}` : "",
-    turno.motivo ? `Motivo: ${turno.motivo}` : "",
-    "",
-    "Si no podes asistir, por favor comunicate con el consultorio.",
-  ]
-    .filter((line) => line !== "")
-    .join("\n");
+  return {
+    paciente: patientName,
+    fecha: date,
+    hora: time,
+    medico: doctorName,
+    tipo: turno.tipo || "",
+    motivo: turno.motivo || "",
+    consultorio: fromName,
+  };
 }

@@ -24,7 +24,22 @@ const DEFAULT_EMAIL_SETTINGS = {
   emailSmtpFromName: "Consultorio oftalmologico",
   emailSmtpFromAddress: "",
   emailSmtpPasswordConfigured: false,
+  appointmentReminderEmailSubjectTemplate: "Recordatorio de turno",
+  appointmentReminderEmailBodyTemplate: [
+    "Hola {{paciente}}.",
+    "",
+    "Te recordamos tu turno en {{consultorio}}:",
+    "Fecha: {{fecha}}",
+    "Hora: {{hora}}",
+    "Medico: {{medico}}",
+    "Tipo: {{tipo}}",
+    "Motivo: {{motivo}}",
+    "",
+    "Si no podes asistir, por favor comunicate con el consultorio.",
+  ].join("\n"),
 };
+
+const TEMPLATE_VARIABLES = ["paciente", "fecha", "hora", "medico", "tipo", "motivo", "consultorio"];
 
 export default function EdicionConsultasPage() {
   const router = useRouter();
@@ -36,6 +51,9 @@ export default function EdicionConsultasPage() {
   const [consultaEditLimitDays, setConsultaEditLimitDays] = useState(7);
   const [emailSettings, setEmailSettings] = useState(DEFAULT_EMAIL_SETTINGS);
   const [emailSmtpPassword, setEmailSmtpPassword] = useState("");
+  const [testEmail, setTestEmail] = useState("");
+  const [testEmailStatus, setTestEmailStatus] = useState("");
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
@@ -158,11 +176,38 @@ export default function EdicionConsultasPage() {
       const updated = await response.json();
       setEmailSettings(normalizeEmailSettings(updated));
       setEmailSmtpPassword("");
+      setTestEmailStatus("Configuracion de recordatorios guardada.");
     } catch (error) {
       console.error("Error al guardar configuracion de email:", error);
       alert(error instanceof Error ? error.message : "No se pudo guardar la configuracion de email.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const sendTestEmail = async () => {
+    setIsSendingTestEmail(true);
+    setTestEmailStatus("");
+    try {
+      const response = await fetch("/api/configuracion/email-prueba", {
+        method: "POST",
+        headers: {
+          ...activeRoleJsonHeaders(pb.authStore.token, activeRole),
+        },
+        body: JSON.stringify({ to: testEmail }),
+      });
+
+      const result = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(result?.error || "No se pudo enviar el email de prueba");
+      }
+
+      setTestEmailStatus(`Email de prueba enviado a ${result.to || testEmail}.`);
+    } catch (error) {
+      console.error("Error al enviar email de prueba:", error);
+      setTestEmailStatus(error instanceof Error ? error.message : "No se pudo enviar el email de prueba.");
+    } finally {
+      setIsSendingTestEmail(false);
     }
   };
 
@@ -354,6 +399,64 @@ export default function EdicionConsultasPage() {
               </div>
             </div>
 
+            <div className="grid gap-4 border-t border-zinc-200 pt-6 dark:border-zinc-800">
+              <div>
+                <label htmlFor="appointmentReminderEmailSubjectTemplate" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Asunto del recordatorio
+                </label>
+                <input
+                  id="appointmentReminderEmailSubjectTemplate"
+                  value={emailSettings.appointmentReminderEmailSubjectTemplate}
+                  onChange={(event) => setEmailSettings((prev) => ({ ...prev, appointmentReminderEmailSubjectTemplate: event.target.value }))}
+                  className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+                />
+              </div>
+              <div>
+                <label htmlFor="appointmentReminderEmailBodyTemplate" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Mensaje del recordatorio
+                </label>
+                <textarea
+                  id="appointmentReminderEmailBodyTemplate"
+                  rows={9}
+                  value={emailSettings.appointmentReminderEmailBodyTemplate}
+                  onChange={(event) => setEmailSettings((prev) => ({ ...prev, appointmentReminderEmailBodyTemplate: event.target.value }))}
+                  className="w-full resize-y px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+                />
+                <div className="mt-2 flex flex-wrap gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                  {TEMPLATE_VARIABLES.map((variable) => (
+                    <code key={variable} className="rounded bg-zinc-100 px-2 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                      {`{{${variable}}}`}
+                    </code>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950 md:grid-cols-[1fr_auto] md:items-end">
+              <div>
+                <label htmlFor="testEmail" className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">
+                  Email para prueba
+                </label>
+                <input
+                  id="testEmail"
+                  type="email"
+                  value={testEmail}
+                  onChange={(event) => setTestEmail(event.target.value)}
+                  placeholder="nombre@dominio.com"
+                  className="w-full px-3 py-2 bg-white dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200"
+                />
+                {testEmailStatus && <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{testEmailStatus}</p>}
+              </div>
+              <button
+                type="button"
+                onClick={sendTestEmail}
+                disabled={isSendingTestEmail || !testEmail.trim()}
+                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white rounded-xl font-medium transition-colors disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-950 dark:hover:bg-white"
+              >
+                {isSendingTestEmail ? "Enviando..." : "Enviar prueba"}
+              </button>
+            </div>
+
             <div className="flex justify-end">
               <button
                 type="button"
@@ -382,5 +485,11 @@ function normalizeEmailSettings(settings: Partial<SystemSettings>) {
     emailSmtpFromName: String(settings.emailSmtpFromName || DEFAULT_EMAIL_SETTINGS.emailSmtpFromName),
     emailSmtpFromAddress: String(settings.emailSmtpFromAddress || ""),
     emailSmtpPasswordConfigured: Boolean(settings.emailSmtpPasswordConfigured),
+    appointmentReminderEmailSubjectTemplate: String(
+      settings.appointmentReminderEmailSubjectTemplate || DEFAULT_EMAIL_SETTINGS.appointmentReminderEmailSubjectTemplate
+    ),
+    appointmentReminderEmailBodyTemplate: String(
+      settings.appointmentReminderEmailBodyTemplate || DEFAULT_EMAIL_SETTINGS.appointmentReminderEmailBodyTemplate
+    ),
   };
 }

@@ -52,6 +52,22 @@ async function ensureSystemSettingDefaults() {
   await ensureSetting("email_smtp_user", "");
   await ensureSetting("email_smtp_from_name", "Consultorio oftalmologico");
   await ensureSetting("email_smtp_from_address", "");
+  await ensureSetting("appointment_reminder_email_subject_template", "Recordatorio de turno");
+  await ensureSetting(
+    "appointment_reminder_email_body_template",
+    [
+      "Hola {{paciente}}.",
+      "",
+      "Te recordamos tu turno en {{consultorio}}:",
+      "Fecha: {{fecha}}",
+      "Hora: {{hora}}",
+      "Medico: {{medico}}",
+      "Tipo: {{tipo}}",
+      "Motivo: {{motivo}}",
+      "",
+      "Si no podes asistir, por favor comunicate con el consultorio.",
+    ].join("\n")
+  );
 }
 
 async function ensureSetting(key, value) {

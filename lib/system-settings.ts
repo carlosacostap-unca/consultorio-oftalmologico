@@ -9,12 +9,27 @@ export const EMAIL_SMTP_USER_KEY = "email_smtp_user";
 export const EMAIL_SMTP_FROM_NAME_KEY = "email_smtp_from_name";
 export const EMAIL_SMTP_FROM_ADDRESS_KEY = "email_smtp_from_address";
 export const EMAIL_SMTP_PASSWORD_ENCRYPTED_KEY = "email_smtp_password_encrypted";
+export const APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE_KEY = "appointment_reminder_email_subject_template";
+export const APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE_KEY = "appointment_reminder_email_body_template";
 
 export const DEFAULT_APPOINTMENT_REMINDERS_ENABLED = false;
 export const DEFAULT_APPOINTMENT_REMINDER_HOURS_BEFORE = 24;
 export const DEFAULT_EMAIL_SMTP_HOST = "smtp.gmail.com";
 export const DEFAULT_EMAIL_SMTP_PORT = 465;
 export const DEFAULT_EMAIL_SMTP_SECURE = true;
+export const DEFAULT_APPOINTMENT_REMINDER_EMAIL_SUBJECT_TEMPLATE = "Recordatorio de turno";
+export const DEFAULT_APPOINTMENT_REMINDER_EMAIL_BODY_TEMPLATE = [
+  "Hola {{paciente}}.",
+  "",
+  "Te recordamos tu turno en {{consultorio}}:",
+  "Fecha: {{fecha}}",
+  "Hora: {{hora}}",
+  "Medico: {{medico}}",
+  "Tipo: {{tipo}}",
+  "Motivo: {{motivo}}",
+  "",
+  "Si no podes asistir, por favor comunicate con el consultorio.",
+].join("\n");
 
 export interface SystemSettings {
   consultaEditLimitDays: number;
@@ -27,6 +42,8 @@ export interface SystemSettings {
   emailSmtpFromName: string;
   emailSmtpFromAddress: string;
   emailSmtpPasswordConfigured: boolean;
+  appointmentReminderEmailSubjectTemplate: string;
+  appointmentReminderEmailBodyTemplate: string;
 }
 
 export function normalizeConsultaEditLimitDays(value: unknown) {
@@ -75,4 +92,9 @@ export function normalizeEmailSmtpSecure(value: unknown) {
 
 export function normalizeOptionalText(value: unknown) {
   return String(value || "").trim();
+}
+
+export function normalizeTemplateText(value: unknown, fallback: string) {
+  const text = String(value || "").trim();
+  return text || fallback;
 }
