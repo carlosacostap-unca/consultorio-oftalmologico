@@ -342,6 +342,7 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       await page.goto(`/consultas/${createdConsultaId}`);
       await expect(page.getByText("Detalle clinico")).toBeVisible();
+      await expect(page.getByText("Ocupacion DOCENTE").first()).toBeVisible();
       await expect(page.getByText("Diagnostico del circuito critico automatizado.").first()).toBeVisible();
       await expect(page.getByLabel("Continuidad clinica").getByRole("link", { name: "Crear receta" })).toBeVisible();
       await page.getByLabel("Continuidad clinica").getByRole("link", { name: "Crear receta" }).click();

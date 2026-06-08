@@ -7,6 +7,7 @@ El medico necesita ver la ocupacion del paciente junto con los datos administrat
 - Agregar el campo opcional `ocupacion` al paciente.
 - Permitir cargar y editar la ocupacion desde alta y edicion de pacientes.
 - Mostrar la ocupacion en la misma fila de datos iniciales del paciente dentro de `/consultas/nueva`.
+- Mostrar la ocupacion al visualizar una consulta existente.
 - Preparar el esquema de PocketBase para crear `pacientes.ocupacion` de forma repetible.
 
 ## Capabilities
