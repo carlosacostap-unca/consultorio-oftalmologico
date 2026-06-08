@@ -1,0 +1,16 @@
+## Context
+
+La aplicacion ya carga datos administrativos del paciente desde PocketBase y los reutiliza en la ficha y en `/consultas/nueva`. La ocupacion pertenece al paciente, no a la consulta, porque debe persistir como dato administrativo y mostrarse en nuevas atenciones futuras.
+
+## Decisions
+
+- Guardar `ocupacion` como texto opcional en `pacientes`.
+- No copiar la ocupacion a `consultas`; la cabecera de consulta lee el dato expandido/cargado del paciente seleccionado.
+- Incluir el campo en alta y edicion de pacientes para que el dato pueda mantenerse desde la ficha completa.
+- Mostrar ocupacion en la fila superior de la carga inicial del paciente, compactando la grilla de escritorio sin cambiar el flujo clinico.
+- Agregar un script `ensure_patient_occupation_field.mjs` y sumarlo al bootstrap de esquema de test.
+
+## Risks
+
+- Si el esquema de PocketBase no esta actualizado, guardar pacientes con `ocupacion` puede fallar. El script de esquema mitiga esto y debe ejecutarse antes de usar el campo en un ambiente nuevo.
+- En pantallas angostas, los datos de la cabecera deben apilarse para evitar solapamientos.

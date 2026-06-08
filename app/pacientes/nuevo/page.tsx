@@ -31,6 +31,7 @@ export default function NuevoPacientePage() {
     telefono: "",
     email: "",
     fecha_nacimiento: "",
+    ocupacion: "",
     obra_social: "",
     mutual_id: "",
     numero_afiliado: "",
@@ -240,6 +241,11 @@ export default function NuevoPacientePage() {
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Fecha de Nacimiento</label>
                   <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark]" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Ocupacion</label>
+                  <input type="text" name="ocupacion" value={formData.ocupacion} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
                 </div>
               </div>
 

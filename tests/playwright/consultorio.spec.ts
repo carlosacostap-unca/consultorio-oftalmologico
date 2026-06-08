@@ -273,6 +273,116 @@ test.describe("roles y otorgamiento de turnos", () => {
     await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT);
   });
 
+  test("circuito critico secretaria medico consulta receta e impresiones", async ({ page, request }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const motivo = `Playwright circuito critico ${Date.now()}`;
+    let createdConsultaId = "";
+    let createdRecetaId = "";
+    await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, QUICK_SLOT);
+
+    try {
+      await login(page, "secretaria.demo@consultorio.local");
+      await page.goto("/turnos");
+      await page.getByRole("button", { name: "Agenda Diaria" }).click();
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+      await page.getByRole("button", { name: /09:00.*Libre/ }).click();
+
+      await expect(page.getByRole("heading", { name: "Alta rapida de turno" })).toBeVisible();
+      await page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER).fill(DEMO_PATIENT_DOCUMENT);
+      await page.getByText(/Libre Demo, Paciente/).click();
+      await page.getByPlaceholder("Ej: Control general").fill(motivo);
+      await page.getByRole("button", { name: "Guardar turno" }).click();
+
+      await expect(page.getByText("Turno creado")).toBeVisible();
+      await expect(page.getByRole("button", { name: `Gestionar turno ${motivo}` })).toBeVisible();
+      await expect
+        .poll(() => findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "En espera"), {
+          timeout: 10_000,
+        })
+        .toBeTruthy();
+
+      await page.evaluate(() => window.localStorage.clear());
+      await page.goto("/");
+      await expect(page.locator('input[type="email"]')).toBeVisible();
+
+      await login(page, "medico.demo@consultorio.local");
+      await page.goto("/turnos");
+      await expect(page.getByText("Mi jornada medica")).toBeVisible();
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+      const row = page
+        .getByRole("button", { name: `Gestionar turno ${motivo}` })
+        .locator("xpath=ancestor::div[contains(@class,'grid')][1]");
+      await expect(row.getByRole("button", { name: "Iniciar consulta" })).toBeVisible();
+      await row.getByRole("button", { name: "Iniciar consulta" }).click();
+
+      await expect(page).toHaveURL(/\/consultas\/nueva/);
+      await page.getByLabel("Motivo").fill(motivo);
+      await page.getByLabel("BMC").fill("Biomicroscopia del circuito critico sin particularidades.");
+      await page.getByLabel("FO").fill("Fondo de ojo del circuito critico conservado.");
+      await page.getByLabel("DX").fill("Diagnostico del circuito critico automatizado.");
+      await page.getByLabel("TTO").fill("Tratamiento del circuito critico con control posterior.");
+      await page.getByRole("button", { name: "FINALIZAR CONSULTA" }).click();
+
+      await expect
+        .poll(async () => {
+          const appointment = await findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "Atendido");
+          return Boolean(appointment?.consulta_id);
+        }, { timeout: 10_000 })
+        .toBeTruthy();
+      const completedAppointment = await findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "Atendido");
+      createdConsultaId = String(completedAppointment?.consulta_id || "");
+      expect(createdConsultaId).toBeTruthy();
+
+      await page.goto(`/consultas/${createdConsultaId}`);
+      await expect(page.getByText("Detalle clinico")).toBeVisible();
+      await expect(page.getByText("Diagnostico del circuito critico automatizado.").first()).toBeVisible();
+      await expect(page.getByLabel("Continuidad clinica").getByRole("link", { name: "Crear receta" })).toBeVisible();
+      await page.getByLabel("Continuidad clinica").getByRole("link", { name: "Crear receta" }).click();
+
+      await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?consulta_id=${createdConsultaId}`));
+      await page.locator("textarea").first().fill("Receta del circuito critico automatizado");
+      await page.locator("textarea").nth(1).fill("Usar segun indicacion del circuito critico.");
+      await page.getByRole("button", { name: "Guardar Receta" }).click();
+      await expect(page.getByText("Receta guardada correctamente")).toBeVisible();
+      const recetaHref = await page.getByRole("link", { name: "Ver receta" }).getAttribute("href");
+      createdRecetaId = recetaHref?.match(/\/recetas\/([^?]+)/)?.[1] || "";
+      expect(createdRecetaId).toBeTruthy();
+
+      await page.getByRole("link", { name: "Volver a consulta" }).click();
+      await expect(page.getByLabel("Continuidad clinica").getByText("1 receta emitida en esta consulta.")).toBeVisible();
+
+      await page.getByLabel("Continuidad clinica").getByRole("link", { name: "Imprimir informe" }).click();
+      await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}/imprimir`));
+      await expect(page.getByRole("heading", { name: "Informe clinico de consulta" })).toBeVisible();
+      await expect(page.getByText("Receta del circuito critico automatizado").first()).toBeVisible();
+
+      await page.goto(`/recetas/${createdRecetaId}/imprimir`);
+      await expect(page.getByRole("heading", { name: "Receta medica" })).toBeVisible();
+      await expect(page.getByText("Receta del circuito critico automatizado").first()).toBeVisible();
+      await expect(page.getByText("Usar segun indicacion del circuito critico.").first()).toBeVisible();
+    } finally {
+      if (createdRecetaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${createdRecetaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      if (createdConsultaId) {
+        await cleanupConsultationEvents(request, env, adminToken, createdConsultaId);
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT);
+    }
+  });
+
   test("secretaria crea paciente desde alta rapida de turno", async ({ page, request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
@@ -1145,6 +1255,7 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       await expect(page).toHaveURL(/\/consultas\/nueva/);
       await expect(page).toHaveURL(new RegExp(`turno_id=${turno.id}`));
+      await expect(page.getByLabel("Ocupacion")).toHaveValue("DOCENTE");
       const contextToggle = page.getByRole("button", { name: "Ver contexto" });
       const isCompactDesktop = await contextToggle.isVisible().catch(() => false);
       if (!isCompactDesktop) {

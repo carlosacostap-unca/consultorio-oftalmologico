@@ -23,6 +23,7 @@ export interface Patient extends RecordModel {
   telefono: string;
   email: string;
   fecha_nacimiento: string;
+  ocupacion?: string;
   obra_social: string;
   numero_afiliado: string;
   domicilio: string;
