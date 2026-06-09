@@ -7,3 +7,4 @@
 - [x] 5. Verificar OpenSpec y build/tests relevantes.
 - [x] 6. Mostrar ocupacion en la visualizacion de una consulta existente.
 - [x] 7. Importar ocupaciones desde `PACIENTE.DBF` cruzando por `NUM_FICH`.
+- [x] 8. Compactar edad y ocupacion, ubicando ocupacion despues de domicilio en carga y visualizacion de consultas.

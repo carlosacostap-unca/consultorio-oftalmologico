@@ -1168,7 +1168,7 @@ function continuityToneClass(tone: string) {
                 <div className="col-span-6 md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
                   <div className="[&>span]:hidden">
-                    <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center" />
+                    <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className="w-16 max-w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center" />
                     <span className="text-xs">Años</span>
                   </div>
                 </div>
@@ -1187,13 +1187,13 @@ function continuityToneClass(tone: string) {
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
-                <div className="col-span-12 sm:col-span-6 md:col-span-2">
-                  <label className="block text-xs font-semibold mb-1">Ocupacion</label>
-                  <input type="text" aria-label="Ocupacion" readOnly value={selectedPacienteData?.ocupacion || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
-                </div>
-                <div className="col-span-12 md:col-span-2">
+                <div className="col-span-12 md:col-span-3">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+                <div className="col-span-12 sm:col-span-6 md:col-span-1">
+                  <label className="block text-xs font-semibold mb-1">Ocupacion</label>
+                  <input type="text" aria-label="Ocupacion" readOnly value={selectedPacienteData?.ocupacion || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
                 <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
                   {fixedAntecedenteChips.map((antecedente) => {
