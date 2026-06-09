@@ -6,3 +6,4 @@
 - [x] 4. Agregar script de esquema para `pacientes.ocupacion` y sumarlo al bootstrap de test.
 - [x] 5. Verificar OpenSpec y build/tests relevantes.
 - [x] 6. Mostrar ocupacion en la visualizacion de una consulta existente.
+- [x] 7. Importar ocupaciones desde `PACIENTE.DBF` cruzando por `NUM_FICH`.

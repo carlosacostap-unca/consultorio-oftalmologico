@@ -22,6 +22,7 @@
     "schema:agenda-recurrente": "node scripts/ensure_recurring_schedule.mjs",
     "schema:atribucion-medica": "node scripts/ensure_clinical_doctor_attribution.mjs",
     "schema:recordatorios-turnos": "node scripts/ensure_appointment_email_reminders.mjs",
+    "migrate:patient-occupations": "node scripts/migrar_ocupaciones_pacientes_desde_dbf.mjs",
     "seed:test:usuarios": "node scripts/seed_usuarios_prueba.mjs --env .env.test.local --require-test-pocketbase",
     "seed:test:agenda": "node scripts/seed_agenda_prueba.mjs --env .env.test.local --require-test-pocketbase",
     "seed:test": "npm run seed:test:usuarios && npm run seed:test:agenda",
