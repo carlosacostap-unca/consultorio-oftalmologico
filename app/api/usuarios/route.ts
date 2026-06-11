@@ -113,3 +113,32 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: errorMessage(error, "No se pudo crear el usuario") }, { status: 500 });
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const admin = await requireAdmin(request);
+    if (!admin) {
+      return Response.json({ error: "No autorizado" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const userId = String(body.userId || "");
+
+    if (!userId) {
+      return Response.json({ error: "Usuario invalido" }, { status: 400 });
+    }
+
+    if (admin.id === userId) {
+      return Response.json({ error: "No podes eliminar tu propio usuario" }, { status: 400 });
+    }
+
+    await pbAdmin(`/api/collections/users/records/${encodeURIComponent(userId)}`, {
+      method: "DELETE",
+    });
+
+    return Response.json({ deleted: true, id: userId });
+  } catch (error) {
+    console.error("Error al eliminar usuario:", error);
+    return Response.json({ error: errorMessage(error, "No se pudo eliminar el usuario") }, { status: 500 });
+  }
+}
