@@ -5,12 +5,19 @@ import { pb } from "@/lib/pocketbase";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import type { AppUser, Mutual } from "@/lib/types";
 
+const DEFAULT_MUTUALES_RETURN_PATH = "/mutuales";
+
 export default function EditarMutualPage() {
   const router = useRouter();
   const params = useParams();
   const searchParams = useSearchParams();
   const id = params.id as string;
   const isViewMode = searchParams.get("mode") === "view";
+  const returnToParam = searchParams.get("returnTo");
+  const returnTo =
+    returnToParam && (returnToParam === DEFAULT_MUTUALES_RETURN_PATH || returnToParam.startsWith(`${DEFAULT_MUTUALES_RETURN_PATH}?`))
+      ? returnToParam
+      : DEFAULT_MUTUALES_RETURN_PATH;
   
   const [isMounted, setIsMounted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -77,7 +84,7 @@ export default function EditarMutualPage() {
         nombre: formData.nombre.toUpperCase(),
       };
       await pb.collection("mutuales").update(id, dataToSave);
-      router.push(`/mutuales/${id}?mode=view`);
+      router.push(`/mutuales/${id}?mode=view&returnTo=${encodeURIComponent(returnTo)}`);
     } catch (error) {
       console.error("Error al actualizar mutual:", error);
       alert("Error al actualizar la mutual.");
@@ -97,11 +104,19 @@ export default function EditarMutualPage() {
 
     try {
       await pb.collection("mutuales").delete(id);
-      router.push("/mutuales");
+      router.push(returnTo);
     } catch (error) {
       console.error("Error al eliminar mutual:", error);
       alert("Error al eliminar la mutual.");
     }
+  };
+
+  const handleReturnToList = () => {
+    router.push(returnTo);
+  };
+
+  const handleCancelEdit = () => {
+    router.push(`/mutuales/${id}?mode=view&returnTo=${encodeURIComponent(returnTo)}`);
   };
 
   if (!isMounted) return null;
@@ -125,7 +140,7 @@ export default function EditarMutualPage() {
           <div className="flex items-center gap-4">
             <button 
               type="button"
-              onClick={() => router.back()}
+              onClick={isViewMode ? handleReturnToList : handleCancelEdit}
               className="p-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
             >
               <svg className="w-5 h-5 text-zinc-600 dark:text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -145,7 +160,7 @@ export default function EditarMutualPage() {
             {isViewMode && (
               <button
                 type="button"
-                onClick={() => router.push(`/mutuales/${id}`)}
+                onClick={() => router.push(`/mutuales/${id}?returnTo=${encodeURIComponent(returnTo)}`)}
                 className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-medium transition-colors shadow-sm shadow-blue-500/30"
               >
                 Editar
@@ -188,7 +203,7 @@ export default function EditarMutualPage() {
             <div className="mt-8 pt-6 border-t border-zinc-200 dark:border-zinc-800 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => router.back()}
+                onClick={isViewMode ? handleReturnToList : handleCancelEdit}
                 className="px-4 py-2 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-xl font-medium transition-colors"
               >
                 {isViewMode ? "Volver" : "Cancelar"}
