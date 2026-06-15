@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Consulta, Patient } from "@/lib/types";
-import { appendActivePatientFilter } from "@/lib/patient-merge";
+import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patient-merge";
 
 export default function PacientesPage() {
   const router = useRouter();
@@ -56,12 +56,8 @@ export default function PacientesPage() {
         }
         
         if (debouncedSearchQuery) {
-          const searchVal = debouncedSearchQuery.toLowerCase().replace(/"/g, '\\"');
-          const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
-          if (terms.length > 0) {
-            const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || numero_ficha ~ "${term}")`);
-            filterParts.push(`(${termFilters.join(" && ")})`);
-          }
+          const searchFilter = buildPatientSearchFilter(debouncedSearchQuery);
+          if (searchFilter) filterParts.push(searchFilter);
         }
         
         const filterString = appendActivePatientFilter(filterParts.length > 0 ? filterParts.join(" && ") : "");

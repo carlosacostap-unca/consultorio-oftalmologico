@@ -8,7 +8,7 @@ import { ACTIVE_ROLE_CHANGED_EVENT, resolveActiveRole } from "@/lib/active-role"
 import type { UserRole } from "@/lib/permissions";
 import { createTurnoEvento, type TurnoEvento } from "@/lib/turno-eventos";
 import { formatDate } from "@/lib/utils";
-import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import { ACTIVE_PATIENT_FILTER, buildActivePatientSearchFilter } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
 import {
   blockAppliesToSlot,
@@ -1414,9 +1414,8 @@ export default function TurnosPage() {
     const timeout = window.setTimeout(async () => {
       updateQuickAppointment({ isSearching: true, error: "" });
       try {
-        const safeTerm = escapePocketBaseFilter(term);
         const result = await pb.collection("pacientes").getList<Paciente>(1, 12, {
-          filter: `${ACTIVE_PATIENT_FILTER} && (nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}")`,
+          filter: buildActivePatientSearchFilter(term, ["nombre", "apellido", "numero_documento", "telefono"]),
           sort: "apellido,nombre",
           requestKey: null,
         });

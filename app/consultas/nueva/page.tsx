@@ -5,7 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { appendActivePatientFilter } from "@/lib/patient-merge";
+import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
 import type { ConsultaEstado } from "@/lib/consulta-estado";
 import { consultaEstadoLabel } from "@/lib/consulta-estado";
 import { normalizeUserRoles } from "@/lib/permissions";
@@ -323,18 +323,9 @@ function NuevaConsultaForm() {
     const loadPatientSearchResults = async () => {
       setIsSearchingPatients(true);
       try {
-        const filterParts: string[] = [];
-        const searchVal = debouncedPatientSearchQuery.toLowerCase().replace(/"/g, '\\"');
-        const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
-
-        if (terms.length > 0) {
-          const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || numero_ficha ~ "${term}")`);
-          filterParts.push(`(${termFilters.join(" && ")})`);
-        }
-
         const result = await pb.collection("pacientes").getList<Paciente>(1, 50, {
           sort: "apellido,nombre",
-          filter: appendActivePatientFilter(filterParts.join(" && ")),
+          filter: buildActivePatientSearchFilter(debouncedPatientSearchQuery),
           expand: "mutual_id",
           requestKey: null,
         });

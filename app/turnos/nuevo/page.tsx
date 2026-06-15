@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { resolveActiveRole } from "@/lib/active-role";
 import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
-import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import { ACTIVE_PATIENT_FILTER, buildActivePatientSearchFilter } from "@/lib/patient-merge";
 
 interface Paciente {
   id: string;
@@ -85,10 +85,6 @@ function addMinutes(date: Date, minutes: number) {
 
 function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
   return startA < endB && startB < endA;
-}
-
-function escapePocketBaseFilter(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function removeAccents(str: string) {
@@ -301,9 +297,8 @@ export default function NuevoTurnoPage() {
     const timeout = window.setTimeout(async () => {
       setIsSearchingPatients(true);
       try {
-        const safeTerm = escapePocketBaseFilter(term);
         const result = await pb.collection("pacientes").getList<Paciente>(1, 20, {
-          filter: `${ACTIVE_PATIENT_FILTER} && (nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}")`,
+          filter: buildActivePatientSearchFilter(term, ["nombre", "apellido", "numero_documento", "telefono"]),
           sort: "apellido,nombre",
           requestKey: null,
         });
