@@ -1258,7 +1258,6 @@ function NuevaConsultaForm() {
                         value={formData.motivo_consulta}
                         onChange={handleInputChange}
                         rows={1}
-                        placeholder="Motivo principal de la atencion..."
                         className="min-h-10 w-full flex-1 resize-y rounded-lg border-2 border-zinc-400 bg-white px-3 py-2 text-base font-semibold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
                       />
                     </label>
