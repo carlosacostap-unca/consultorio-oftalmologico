@@ -425,7 +425,9 @@ function MenuSection({
     <div className="space-y-2">
       {title && !isCollapsed && (
         <div className="px-4 text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-500">
-          {title}
+          <span className="inline-block border-b border-zinc-400 pb-1 dark:border-zinc-600">
+            {title}
+          </span>
         </div>
       )}
       {items.map((item) => {
