@@ -641,23 +641,16 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   };
 
   const consultaDateLabel = formData.fecha
-    ? new Date(`${formData.fecha}T12:00:00`).toLocaleDateString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
+    ? formatDate(formData.fecha)
     : "-";
   const formatAuditDate = (value?: string) => {
     if (!value) return "-";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+    return `${formatDate(value)} ${date.toLocaleTimeString("es-AR", {
       hour: "2-digit",
       minute: "2-digit",
-    });
+    })}`;
   };
   const consultaEventoTipoLabel = (tipo: ConsultaEvento["tipo"]) => {
     switch (tipo) {

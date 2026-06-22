@@ -680,13 +680,13 @@ export default function TurnosPage() {
     if (turno.estado === "En consulta") return "En atencion";
     return diffMinutes > 0 ? `Atrasado ${diffMinutes} min` : "Horario actual";
   };
-  const eventDateTime = (value: string) => new Date(value).toLocaleString([], {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const eventDateTime = (value: string) => {
+    const date = new Date(value);
+    return `${formatDate(date)} ${date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+  };
   const eventDateLabel = (value?: string) => value ? `${formatDate(new Date(value))} ${shortTime(new Date(value))}` : "";
   const isSensitiveStatus = (estado: string) => estado === "Ausente" || estado === "Cancelado";
 
@@ -1191,7 +1191,8 @@ export default function TurnosPage() {
       return;
     }
 
-    const cancelNote = `[Cancelado ${new Date().toLocaleString()}] ${reason}`;
+    const now = new Date();
+    const cancelNote = `[Cancelado ${formatDate(now)} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}] ${reason}`;
     const nextObservaciones = editObservaciones.trim()
       ? `${editObservaciones.trim()}\n${cancelNote}`
       : cancelNote;
@@ -1242,7 +1243,8 @@ export default function TurnosPage() {
     const duration = slotDurationForAvailability(disponibilidad);
     const previousLabel = `${formatDate(previousDate)} ${previousDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const nextLabel = `${formatDate(nextDate)} ${nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    const note = `[Reprogramado ${new Date().toLocaleString()}] de ${previousLabel} a ${nextLabel}`;
+    const now = new Date();
+    const note = `[Reprogramado ${formatDate(now)} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}] de ${previousLabel} a ${nextLabel}`;
     const nextObservaciones = editObservaciones.trim()
       ? `${editObservaciones.trim()}\n${note}`
       : note;

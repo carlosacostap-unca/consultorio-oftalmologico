@@ -8,6 +8,7 @@ import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
 import { ACTIVE_PATIENT_FILTER, buildActivePatientSearchFilter } from "@/lib/patient-merge";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { formatDate } from "@/lib/utils";
 
 interface Paciente {
   id: string;
@@ -1120,7 +1121,7 @@ export default function NuevoTurnoPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span className="font-medium capitalize">
-                      {formData.fecha ? new Date(formData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : ''}
+                      {formData.fecha ? formatDate(new Date(formData.fecha + 'T12:00:00')) : ''}
                     </span>
                   </div>
                   <div className="hidden sm:block text-zinc-300 dark:text-zinc-700">|</div>

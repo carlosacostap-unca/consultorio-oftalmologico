@@ -8,6 +8,7 @@ import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
 import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { formatDate } from "@/lib/utils";
 
 interface Paciente {
   id: string;
@@ -740,7 +741,7 @@ export default function NuevoTurnoPage() {
                   <div>
                     <div className="text-xs text-orange-600 dark:text-orange-400 font-medium uppercase">Nuevo Sobreturno</div>
                     <div className="text-sm font-bold text-orange-700 dark:text-orange-300">
-                      {formData.fecha && formData.hora ? `${new Date(formData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${formData.hora}` : 'Horario no definido'}
+                      {formData.fecha && formData.hora ? `${formatDate(new Date(formData.fecha + 'T12:00:00'))} a las ${formData.hora}` : 'Horario no definido'}
                     </div>
                   </div>
                 </div>

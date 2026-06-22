@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ACTIVE_ROLE_CHANGED_EVENT, activeRoleJsonHeaders, canUseAdminFeatures, resolveActiveRole } from "@/lib/active-role";
 import { pb } from "@/lib/pocketbase";
 import { patientDisplayName, patientDocument } from "@/lib/patient-merge";
+import { formatDate } from "@/lib/utils";
 import type { AppUser, Patient } from "@/lib/types";
 import type { UserRole } from "@/lib/permissions";
 
@@ -503,12 +504,7 @@ function ActivityList({
 }
 
 function formatActivityDate(value?: string) {
-  if (!value) return "Sin fecha";
-  try {
-    return new Date(value).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
-  } catch {
-    return "Sin fecha";
-  }
+  return formatDate(value) || "Sin fecha";
 }
 
 function Row({ label, value }: { label: string; value: string }) {

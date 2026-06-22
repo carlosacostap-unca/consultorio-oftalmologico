@@ -15,6 +15,7 @@ import { refractionHasValues } from "@/lib/refraction";
 import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
 import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
+import { formatDate } from "@/lib/utils";
 
 interface Paciente {
   id: string;
@@ -197,14 +198,7 @@ function NuevaConsultaForm() {
 
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
   const formatClinicalDate = (value?: string) => {
-    if (!value) return "Sin fecha";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "Sin fecha";
-    return date.toLocaleDateString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    return formatDate(value) || "Sin fecha";
   };
 
   const getAntecedentesFromPaciente = (paciente: Paciente) => ({
@@ -614,13 +608,10 @@ function NuevaConsultaForm() {
   ].filter(Boolean);
 
   const turnoDateLabel = selectedTurnoData?.fecha_hora
-    ? new Date(selectedTurnoData.fecha_hora).toLocaleString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
+    ? `${formatDate(selectedTurnoData.fecha_hora)} ${new Date(selectedTurnoData.fecha_hora).toLocaleTimeString("es-AR", {
         hour: "2-digit",
         minute: "2-digit",
-      })
+      })}`
     : "";
 
   const hasTreatmentForCompletion = formData.tratamiento.trim() !== "";
