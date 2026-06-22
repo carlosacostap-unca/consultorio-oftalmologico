@@ -157,6 +157,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     !isViewMode &&
     (canChooseDoctor || (activeRole === "medico" && (!formData.medico_id || formData.medico_id === user?.id)));
   const doctorAttributionChanged = formData.medico_id !== originalMedicoId;
+  const showDoctorEditAction = isViewMode && activeRole === "medico" && canEditConsulta;
   const showSaveActions = !isReadOnly || (canEditDoctorAttribution && doctorAttributionChanged);
   const shouldAnchorConsultaNavigation = () => {
     const formTop = medicalFormRef.current
@@ -848,6 +849,11 @@ function continuityToneClass(tone: string) {
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Resumen para continuar el flujo clinico sin perder el contexto de la consulta.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
+              {showDoctorEditAction && (
+                <Link href={`/consultas/${activeConsultaId}`} className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-[#1f6b6b]">
+                  Editar consulta
+                </Link>
+              )}
               <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                 Ficha clinica
               </Link>
@@ -930,6 +936,11 @@ function continuityToneClass(tone: string) {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
+                {showDoctorEditAction && (
+                  <Link href={`/consultas/${activeConsultaId}`} className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-[#1f6b6b]">
+                    Editar consulta
+                  </Link>
+                )}
                 <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                   Ver paciente
                 </Link>

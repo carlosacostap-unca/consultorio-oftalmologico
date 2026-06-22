@@ -8,6 +8,8 @@ import type { AppUser, Consulta, Mutual, Patient, Receta } from "@/lib/types";
 import { isMergedPatient, patientDisplayName } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
 import { doctorLabel } from "@/lib/doctor-attribution";
+import { resolveActiveRole } from "@/lib/active-role";
+import type { UserRole } from "@/lib/permissions";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -30,6 +32,8 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [clinicalTimelineSearch, setClinicalTimelineSearch] = useState("");
   const [expandedClinicalTimelineEvent, setExpandedClinicalTimelineEvent] = useState<string | null>(null);
   const [showAllClinicalTimelineEvents, setShowAllClinicalTimelineEvents] = useState(false);
+  const [consultaEditLimitDays, setConsultaEditLimitDays] = useState(7);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const isMerged = isMergedPatient(paciente);
 
   const [formData, setFormData] = useState({
@@ -51,7 +55,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record as AppUser | null);
+    const authUser = pb.authStore.record as AppUser | null;
+    setUser(authUser);
+    setActiveRole(resolveActiveRole(authUser));
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -68,6 +74,20 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           setMutuales(mutualesRecords);
         } catch (error) {
           console.error("Error al cargar mutuales:", error);
+        }
+
+        try {
+          const settingsResponse = await fetch("/api/configuracion", {
+            headers: { Authorization: `Bearer ${pb.authStore.token}` },
+          });
+          if (settingsResponse.ok) {
+            const settings = await settingsResponse.json();
+            if (settings?.consultaEditLimitDays !== undefined) {
+              setConsultaEditLimitDays(settings.consultaEditLimitDays);
+            }
+          }
+        } catch (error) {
+          console.error("Error al cargar configuracion de consultas:", error);
         }
 
         // Luego cargar paciente
@@ -252,7 +272,8 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     : null;
   const edadPaciente = getPatientAge(formData.fecha_nacimiento);
   const antecedentesActivos = getAntecedentesActivos(paciente);
-  const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas);
+  const canEditConsultasAsDoctor = activeRole === "medico";
+  const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas, canEditConsultasAsDoctor, consultaEditLimitDays);
   const clinicalTimelineCounts = {
     all: clinicalTimelineAllEvents.length,
     consulta: clinicalTimelineAllEvents.filter((event) => event.type === "consulta").length,
@@ -534,6 +555,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     {consultasRecientes.map((consulta) => {
                       const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
                       const visibleFields = completedConsultaSummaryFields(consulta, tratamiento);
+                      const editHref = canEditConsultasAsDoctor && isConsultaEditable(consulta.fecha, consultaEditLimitDays)
+                        ? `/consultas/${consulta.id}`
+                        : undefined;
                       return (
                         <div key={consulta.id} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
                           <div className="flex items-center justify-between gap-2">
@@ -551,13 +575,24 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                               <p key={field.label}><span className="font-medium text-zinc-800 dark:text-zinc-200">{field.label}:</span> {field.value}</p>
                             ))}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/consultas/${consulta.id}?mode=view`)}
-                            className="mt-4 print:hidden rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                          >
-                            Abrir consulta
-                          </button>
+                          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/consultas/${consulta.id}?mode=view`)}
+                              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                            >
+                              Abrir consulta
+                            </button>
+                            {editHref && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(editHref)}
+                                className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-[#1f6b6b]"
+                              >
+                                Editar
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -672,6 +707,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                             >
                               {event.type === "consulta" ? "Abrir consulta" : "Ver receta"}
                             </button>
+                            {event.editHref && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(event.editHref!)}
+                                className="rounded-lg bg-[#2d8f8f] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#1f6b6b]"
+                              >
+                                Editar
+                              </button>
+                            )}
                             {event.printHref && (
                               <button
                                 type="button"
@@ -970,6 +1014,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Estado</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Motivo</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Diagnóstico</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -981,6 +1026,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                           fechaStr = new Date(consulta.fecha).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
                         }
                       } catch {}
+                      const editHref = canEditConsultasAsDoctor && isConsultaEditable(consulta.fecha, consultaEditLimitDays)
+                        ? `/consultas/${consulta.id}`
+                        : undefined;
 
                       return (
                         <tr
@@ -1011,6 +1059,32 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                           </td>
                           <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400 max-w-[200px] truncate" title={consulta.diagnostico}>
                             {consulta.diagnostico || "-"}
+                          </td>
+                          <td className="px-6 py-4 text-right text-sm">
+                            <div className="flex flex-wrap justify-end gap-2 print:hidden">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  router.push(`/consultas/${consulta.id}?mode=view`);
+                                }}
+                                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                              >
+                                Ver
+                              </button>
+                              {editHref && (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    router.push(editHref);
+                                  }}
+                                  className="rounded-lg bg-[#2d8f8f] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#1f6b6b]"
+                                >
+                                  Editar
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1053,6 +1127,7 @@ type ClinicalTimelineEvent = {
   secondary?: string;
   doctor: string;
   primaryHref: string;
+  editHref?: string;
   printHref?: string;
   newPrescriptionHref?: string;
   linkedConsultaHref?: string;
@@ -1070,7 +1145,12 @@ function completedConsultaSummaryFields(consulta: Consulta, tratamiento?: string
   ].filter((field) => field.value.length > 0);
 }
 
-function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): ClinicalTimelineEvent[] {
+function buildClinicalTimeline(
+  consultas: Consulta[],
+  recetas: Receta[],
+  canEditConsultasAsDoctor: boolean,
+  consultaEditLimitDays: number
+): ClinicalTimelineEvent[] {
   const consultaEvents = consultas.map((consulta) => {
     const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
     const title = consulta.motivo_consulta || "Consulta sin motivo cargado";
@@ -1086,6 +1166,9 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       secondary,
       doctor,
       primaryHref: `/consultas/${consulta.id}?mode=view`,
+      editHref: canEditConsultasAsDoctor && isConsultaEditable(consulta.fecha, consultaEditLimitDays)
+        ? `/consultas/${consulta.id}`
+        : undefined,
       printHref: `/consultas/${consulta.id}/imprimir`,
       newPrescriptionHref: `/recetas/nueva?consulta_id=${consulta.id}&paciente_id=${consulta.paciente_id}`,
       detailRows: [
@@ -1148,6 +1231,23 @@ function getDateTime(value?: string) {
   if (!value) return 0;
   const time = new Date(value).getTime();
   return Number.isNaN(time) ? 0 : time;
+}
+
+function isConsultaEditable(fecha: string | undefined, limitDays: number) {
+  if (!fecha) return true;
+
+  const consultaDate = new Date(fecha);
+  if (Number.isNaN(consultaDate.getTime())) return false;
+
+  const today = startOfDay(new Date());
+  const minDate = new Date(today);
+  minDate.setDate(today.getDate() - limitDays);
+
+  return consultaDate >= minDate;
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
 function ClinicalMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
