@@ -10,6 +10,7 @@ import { createTurnoEvento, type TurnoEvento } from "@/lib/turno-eventos";
 import { formatDate } from "@/lib/utils";
 import { ACTIVE_PATIENT_FILTER, buildActivePatientSearchFilter } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 import {
   blockAppliesToSlot,
   findConflictingAppointments,
@@ -818,12 +819,25 @@ export default function TurnosPage() {
 
     setPatientQuickCard((prev) => ({ ...prev, isSaving: true, error: "", success: "" }));
     try {
+      const numeroDocumento = normalizePatientDocumentInput(form.numero_documento);
+      if (numeroDocumento) {
+        const duplicate = await findDuplicatePatientDocumentClient(numeroDocumento, patientQuickCard.pacienteId);
+        if (duplicate) {
+          setPatientQuickCard((prev) => ({
+            ...prev,
+            isSaving: false,
+            error: duplicatePatientDocumentMessage(numeroDocumento, duplicate),
+          }));
+          return;
+        }
+      }
+
       const dataToSave = {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim(),
         tipo_documento: form.tipo_documento.trim() || "DNI",
-        numero_documento: form.numero_documento.trim(),
-        dni: form.numero_documento.trim(),
+        numero_documento: numeroDocumento,
+        dni: numeroDocumento,
         telefono: form.telefono.trim(),
         email: form.email.trim(),
         obra_social: form.obra_social.trim(),
@@ -969,15 +983,11 @@ export default function TurnosPage() {
 
     updateQuickNewPatient({ isSaving: true, error: "" });
     try {
+      const normalizedDni = normalizePatientDocumentInput(dni);
       if (dni) {
-        const safeDni = escapePocketBaseFilter(dni);
-        const existing = await pb.collection("pacientes").getList<Paciente>(1, 1, {
-          filter: `${ACTIVE_PATIENT_FILTER} && numero_documento = "${safeDni}"`,
-          requestKey: null,
-        });
-
-        if (existing.items.length > 0) {
-          updateQuickNewPatient({ error: "Ya existe un paciente registrado con este DNI.", isSaving: false });
+        const duplicate = await findDuplicatePatientDocumentClient(normalizedDni);
+        if (duplicate) {
+          updateQuickNewPatient({ error: duplicatePatientDocumentMessage(normalizedDni, duplicate), isSaving: false });
           return;
         }
       }
@@ -985,7 +995,8 @@ export default function TurnosPage() {
       const record = await pb.collection("pacientes").create<Paciente>({
         nombre,
         apellido,
-        numero_documento: dni,
+        numero_documento: normalizedDni,
+        dni: normalizedDni,
         telefono,
         obra_social: obraSocial,
       });

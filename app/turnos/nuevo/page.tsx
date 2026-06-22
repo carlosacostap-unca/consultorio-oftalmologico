@@ -7,6 +7,7 @@ import { resolveActiveRole } from "@/lib/active-role";
 import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
 import { ACTIVE_PATIENT_FILTER, buildActivePatientSearchFilter } from "@/lib/patient-merge";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 
 interface Paciente {
   id: string;
@@ -582,9 +583,10 @@ export default function NuevoTurnoPage() {
     e.preventDefault();
     setPatientError("");
 
-    // Validar DNI
-    if (pacientes.some(p => patientDocument(p) === newPatientData.dni)) {
-      setPatientError("Ya existe un paciente registrado con este DNI.");
+    const normalizedDni = normalizePatientDocumentInput(newPatientData.dni);
+    const duplicate = await findDuplicatePatientDocumentClient(normalizedDni);
+    if (duplicate) {
+      setPatientError(duplicatePatientDocumentMessage(normalizedDni, duplicate));
       return;
     }
 
@@ -593,7 +595,8 @@ export default function NuevoTurnoPage() {
       const { dni, ...patientData } = newPatientData;
       const record = await pb.collection("pacientes").create<Paciente>({
         ...patientData,
-        numero_documento: dni,
+        numero_documento: normalizedDni,
+        dni: normalizedDni,
       });
 
       setPacientes(prev => {
@@ -629,7 +632,20 @@ export default function NuevoTurnoPage() {
 
     setIsUpdatingPatient(true);
     try {
-      const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, editingPatientData);
+      const normalizedDni = normalizePatientDocumentInput(editingPatientData.dni || editingPatientData.numero_documento || "");
+      if (normalizedDni) {
+        const duplicate = await findDuplicatePatientDocumentClient(normalizedDni, formData.paciente_id);
+        if (duplicate) {
+          alert(duplicatePatientDocumentMessage(normalizedDni, duplicate));
+          return;
+        }
+      }
+
+      const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, {
+        ...editingPatientData,
+        dni: normalizedDni,
+        numero_documento: normalizedDni,
+      });
 
       setPacientes(prev => prev.map(p => p.id === formData.paciente_id ? updatedRecord : p).sort((a, b) => a.apellido.localeCompare(b.apellido)));
       setSearchTerm(`${updatedRecord.apellido}, ${updatedRecord.nombre} (DNI: ${patientDocument(updatedRecord)})`);

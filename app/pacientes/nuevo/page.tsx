@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
 import type { AppUser, Mutual } from "@/lib/types";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 
 export default function NuevoPacientePage() {
   const router = useRouter();
@@ -114,6 +115,22 @@ export default function NuevoPacientePage() {
     return true;
   };
 
+  const validateNumeroDocumento = async () => {
+    const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento);
+    if (!numeroDocumento) {
+      alert("Ingresa el numero de documento del paciente.");
+      return false;
+    }
+
+    const duplicate = await findDuplicatePatientDocumentClient(numeroDocumento);
+    if (duplicate) {
+      alert(duplicatePatientDocumentMessage(numeroDocumento, duplicate));
+      return false;
+    }
+
+    return true;
+  };
+
   const normalizeText = (value: string) =>
     value
       .normalize("NFD")
@@ -172,10 +189,18 @@ export default function NuevoPacientePage() {
         return;
       }
 
+      const isNumeroDocumentoValid = await validateNumeroDocumento();
+      if (!isNumeroDocumentoValid) {
+        setIsLoading(false);
+        return;
+      }
+
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
+      const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento);
       const dataToSave = {
         ...formData,
         tipo_documento: "DNI",
+        numero_documento: numeroDocumento,
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",

@@ -10,6 +10,7 @@ import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-es
 import { doctorLabelFromList } from "@/lib/doctor-attribution";
 import { resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -205,6 +206,22 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     return true;
   };
 
+  const validateNumeroDocumento = async () => {
+    const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento || formData.dni || "");
+    if (!numeroDocumento) {
+      alert("Ingresa el numero de documento del paciente.");
+      return false;
+    }
+
+    const duplicate = await findDuplicatePatientDocumentClient(numeroDocumento, pacienteId);
+    if (duplicate) {
+      alert(duplicatePatientDocumentMessage(numeroDocumento, duplicate));
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isMerged) {
@@ -219,9 +236,18 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
         return;
       }
 
+      const isNumeroDocumentoValid = await validateNumeroDocumento();
+      if (!isNumeroDocumentoValid) {
+        setIsLoading(false);
+        return;
+      }
+
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
+      const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento || formData.dni || "");
       const dataToSave = {
         ...formData,
+        numero_documento: numeroDocumento,
+        dni: numeroDocumento,
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",
