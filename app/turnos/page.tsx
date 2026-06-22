@@ -837,7 +837,6 @@ export default function TurnosPage() {
         apellido: form.apellido.trim(),
         tipo_documento: form.tipo_documento.trim() || "DNI",
         numero_documento: numeroDocumento,
-        dni: numeroDocumento,
         telefono: form.telefono.trim(),
         email: form.email.trim(),
         obra_social: form.obra_social.trim(),
@@ -996,7 +995,6 @@ export default function TurnosPage() {
         nombre,
         apellido,
         numero_documento: normalizedDni,
-        dni: normalizedDni,
         telefono,
         obra_social: obraSocial,
       });

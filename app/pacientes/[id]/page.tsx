@@ -244,10 +244,10 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
 
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
       const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento || formData.dni || "");
+      const { dni: _dni, ...patientData } = formData;
       const dataToSave = {
-        ...formData,
+        ...patientData,
         numero_documento: numeroDocumento,
-        dni: numeroDocumento,
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",

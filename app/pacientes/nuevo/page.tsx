@@ -201,7 +201,6 @@ export default function NuevoPacientePage() {
         ...formData,
         tipo_documento: "DNI",
         numero_documento: numeroDocumento,
-        dni: numeroDocumento,
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",

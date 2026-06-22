@@ -597,7 +597,6 @@ export default function NuevoTurnoPage() {
       const record = await pb.collection("pacientes").create<Paciente>({
         ...patientData,
         numero_documento: normalizedDni,
-        dni: normalizedDni,
       });
 
       setPacientes(prev => {
@@ -642,9 +641,9 @@ export default function NuevoTurnoPage() {
         }
       }
 
+      const { dni: _dni, ...patientData } = editingPatientData;
       const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, {
-        ...editingPatientData,
-        dni: normalizedDni,
+        ...patientData,
         numero_documento: normalizedDni,
       });
 
