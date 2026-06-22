@@ -87,6 +87,10 @@ export default function NuevoPacientePage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData((prev) => ({ ...prev, fecha_nacimiento: formatBirthDateInput(e.target.value) }));
+  };
+
   const handleNewMutualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewMutualData((prev) => ({ ...prev, [name]: value }));
@@ -197,10 +201,18 @@ export default function NuevoPacientePage() {
 
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
       const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento);
+      const fechaNacimiento = parseBirthDateForPocketBase(formData.fecha_nacimiento);
+      if (fechaNacimiento === null) {
+        alert("Ingresa la fecha de nacimiento con formato dd/mm/aaaa.");
+        setIsLoading(false);
+        return;
+      }
+
       const dataToSave = {
         ...formData,
         tipo_documento: "DNI",
         numero_documento: numeroDocumento,
+        fecha_nacimiento: fechaNacimiento,
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",
@@ -265,7 +277,7 @@ export default function NuevoPacientePage() {
                 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Fecha de Nacimiento</label>
-                  <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark]" />
+                  <input type="text" inputMode="numeric" maxLength={10} placeholder="dd/mm/aaaa" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleBirthDateChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
                 </div>
 
                 <div>
@@ -411,5 +423,33 @@ export default function NuevoPacientePage() {
       </div>
     </div>
   );
+}
+
+function formatBirthDateInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const day = digits.slice(0, 2);
+  const month = digits.slice(2, 4);
+  const year = digits.slice(4, 8);
+  return [day, month, year].filter(Boolean).join("/");
+}
+
+function parseBirthDateForPocketBase(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
+  if (!match) return null;
+
+  const [, dayText, monthText, yearText] = match;
+  const day = Number(dayText);
+  const month = Number(monthText);
+  const year = Number(yearText);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    return null;
+  }
+
+  return date.toISOString();
 }
 
