@@ -275,15 +275,13 @@ export default function ConsultasPage() {
                     </td>
                   </tr>
                 ) : (
-                  consultas.map((consulta, index) => {
-                    const fecha = new Date(consulta.fecha);
-                    return (
-                      <tr key={consulta.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                            {formatDate(fecha)}
-                          </div>
-                        </td>
+                  consultas.map((consulta, index) => (
+                    <tr key={consulta.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                          {formatDate(consulta.fecha)}
+                        </div>
+                      </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-zinc-900 dark:text-zinc-100">
                             {consulta.expand?.paciente_id ? `${consulta.expand.paciente_id.apellido}, ${consulta.expand.paciente_id.nombre}` : 'Paciente no encontrado'}
@@ -336,9 +334,8 @@ export default function ConsultasPage() {
                             </svg>
                           </button>
                         </td>
-                      </tr>
-                    );
-                  })
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
