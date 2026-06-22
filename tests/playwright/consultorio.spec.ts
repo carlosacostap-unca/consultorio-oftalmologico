@@ -9,9 +9,84 @@ const OVERBOOKING_SLOT = "09:15";
 const DEMO_PATIENT_DOCUMENT = "99000001";
 const OCCUPIED_PATIENT_DOCUMENT = "99000002";
 const ADMIN_SECRETARY_EMAIL = "admin.secretaria.demo@consultorio.local";
+const PASSWORD_SETUP_EMAIL = "password.setup.demo@consultorio.local";
 const PATIENT_SEARCH_PLACEHOLDER = /Buscar por apellido, nombre/;
 const ACTIVE_ROLE_HEADER = "x-active-role";
 const TEST_PB_MARKERS = ["test", "testing", "localhost", "127.0.0.1"];
+
+test.describe("configuracion de contrasena post login", () => {
+  test("usuario autenticado sin contrasena configurada no ve el panel hasta guardar contrasena", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const userId = await getUserIdByEmail(request, env, adminToken, PASSWORD_SETUP_EMAIL);
+
+    await resetPasswordSetupDemoUser(request, env, adminToken, userId);
+    const auth = await authenticateUser(request, env, PASSWORD_SETUP_EMAIL);
+
+    await page.addInitScript((authData) => {
+      window.localStorage.setItem("pocketbase_auth", JSON.stringify(authData));
+    }, { token: auth.token, record: auth.record });
+
+    try {
+      await page.goto("/");
+      await expect(page.getByRole("heading", { name: "Configura tu contrasena" })).toBeVisible();
+      await expect(page.getByText("Rol activo: Secretaria")).toHaveCount(0);
+
+      await page.getByLabel("Nueva contrasena").fill("ClaveNueva123!");
+      await page.getByLabel("Repetir contrasena").fill("OtraClave123!");
+      await page.getByRole("button", { name: "Guardar contrasena" }).click();
+      await expect(page.getByText("Las contrasenas no coinciden.")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Configura tu contrasena" })).toBeVisible();
+
+      await page.getByLabel("Repetir contrasena").fill("ClaveNueva123!");
+      const passwordResponse = page.waitForResponse(
+        (response) => response.url().includes("/api/usuarios/password") && response.request().method() === "POST"
+      );
+      await page.getByRole("button", { name: "Guardar contrasena" }).click();
+      expect((await passwordResponse).ok()).toBeTruthy();
+      await expect(page.getByText("Rol activo: Secretaria")).toBeVisible();
+
+      const updated = await pbGet(request, env, adminToken, "users", userId);
+      expect(updated.password_configured).toBe(true);
+    } finally {
+      await resetPasswordSetupDemoUser(request, env, adminToken, userId);
+    }
+  });
+
+  test("usuario cambia su contrasena desde el perfil lateral", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const userId = await getUserIdByEmail(request, env, adminToken, "secretaria.demo@consultorio.local");
+
+    try {
+      await login(page, "secretaria.demo@consultorio.local");
+      await page.getByRole("button", { name: "Expandir menu lateral" }).click();
+      await page.getByRole("button", { name: "Abrir opciones de usuario" }).click();
+      await expect(page.getByRole("button", { name: "Cambiar contrasena" })).toBeVisible();
+
+      await page.getByRole("button", { name: "Cambiar contrasena" }).click();
+      await expect(page.getByRole("heading", { name: "Cambiar contrasena" })).toBeVisible();
+      await page.getByLabel("Nueva contrasena").fill("NuevaSecretaria123!");
+      await page.getByLabel("Repetir contrasena").fill("OtraSecretaria123!");
+      await page.getByRole("button", { name: "Guardar" }).click();
+      await expect(page.getByText("Las contrasenas no coinciden.")).toBeVisible();
+
+      await page.getByLabel("Repetir contrasena").fill("NuevaSecretaria123!");
+      const passwordResponse = page.waitForResponse(
+        (response) => response.url().includes("/api/usuarios/password") && response.request().method() === "PATCH"
+      );
+      await page.getByRole("button", { name: "Guardar" }).click();
+      expect((await passwordResponse).ok()).toBeTruthy();
+      await expect(page.getByRole("heading", { name: "Cambiar contrasena" })).toHaveCount(0);
+      await expect(page.getByText("Contrasena actualizada.")).toBeVisible();
+      await expect(page.getByText("Rol activo: Secretaria")).toBeVisible();
+    } finally {
+      await resetDemoUserPassword(request, env, adminToken, userId);
+    }
+  });
+});
 
 test.describe("roles y otorgamiento de turnos", () => {
   test("secretaria ingresa y puede ver todos los medicos", async ({ page }) => {
@@ -1526,6 +1601,18 @@ async function getUserToken(request: APIRequestContext, env: Record<string, stri
   return (await response.json()).token as string;
 }
 
+async function authenticateUser(request: APIRequestContext, env: Record<string, string>, email: string) {
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/users/auth-with-password`, {
+    data: {
+      identity: email,
+      password: DEMO_PASSWORD,
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<{ token: string; record: Record<string, string | boolean> }>;
+}
+
 async function getUserIdByEmail(
   request: APIRequestContext,
   env: Record<string, string>,
@@ -1864,6 +1951,40 @@ async function updateDemoPatient(
   const response = await request.patch(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${patientId}`, {
     headers: { Authorization: `Bearer ${token}` },
     data,
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+async function resetPasswordSetupDemoUser(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  userId: string
+) {
+  const response = await request.patch(`${pocketBaseUrl(env)}/api/collections/users/records/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      password: DEMO_PASSWORD,
+      passwordConfirm: DEMO_PASSWORD,
+      password_configured: false,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+async function resetDemoUserPassword(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  userId: string
+) {
+  const response = await request.patch(`${pocketBaseUrl(env)}/api/collections/users/records/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      password: DEMO_PASSWORD,
+      passwordConfirm: DEMO_PASSWORD,
+      password_configured: true,
+    },
   });
   expect(response.ok()).toBeTruthy();
 }

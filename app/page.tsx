@@ -127,6 +127,9 @@ export default function Home() {
   const [emailLogin, setEmailLogin] = useState("");
   const [passwordLogin, setPasswordLogin] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [passwordSetupError, setPasswordSetupError] = useState("");
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -185,6 +188,7 @@ export default function Home() {
   const loginWithGoogle = async () => {
     setIsLoading(true);
     setLoginError("");
+    setPasswordSetupError("");
 
     try {
       await pb.collection("users").authWithOAuth2({ provider: "google" });
@@ -200,6 +204,7 @@ export default function Home() {
     event.preventDefault();
     setIsLoading(true);
     setLoginError("");
+    setPasswordSetupError("");
 
     try {
       const authData = await pb.collection("users").authWithPassword(emailLogin.trim(), passwordLogin);
@@ -209,6 +214,12 @@ export default function Home() {
       if (resolvedRole && authUser.id) {
         setActiveRole(authUser.id, resolvedRole);
       }
+
+      if (authUser.password_configured !== true) {
+        const updatedUser = await saveUserPassword(passwordLogin, passwordLogin);
+        pb.authStore.save(pb.authStore.token, updatedUser);
+        setUser(updatedUser);
+      }
     } catch (error) {
       console.error("Error al iniciar sesion con email:", error);
       setLoginError("No se pudo iniciar sesion. Revisa el email y la contrasena.");
@@ -217,13 +228,132 @@ export default function Home() {
     }
   };
 
+  const saveUserPassword = async (password: string, passwordConfirm: string) => {
+    const response = await fetch("/api/usuarios/password", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${pb.authStore.token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ password, passwordConfirm }),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(typeof data.error === "string" ? data.error : "No se pudo configurar la contrasena");
+    }
+
+    return data as AppUser;
+  };
+
+  const setupPassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordSetupError("");
+
+    if (newPassword.length < 8) {
+      setPasswordSetupError("La contrasena debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      setPasswordSetupError("Las contrasenas no coinciden.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const updatedUser = await saveUserPassword(newPassword, newPasswordConfirm);
+      pb.authStore.save(pb.authStore.token, updatedUser);
+      setUser(updatedUser);
+
+      setNewPassword("");
+      setNewPasswordConfirm("");
+    } catch (error) {
+      console.error("Error al configurar contrasena:", error);
+      setPasswordSetupError(error instanceof Error ? error.message : "No se pudo configurar la contrasena.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const logout = () => {
     clearActiveRole(user?.id);
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    setPasswordSetupError("");
     pb.authStore.clear();
   };
 
   if (!isMounted) {
     return null;
+  }
+
+  if (user && user.password_configured !== true) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 p-4 dark:bg-zinc-900">
+        <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-8 text-center shadow-lg dark:border-zinc-800 dark:bg-black">
+          <div className="mb-8 flex justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 shadow-lg shadow-blue-500/30">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-8 w-8 text-white">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            </div>
+          </div>
+
+          <h1 className="mb-3 text-3xl font-bold text-zinc-900 dark:text-zinc-100">Configura tu contrasena</h1>
+          <p className="mb-8 text-zinc-500 dark:text-zinc-400">
+            Antes de ingresar, crea una contrasena para poder acceder tambien con email.
+          </p>
+
+          <form onSubmit={setupPassword} className="space-y-4 text-left">
+            <div>
+              <label htmlFor="new-password" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Nueva contrasena</label>
+              <input
+                id="new-password"
+                required
+                minLength={8}
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+              />
+            </div>
+            <div>
+              <label htmlFor="new-password-confirm" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">Repetir contrasena</label>
+              <input
+                id="new-password-confirm"
+                required
+                minLength={8}
+                type="password"
+                value={newPasswordConfirm}
+                onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+              />
+            </div>
+            {passwordSetupError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                {passwordSetupError}
+              </div>
+            )}
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full rounded-xl bg-blue-600 px-4 py-3 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {isLoading ? "Guardando..." : "Guardar contrasena"}
+            </button>
+          </form>
+
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-4 w-full rounded-xl bg-zinc-100 px-4 py-3 font-medium text-zinc-800 transition-colors hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            Cerrar sesion
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (user) {

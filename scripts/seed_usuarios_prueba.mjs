@@ -38,6 +38,12 @@ const DEMO_USERS = [
     name: "Multi Rol Demo",
     roles: ["medico", "secretaria"],
   },
+  {
+    email: "password.setup.demo@consultorio.local",
+    name: "Password Setup Demo",
+    roles: ["secretaria"],
+    passwordConfigured: false,
+  },
 ];
 
 const token = await adminToken();
@@ -59,6 +65,7 @@ async function upsertUser(user) {
     name: user.name,
     role,
     roles: user.roles,
+    password_configured: user.passwordConfigured ?? true,
     verified: true,
     emailVisibility: true,
   };

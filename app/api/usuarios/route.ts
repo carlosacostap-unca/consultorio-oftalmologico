@@ -95,6 +95,7 @@ export async function POST(request: NextRequest) {
         passwordConfirm: password,
         role: legacyRole,
         roles,
+        password_configured: false,
         verified: true,
         emailVisibility: true,
       }),

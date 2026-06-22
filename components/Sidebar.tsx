@@ -27,7 +27,15 @@ export function Sidebar() {
   const [activeRole, setCurrentActiveRole] = useState<UserRole | null>(null);
   const [currentHash, setCurrentHash] = useState("");
   const [isRoleMenuOpen, setIsRoleMenuOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [isSavingPassword, setIsSavingPassword] = useState(false);
   const roleMenuRef = useRef<HTMLDivElement | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
@@ -109,17 +117,21 @@ export function Sidebar() {
   }, []);
 
   useEffect(() => {
-    if (!isRoleMenuOpen) return;
+    if (!isRoleMenuOpen && !isProfileMenuOpen) return;
 
     const closeOnOutsideClick = (event: MouseEvent) => {
       if (!roleMenuRef.current?.contains(event.target as Node)) {
         setIsRoleMenuOpen(false);
+      }
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
       }
     };
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsRoleMenuOpen(false);
+        setIsProfileMenuOpen(false);
       }
     };
 
@@ -130,7 +142,7 @@ export function Sidebar() {
       document.removeEventListener("mousedown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [isRoleMenuOpen]);
+  }, [isRoleMenuOpen, isProfileMenuOpen]);
 
   if (!isMounted || !isLoggedIn) {
     return null;
@@ -140,6 +152,7 @@ export function Sidebar() {
 
   const toggleCollapsed = () => {
     setIsRoleMenuOpen(false);
+    setIsProfileMenuOpen(false);
     setIsCollapsed((current) => {
       const next = !current;
       try {
@@ -160,12 +173,71 @@ export function Sidebar() {
 
   const logout = () => {
     setIsRoleMenuOpen(false);
+    setIsProfileMenuOpen(false);
+    closePasswordModal();
     pb.authStore.clear();
     setIsLoggedIn(false);
     setUser(null);
     setAssignedRoles([]);
     setCurrentActiveRole(null);
     router.push("/");
+  };
+
+  const openPasswordModal = () => {
+    setIsProfileMenuOpen(false);
+    setPasswordSuccess("");
+    setPasswordError("");
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    setIsPasswordModalOpen(true);
+  };
+
+  const closePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setPasswordError("");
+    setNewPassword("");
+    setNewPasswordConfirm("");
+    setIsSavingPassword(false);
+  };
+
+  const changePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    if (newPassword.length < 8) {
+      setPasswordError("La contrasena debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    if (newPassword !== newPasswordConfirm) {
+      setPasswordError("Las contrasenas no coinciden.");
+      return;
+    }
+
+    setIsSavingPassword(true);
+    try {
+      const response = await fetch("/api/usuarios/password", {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${pb.authStore.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ password: newPassword, passwordConfirm: newPasswordConfirm }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(typeof data.error === "string" ? data.error : "No se pudo cambiar la contrasena");
+      }
+
+      closePasswordModal();
+      setPasswordSuccess("Contrasena actualizada.");
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "No se pudo cambiar la contrasena.");
+    } finally {
+      setIsSavingPassword(false);
+    }
   };
 
   const activeRoleName = activeRoleLabel(activeRole);
@@ -213,28 +285,62 @@ export function Sidebar() {
       </nav>
       {user && (
         <div className={`${isCollapsed ? "p-3" : "p-4"} border-t border-zinc-200 dark:border-zinc-800`}>
-          <div className={`flex items-center ${isCollapsed ? "justify-center" : "gap-3"}`}>
-            {user.avatar ? (
+          <div ref={profileMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setIsProfileMenuOpen((current) => !current);
+                setIsRoleMenuOpen(false);
+              }}
+              aria-label="Abrir opciones de usuario"
+              aria-expanded={isProfileMenuOpen}
+              title={user.name || user.email || "Usuario"}
+              className={`flex w-full items-center rounded-xl text-left transition-colors hover:bg-zinc-100 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:hover:bg-zinc-800 ${
+                isCollapsed ? "justify-center p-1" : "gap-3 p-2 -m-2"
+              }`}
+            >
+              {user.avatar ? (
+                <span
+                  aria-label="Avatar"
+                  className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-700 bg-cover bg-center shrink-0"
+                  style={{ backgroundImage: `url(${pb.files.getURL(user, user.avatar)})` }}
+                />
+              ) : (
+                <span className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
+                  {user.name?.charAt(0) || user.email?.charAt(0) || "U"}
+                </span>
+              )}
+              {!isCollapsed && (
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                    {user.name || user.email || "Usuario"}
+                  </span>
+                  <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{user.email}</span>
+                </span>
+              )}
+            </button>
+            {isProfileMenuOpen && (
               <div
-                aria-label="Avatar"
-                title={user.name || user.email || "Usuario"}
-                className="w-10 h-10 rounded-full border border-zinc-200 dark:border-zinc-700 bg-cover bg-center shrink-0"
-                style={{ backgroundImage: `url(${pb.files.getURL(user, user.avatar)})` }}
-              />
-            ) : (
-              <div title={user.name || user.email || "Usuario"} className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold shrink-0">
-                {user.name?.charAt(0) || user.email?.charAt(0) || "U"}
+                className={`absolute z-50 w-52 rounded-xl border border-zinc-200 bg-white p-1 shadow-xl shadow-zinc-900/10 dark:border-zinc-800 dark:bg-zinc-950 dark:shadow-black/40 ${
+                  isCollapsed ? "bottom-0 left-full ml-2" : "bottom-full left-0 mb-2"
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={openPasswordModal}
+                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  <LockIcon className="h-4 w-4" />
+                  Cambiar contrasena
+                </button>
               </div>
-            )}
-            {!isCollapsed && (
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">
-                {user.name || user.email || "Usuario"}
-              </div>
-              <div className="text-xs text-zinc-500 dark:text-zinc-400 truncate">{user.email}</div>
-            </div>
             )}
           </div>
+          {passwordSuccess && !isCollapsed && (
+            <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/20 dark:text-emerald-300">
+              {passwordSuccess}
+            </div>
+          )}
           {isCollapsed && (
             <div className="mt-3 flex flex-col items-center gap-2">
               {assignedRoles.length > 1 ? (
@@ -323,6 +429,80 @@ export function Sidebar() {
               Cerrar sesion
             </button>
           )}
+        </div>
+      )}
+      {isPasswordModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-zinc-950/60 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-950">
+            <div className="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Cambiar contrasena</h2>
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+                  Ingresa y repeti la nueva contrasena para tu usuario.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                aria-label="Cerrar"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              >
+                <CloseIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={changePassword} className="space-y-4">
+              <div>
+                <label htmlFor="sidebar-new-password" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Nueva contrasena
+                </label>
+                <input
+                  id="sidebar-new-password"
+                  required
+                  minLength={8}
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                />
+              </div>
+              <div>
+                <label htmlFor="sidebar-new-password-confirm" className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Repetir contrasena
+                </label>
+                <input
+                  id="sidebar-new-password-confirm"
+                  required
+                  minLength={8}
+                  type="password"
+                  value={newPasswordConfirm}
+                  onChange={(event) => setNewPasswordConfirm(event.target.value)}
+                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200"
+                />
+              </div>
+              {passwordError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                  {passwordError}
+                </div>
+              )}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closePasswordModal}
+                  className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-800 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSavingPassword}
+                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSavingPassword ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </aside>
@@ -490,6 +670,27 @@ function CheckIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m5 13 4 4L19 7" />
+    </svg>
+  );
+}
+
+function LockIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 10.5h10.5a2.25 2.25 0 0 0 2.25-2.25v-6a2.25 2.25 0 0 0-2.25-2.25H6.75A2.25 2.25 0 0 0 4.5 12.75v6A2.25 2.25 0 0 0 6.75 21Z"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18 18 6M6 6l12 12" />
     </svg>
   );
 }
