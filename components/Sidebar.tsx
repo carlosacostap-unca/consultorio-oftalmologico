@@ -356,6 +356,7 @@ function getMenuSections(activeRole: UserRole | null): MenuSectionDefinition[] {
         title: "Calidad de datos",
         items: [
           { name: "Duplicados", href: "/pacientes/duplicados" },
+          { name: "DNI duplicados", href: "/pacientes/dni-duplicados" },
           { name: "Fichas duplicadas", href: "/pacientes/fichas-duplicadas" },
         ],
       },
