@@ -241,7 +241,7 @@ function NuevaConsultaForm() {
     const authUser = pb.authStore.record as AppUser | null;
     const accountDoctorId = normalizeUserRoles(authUser).includes("medico") ? authUser?.id || "" : "";
     setUser(authUser);
-    setActiveRole(resolveActiveRole(authUser, ["medico"]));
+    setActiveRole(accountDoctorId ? "medico" : resolveActiveRole(authUser, ["medico"]));
 
     if (accountDoctorId) {
       setFormData((prev) => ({ ...prev, medico_id: accountDoctorId }));

@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/utils";
 import type { AppUser, Medico, Patient } from "@/lib/types";
 import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList } from "@/lib/doctor-attribution";
 
 interface Consulta {
   id: string;
@@ -30,6 +30,7 @@ export default function ConsultasPage() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Estados para paginación y filtros
@@ -121,6 +122,17 @@ export default function ConsultasPage() {
 
     loadData();
   }, [router, page, selectedLetter, debouncedFilterPatient, filterDate]);
+
+  useEffect(() => {
+    if (!pb.authStore.isValid) return;
+
+    fetch("/api/medicos", {
+      headers: { Authorization: `Bearer ${pb.authStore.token}` },
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setMedicos(Array.isArray(data?.medicos) ? data.medicos : []))
+      .catch((error) => console.error("Error al cargar medicos:", error));
+  }, []);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta consulta?")) {
@@ -278,7 +290,7 @@ export default function ConsultasPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
-                          {doctorLabel(consulta.expand?.medico_id)}
+                          {doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos)}
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
                           {consulta.numero_ficha || consulta.expand?.paciente_id?.numero_ficha || '-'}

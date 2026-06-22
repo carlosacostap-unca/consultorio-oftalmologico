@@ -4,10 +4,10 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
-import type { AppUser, Consulta, Mutual, Patient, Receta } from "@/lib/types";
+import type { AppUser, Consulta, Medico, Mutual, Patient, Receta } from "@/lib/types";
 import { isMergedPatient, patientDisplayName } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList } from "@/lib/doctor-attribution";
 import { resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
 
@@ -22,6 +22,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [user, setUser] = useState<AppUser | null>(null);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [mutuales, setMutuales] = useState<Mutual[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoadingConsultas, setIsLoadingConsultas] = useState(true);
@@ -74,6 +75,18 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           setMutuales(mutualesRecords);
         } catch (error) {
           console.error("Error al cargar mutuales:", error);
+        }
+
+        try {
+          const medicosResponse = await fetch("/api/medicos", {
+            headers: { Authorization: `Bearer ${pb.authStore.token}` },
+          });
+          if (medicosResponse.ok) {
+            const medicosData = await medicosResponse.json();
+            setMedicos(Array.isArray(medicosData.medicos) ? medicosData.medicos : []);
+          }
+        } catch (error) {
+          console.error("Error al cargar medicos:", error);
         }
 
         try {
@@ -273,7 +286,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const edadPaciente = getPatientAge(formData.fecha_nacimiento);
   const antecedentesActivos = getAntecedentesActivos(paciente);
   const canEditConsultasAsDoctor = activeRole === "medico";
-  const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas, canEditConsultasAsDoctor, consultaEditLimitDays);
+  const doctorNameForConsulta = (consulta: Consulta) => doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos);
+  const doctorNameForReceta = (receta: Receta) => doctorLabelFromList(receta.medico_id, receta.expand?.medico_id, medicos);
+  const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas, canEditConsultasAsDoctor, consultaEditLimitDays, medicos);
   const clinicalTimelineCounts = {
     all: clinicalTimelineAllEvents.length,
     consulta: clinicalTimelineAllEvents.filter((event) => event.type === "consulta").length,
@@ -446,7 +461,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     {ultimaConsulta ? (
                       <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
                         <div className="font-semibold text-blue-700 dark:text-blue-300">{formatDate(ultimaConsulta.fecha)}</div>
-                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(ultimaConsulta.expand?.medico_id)}</p>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorNameForConsulta(ultimaConsulta)}</p>
                         {completedConsultaSummaryFields(ultimaConsulta, ultimoTratamiento).map((field) => (
                           <p key={field.label}><span className="font-medium text-zinc-800 dark:text-zinc-200">{field.label}:</span> {field.value}</p>
                         ))}
@@ -570,7 +585,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                             <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta}</div>
                           )}
                           <div className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
-                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(consulta.expand?.medico_id)}</p>
+                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorNameForConsulta(consulta)}</p>
                             {visibleFields.filter((field) => field.label !== "Motivo").map((field) => (
                               <p key={field.label}><span className="font-medium text-zinc-800 dark:text-zinc-200">{field.label}:</span> {field.value}</p>
                             ))}
@@ -795,7 +810,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{formatDate(receta.fecha)}</span>
                       <div className="min-w-0 text-sm text-zinc-600 dark:text-zinc-400">
                         <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{receta.medicamentos || "Sin medicamentos cargados"}</div>
-                        <div className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-500">Medico: {doctorLabel(receta.expand?.medico_id)}</div>
+                        <div className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-500">Medico: {doctorNameForReceta(receta)}</div>
                         {receta.indicaciones && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-500">{receta.indicaciones}</div>}
                         <div className="mt-2 text-xs">
                           {receta.consulta_id ? (
@@ -1047,7 +1062,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                             {fechaStr}
                           </td>
                           <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                            {doctorLabel(consulta.expand?.medico_id)}
+                            {doctorNameForConsulta(consulta)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
@@ -1149,14 +1164,15 @@ function buildClinicalTimeline(
   consultas: Consulta[],
   recetas: Receta[],
   canEditConsultasAsDoctor: boolean,
-  consultaEditLimitDays: number
+  consultaEditLimitDays: number,
+  medicos: readonly Medico[]
 ): ClinicalTimelineEvent[] {
   const consultaEvents = consultas.map((consulta) => {
     const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
     const title = consulta.motivo_consulta || "Consulta sin motivo cargado";
     const description = consulta.diagnostico ? `Diagnostico: ${consulta.diagnostico}` : "";
     const secondary = tratamiento ? `Tratamiento: ${tratamiento}` : undefined;
-    const doctor = doctorLabel(consulta.expand?.medico_id);
+    const doctor = doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos);
     return {
       key: `consulta-${consulta.id}`,
       type: "consulta" as const,
@@ -1188,7 +1204,7 @@ function buildClinicalTimeline(
     const secondary = receta.consulta_id
       ? `Vinculada a consulta${receta.expand?.consulta_id?.fecha ? ` del ${formatDate(receta.expand.consulta_id.fecha)}` : ""}`
       : "Receta libre";
-    const doctor = doctorLabel(receta.expand?.medico_id);
+    const doctor = doctorLabelFromList(receta.medico_id, receta.expand?.medico_id, medicos);
 
     return {
       key: `receta-${receta.id}`,

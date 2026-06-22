@@ -23,6 +23,13 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: "Selecciona el medico responsable de la consulta." }, { status: 400 });
     }
 
+    if (activeRole !== "medico" || String(user.id || "") !== medicoId) {
+      return Response.json(
+        { error: "Solo el medico responsable logueado puede crear una consulta." },
+        { status: 403 }
+      );
+    }
+
     const validation = await validateDoctorAssignment(user, activeRole, medicoId);
     if (!validation.ok) {
       return Response.json({ error: validation.error }, { status: 403 });
