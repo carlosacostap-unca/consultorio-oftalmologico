@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const documento = normalizePatientDocument(searchParams.get("documento") || "");
+  const tipoDocumento = (searchParams.get("tipo_documento") || "DNI").trim().toUpperCase();
   const excludeId = searchParams.get("exclude_id") || "";
 
   try {
@@ -12,9 +13,10 @@ export async function GET(request: Request) {
       return Response.json({ documento, exists: false, duplicate: null });
     }
 
-    const duplicate = await findDuplicatePatientDocument(documento, excludeId);
+    const duplicate = await findDuplicatePatientDocument(documento, excludeId, tipoDocumento);
     return Response.json({
       documento,
+      tipo_documento: tipoDocumento,
       exists: Boolean(duplicate),
       duplicate,
     });

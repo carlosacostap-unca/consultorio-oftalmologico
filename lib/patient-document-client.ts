@@ -4,13 +4,13 @@ export function normalizePatientDocumentInput(value: string) {
   return digits || trimmed;
 }
 
-export async function findDuplicatePatientDocumentClient(documento: string, excludeId = "") {
+export async function findDuplicatePatientDocumentClient(documento: string, excludeId = "", tipoDocumento = "DNI") {
   const normalized = normalizePatientDocumentInput(documento);
   if (!normalized) {
     return null;
   }
 
-  const params = new URLSearchParams({ documento: normalized });
+  const params = new URLSearchParams({ documento: normalized, tipo_documento: tipoDocumento });
   if (excludeId) {
     params.set("exclude_id", excludeId);
   }
