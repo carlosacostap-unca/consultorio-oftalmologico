@@ -5,6 +5,7 @@ import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
 import type { AppUser, Mutual } from "@/lib/types";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { formatBirthDateInput, parseBirthDateInputForPocketBase } from "@/lib/patient-birth-date";
 
 export default function NuevoPacientePage() {
   const router = useRouter();
@@ -201,7 +202,7 @@ export default function NuevoPacientePage() {
 
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
       const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento);
-      const fechaNacimiento = parseBirthDateForPocketBase(formData.fecha_nacimiento);
+      const fechaNacimiento = parseBirthDateInputForPocketBase(formData.fecha_nacimiento);
       if (fechaNacimiento === null) {
         alert("Ingresa la fecha de nacimiento con formato dd/mm/aaaa.");
         setIsLoading(false);
@@ -423,33 +424,5 @@ export default function NuevoPacientePage() {
       </div>
     </div>
   );
-}
-
-function formatBirthDateInput(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 8);
-  const day = digits.slice(0, 2);
-  const month = digits.slice(2, 4);
-  const year = digits.slice(4, 8);
-  return [day, month, year].filter(Boolean).join("/");
-}
-
-function parseBirthDateForPocketBase(value: string) {
-  const trimmed = value.trim();
-  if (!trimmed) return "";
-
-  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(trimmed);
-  if (!match) return null;
-
-  const [, dayText, monthText, yearText] = match;
-  const day = Number(dayText);
-  const month = Number(monthText);
-  const year = Number(yearText);
-  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
-
-  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
-    return null;
-  }
-
-  return date.toISOString();
 }
 

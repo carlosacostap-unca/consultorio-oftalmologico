@@ -12,6 +12,7 @@ import { resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 import { isClinicalDateWithinLimit } from "@/lib/clinical-date";
+import { patientBirthAgeLabel, patientBirthDateKey, patientBirthDateToStoredDateTime } from "@/lib/patient-birth-date";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -139,14 +140,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           setIsLoadingRecetas(false);
         }
         
-        let fechaNacimiento = "";
-        if (record.fecha_nacimiento) {
-          try {
-            fechaNacimiento = new Date(record.fecha_nacimiento).toISOString().split('T')[0];
-          } catch (e) {
-            console.error("Error al formatear fecha:", e);
-          }
-        }
+        const fechaNacimiento = patientBirthDateKey(record.fecha_nacimiento);
 
         setFormData({
           nombre: record.nombre || "",
@@ -249,6 +243,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
       const dataToSave = {
         ...patientData,
         numero_documento: numeroDocumento,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(formData.fecha_nacimiento),
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",
@@ -310,7 +305,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
             onClick: () => router.push(`/consultas/${ultimaConsulta.id}?mode=view`),
           }
     : null;
-  const edadPaciente = getPatientAge(formData.fecha_nacimiento);
+  const edadPaciente = patientBirthAgeLabel(formData.fecha_nacimiento);
   const antecedentesActivos = getAntecedentesActivos(paciente);
   const canEditConsultasAsDoctor = activeRole === "medico";
   const doctorNameForConsulta = (consulta: Consulta) => doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos);
@@ -1304,23 +1299,6 @@ function getAntecedentesActivos(paciente: Patient | null) {
     paciente.ant_herpes ? "Herpes" : "",
     paciente.ant_otra?.trim() || "",
   ].filter(Boolean);
-}
-
-function getPatientAge(fechaNacimiento: string) {
-  if (!fechaNacimiento) return "";
-
-  const birthDate = new Date(`${fechaNacimiento}T00:00:00`);
-  if (Number.isNaN(birthDate.getTime())) return "";
-
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age -= 1;
-  }
-
-  return `${age} anos`;
 }
 
 function formatDate(value?: string) {

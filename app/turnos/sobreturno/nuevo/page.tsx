@@ -9,6 +9,7 @@ import type { UserRole } from "@/lib/permissions";
 import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 import { formatDate } from "@/lib/utils";
+import { patientBirthDateKey, patientBirthDateToStoredDateTime } from "@/lib/patient-birth-date";
 
 interface Paciente {
   id: string;
@@ -396,6 +397,7 @@ export default function NuevoTurnoPage() {
       const { dni: _dni, ...patientData } = newPatientData;
       const record = await pb.collection("pacientes").create<Paciente>({
         ...patientData,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(newPatientData.fecha_nacimiento),
         numero_documento: normalizedDni,
       });
       
@@ -444,6 +446,7 @@ export default function NuevoTurnoPage() {
       const { dni: _dni, ...patientData } = editingPatientData;
       const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, {
         ...patientData,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(editingPatientData.fecha_nacimiento),
         numero_documento: normalizedDni,
       });
       
@@ -546,7 +549,7 @@ export default function NuevoTurnoPage() {
                             onClick={() => {
                               setFormData(prev => ({ ...prev, paciente_id: p.id }));
                               setSearchTerm(`${p.apellido}, ${p.nombre} (DNI: ${patientDocument(p)})`);
-                              setEditingPatientData(p);
+                              setEditingPatientData({ ...p, fecha_nacimiento: patientBirthDateKey(p.fecha_nacimiento) });
                               setIsEditingPatient(false);
                               setShowDropdown(false);
                             }}
@@ -590,7 +593,7 @@ export default function NuevoTurnoPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingPatientData(selectedPatient);
+                          setEditingPatientData({ ...selectedPatient, fecha_nacimiento: patientBirthDateKey(selectedPatient.fecha_nacimiento) });
                           setIsEditingPatient(true);
                         }}
                         className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded"
@@ -604,7 +607,7 @@ export default function NuevoTurnoPage() {
                           type="button"
                           onClick={() => {
                             setIsEditingPatient(false);
-                            setEditingPatientData(selectedPatient);
+                            setEditingPatientData({ ...selectedPatient, fecha_nacimiento: patientBirthDateKey(selectedPatient.fecha_nacimiento) });
                           }}
                           className="text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 font-medium px-2 py-1"
                         >

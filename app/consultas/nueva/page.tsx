@@ -17,6 +17,7 @@ import type { UserRole } from "@/lib/permissions";
 import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { clinicalDateToStoredDateTime, todayClinicalDateKey } from "@/lib/clinical-date";
 import { formatDate } from "@/lib/utils";
+import { patientBirthAge } from "@/lib/patient-birth-date";
 
 interface Paciente {
   id: string;
@@ -567,15 +568,7 @@ function NuevaConsultaForm() {
 
   // Función auxiliar para calcular edad
   const calcularEdad = (fechaNacimiento: string) => {
-    if (!fechaNacimiento) return "-";
-    const hoy = new Date();
-    const nacimiento = new Date(fechaNacimiento);
-    let edad = hoy.getFullYear() - nacimiento.getFullYear();
-    const m = hoy.getMonth() - nacimiento.getMonth();
-    if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-      edad--;
-    }
-    return edad;
+    return patientBirthAge(fechaNacimiento) ?? "-";
   };
 
   const pacienteNombre = selectedPacienteData

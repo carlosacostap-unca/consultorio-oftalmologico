@@ -17,6 +17,7 @@ import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
 import { emptyIfOptionalClinicalZero, normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { clinicalDateKey, clinicalDateToStoredDateTime, isClinicalDateWithinLimit, todayClinicalDateKey } from "@/lib/clinical-date";
+import { patientBirthAge } from "@/lib/patient-birth-date";
 
 interface Paciente {
   id: string;
@@ -620,15 +621,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   // Función auxiliar para calcular edad
   const calcularEdad = (fechaNacimiento: string) => {
-    if (!fechaNacimiento) return "-";
-    const hoy = new Date();
-    const nacimiento = new Date(fechaNacimiento);
-    let edad = hoy.getFullYear() - nacimiento.getFullYear();
-    const m = hoy.getMonth() - nacimiento.getMonth();
-    if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-      edad--;
-    }
-    return edad;
+    return patientBirthAge(fechaNacimiento) ?? "-";
   };
 
   const displayValue = (value?: string | number | null) => {
