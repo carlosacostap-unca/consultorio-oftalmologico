@@ -9,6 +9,7 @@ import type { AppUser, Medico, Patient } from "@/lib/types";
 import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
 import { doctorLabelFromList } from "@/lib/doctor-attribution";
+import { todayClinicalDateKey } from "@/lib/clinical-date";
 
 interface Consulta {
   id: string;
@@ -93,12 +94,14 @@ export default function ConsultasPage() {
       }
       if (filterDate) {
         filterParts.push(`fecha >= "${filterDate} 00:00:00" && fecha <= "${filterDate} 23:59:59"`);
+      } else {
+        filterParts.push(`fecha <= "${todayClinicalDateKey()} 23:59:59"`);
       }
       
       const filterString = filterParts.join(" && ");
 
       const result = await pb.collection("consultas").getList<Consulta>(page, 20, {
-        sort: "-fecha",
+        sort: "-fecha,-created",
         expand: "paciente_id,medico_id",
         filter: filterString,
       });
