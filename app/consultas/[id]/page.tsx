@@ -16,6 +16,7 @@ import type { Medico } from "@/lib/types";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
 import { emptyIfOptionalClinicalZero, normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
+import { clinicalDateKey, clinicalDateToStoredDateTime, isClinicalDateWithinLimit, todayClinicalDateKey } from "@/lib/clinical-date";
 
 interface Paciente {
   id: string;
@@ -96,7 +97,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     medico_id: "",
     numero_ficha: "",
     estado: "finalizada" as ConsultaEstado,
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: todayClinicalDateKey(),
     motivo_consulta: "",
     
     av_sc_od: "", av_sc_oi: "",
@@ -353,10 +354,10 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             await pb.collection("consultas").getOne(activeConsultaId, { requestKey: null })
           );
           
-          let fechaFormateada = new Date().toISOString().split('T')[0];
+          let fechaFormateada = todayClinicalDateKey();
           try {
             if (consultaRecord.fecha) {
-              fechaFormateada = new Date(consultaRecord.fecha).toISOString().split('T')[0];
+              fechaFormateada = clinicalDateKey(consultaRecord.fecha);
             }
           } catch (e) {
             console.error("Error al formatear fecha:", e);
@@ -579,7 +580,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         : {
             ...normalizeOptionalClinicalZeros(formData),
             estado: targetEstado,
-            fecha: new Date(formData.fecha).toISOString(),
+            fecha: clinicalDateToStoredDateTime(formData.fecha),
             ant_gota: false,
           };
       
@@ -792,21 +793,8 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   };
 
   function isConsultaEditable(fecha: string | undefined, limitDays: number) {
-    if (!fecha) return true;
-
-    const consultaDate = new Date(fecha);
-    if (Number.isNaN(consultaDate.getTime())) return false;
-
-    const today = startOfDay(new Date());
-    const minDate = new Date(today);
-    minDate.setDate(today.getDate() - limitDays);
-
-    return consultaDate >= minDate;
+    return isClinicalDateWithinLimit(fecha, limitDays);
   }
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
 
 function continuityToneClass(tone: string) {
   switch (tone) {

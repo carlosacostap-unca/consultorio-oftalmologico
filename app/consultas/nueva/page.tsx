@@ -15,6 +15,7 @@ import { refractionHasValues } from "@/lib/refraction";
 import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
 import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
+import { clinicalDateToStoredDateTime, todayClinicalDateKey } from "@/lib/clinical-date";
 import { formatDate } from "@/lib/utils";
 
 interface Paciente {
@@ -154,7 +155,7 @@ function NuevaConsultaForm() {
     medico_id: initialMedicoId,
     numero_ficha: "",
     estado: "en_curso" as ConsultaEstado,
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: todayClinicalDateKey(),
     motivo_consulta: "",
     
     av_sc_od: "", av_sc_oi: "",
@@ -489,7 +490,7 @@ function NuevaConsultaForm() {
       const dataToSave = {
         ...normalizeOptionalClinicalZeros(formData),
         estado: targetEstado,
-        fecha: new Date(formData.fecha).toISOString(),
+        fecha: clinicalDateToStoredDateTime(formData.fecha),
         ant_gota: false,
         turno_id: turnoId || "",
       };

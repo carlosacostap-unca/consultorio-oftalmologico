@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
+import { clinicalDateToStoredDateTime } from "@/lib/clinical-date";
 import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
 import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
@@ -35,8 +36,8 @@ export async function POST(request: NextRequest) {
       return Response.json({ error: validation.error }, { status: 403 });
     }
 
-    const dataToSave = {
-      ...normalizeOptionalClinicalZeros(consultaBody),
+    const dataToSave: Record<string, unknown> = {
+      ...normalizeConsultaPostBody(normalizeOptionalClinicalZeros(consultaBody)),
       medico_id: medicoId,
     };
 
@@ -74,4 +75,13 @@ function fallbackActiveRole(user: Record<string, unknown>): UserRole | null {
   if (roles.includes("medico")) return "medico";
 
   return null;
+}
+
+function normalizeConsultaPostBody(body: Record<string, unknown>) {
+  if (typeof body.fecha !== "string" || !body.fecha) return body;
+
+  return {
+    ...body,
+    fecha: clinicalDateToStoredDateTime(body.fecha),
+  };
 }

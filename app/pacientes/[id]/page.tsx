@@ -11,6 +11,7 @@ import { doctorLabelFromList } from "@/lib/doctor-attribution";
 import { resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { isClinicalDateWithinLimit } from "@/lib/clinical-date";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -1276,20 +1277,7 @@ function getDateTime(value?: string) {
 }
 
 function isConsultaEditable(fecha: string | undefined, limitDays: number) {
-  if (!fecha) return true;
-
-  const consultaDate = new Date(fecha);
-  if (Number.isNaN(consultaDate.getTime())) return false;
-
-  const today = startOfDay(new Date());
-  const minDate = new Date(today);
-  minDate.setDate(today.getDate() - limitDays);
-
-  return consultaDate >= minDate;
-}
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return isClinicalDateWithinLimit(fecha, limitDays);
 }
 
 function ClinicalMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
