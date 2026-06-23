@@ -5,11 +5,11 @@
 
 ## 2. Aplicacion controlada
 
-- [ ] 2.1 Solicitar confirmacion explicita antes de actualizar datos reales.
-- [ ] 2.2 Ejecutar apply confirmado y generar backup/reporte.
-- [ ] 2.3 Verificar que no queden consultas con `fecha` a `00:00:00.000Z`.
+- [x] 2.1 Solicitar confirmacion explicita antes de actualizar datos reales.
+- [x] 2.2 Ejecutar apply confirmado y generar backup/reporte.
+- [x] 2.3 Verificar que no queden consultas con `fecha` a `00:00:00.000Z`.
 
 ## 3. Validacion
 
 - [x] 3.1 Validar OpenSpec del cambio.
-- [ ] 3.2 Revisar estado git y reportar archivos generados.
+- [x] 3.2 Revisar estado git y reportar archivos generados.
