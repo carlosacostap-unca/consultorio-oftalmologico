@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     return Response.json(created);
   } catch (error) {
     console.error("Error al crear consulta:", error);
-    return Response.json({ error: "No se pudo crear la consulta" }, { status: 500 });
+    return Response.json({ error: consultaCreateErrorMessage(error) }, { status: 500 });
   }
 }
 
@@ -84,4 +84,17 @@ function normalizeConsultaPostBody(body: Record<string, unknown>) {
     ...body,
     fecha: clinicalDateToStoredDateTime(body.fecha),
   };
+}
+
+function consultaCreateErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : "";
+  if (/PocketBase 400/i.test(message)) {
+    if (/add_value|biomicroscopia|unknown field|validation/i.test(message)) {
+      return "No se pudo crear la consulta porque el esquema de PocketBase no acepta todos los campos clinicos. Ejecuta la actualizacion de esquema de consultas y vuelve a intentar.";
+    }
+
+    return "No se pudo crear la consulta por una validacion de datos. Revisa paciente, fecha y campos clinicos cargados.";
+  }
+
+  return "No se pudo crear la consulta";
 }

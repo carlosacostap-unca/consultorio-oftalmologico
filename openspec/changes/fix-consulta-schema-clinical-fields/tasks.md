@@ -1,0 +1,5 @@
+- [x] 1. Crear script idempotente para asegurar `consultas.add_value` y `consultas.biomicroscopia`.
+- [x] 2. Agregar el script a la cadena `schema:test`.
+- [x] 3. Mejorar el error de alta de consulta para mostrar una causa accionable.
+- [x] 4. Validar OpenSpec y build.
+- [x] 5. Aplicar y verificar la actualizacion de esquema en PocketBase.

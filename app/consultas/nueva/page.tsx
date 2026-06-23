@@ -539,7 +539,7 @@ function NuevaConsultaForm() {
       router.push(patientClinicalRecordHref);
     } catch (error) {
       console.error("Error al crear consulta:", error);
-      alert("Error al guardar. Verifica que la colección 'consultas' exista con los campos correspondientes.");
+      alert(error instanceof Error ? error.message : "Error al guardar la consulta.");
       setIsLoading(false);
     }
   };
