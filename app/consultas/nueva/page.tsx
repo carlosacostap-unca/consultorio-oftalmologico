@@ -7,7 +7,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
 import type { ConsultaEstado } from "@/lib/consulta-estado";
-import { consultaEstadoLabel } from "@/lib/consulta-estado";
 import { normalizeUserRoles } from "@/lib/permissions";
 import type { AppUser, Medico } from "@/lib/types";
 import { doctorLabel } from "@/lib/doctor-attribution";
@@ -156,7 +155,7 @@ function NuevaConsultaForm() {
     paciente_id: initialPacienteId,
     medico_id: initialMedicoId,
     numero_ficha: "",
-    estado: "en_curso" as ConsultaEstado,
+    estado: "finalizada" as ConsultaEstado,
     fecha: todayClinicalDateKey(),
     motivo_consulta: "",
     
@@ -483,8 +482,7 @@ function NuevaConsultaForm() {
     e.preventDefault();
     if (savedConsultation) return;
 
-    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const targetEstado: ConsultaEstado = submitter?.value === "finalizada" ? "finalizada" : "en_curso";
+    const targetEstado: ConsultaEstado = "finalizada";
     if (!formData.medico_id) {
       alert("No se pudo definir el medico responsable de la consulta.");
       return;
@@ -514,7 +512,7 @@ function NuevaConsultaForm() {
 
       const nuevaConsulta = await response.json();
       let turnoUpdated = false;
-      const targetTurnoEstado = targetEstado === "finalizada" ? "Atendido" : "En consulta";
+      const targetTurnoEstado = "Atendido";
       
       // Si venimos desde un turno, lo actualizamos para enlazarlo y marcarlo como Atendido
       if (turnoId) {
@@ -686,16 +684,16 @@ function NuevaConsultaForm() {
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                      {savedConsultation.estado === "finalizada" ? "Consulta finalizada correctamente" : "Avance guardado correctamente"}
+                      Consulta finalizada correctamente
                     </p>
                     <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
                       {savedConsultation.turnoUpdated
-                        ? `Consulta ${consultaEstadoLabel(savedConsultation.estado).toLowerCase()} y turno actualizado`
-                        : `La consulta quedo ${consultaEstadoLabel(savedConsultation.estado).toLowerCase()}`}
+                        ? "Consulta finalizada y turno actualizado"
+                        : "La consulta quedo finalizada"}
                     </h3>
                     <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                       {savedConsultation.turnoUpdated
-                        ? `El turno fue marcado como ${savedConsultation.estado === "finalizada" ? "Atendido" : "En consulta"}.`
+                        ? "El turno fue marcado como Atendido."
                         : "Podes continuar con una accion relacionada o volver al contexto anterior."}
                     </p>
                   </div>
@@ -1526,14 +1524,6 @@ function NuevaConsultaForm() {
                 className="px-6 py-2 bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white font-bold rounded shadow-sm border border-zinc-400 text-center"
               >
                 CANCELAR
-              </button>
-              <button 
-                type="submit" 
-                value="en_curso"
-                disabled={isLoading || !formData.paciente_id || Boolean(savedConsultation)}
-                className="px-8 py-2 bg-zinc-700 hover:bg-zinc-800 text-white font-bold rounded shadow-md border border-zinc-800 disabled:opacity-50 flex items-center gap-2 dark:bg-zinc-700 dark:hover:bg-zinc-600"
-              >
-                {isLoading ? 'GUARDANDO...' : savedConsultation ? 'AVANCE GUARDADO' : 'GUARDAR AVANCE'}
               </button>
               <button 
                 type="submit" 
