@@ -1055,8 +1055,8 @@ function NuevaConsultaForm() {
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
               </div>
               
-              <div className="grid grid-cols-1 items-end gap-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-12">
-                <div className="col-span-12 md:col-span-5">
+              <div className="grid grid-cols-1 items-end gap-2 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-[minmax(22rem,2.6fr)_3.5rem_minmax(11rem,0.9fr)_5.75rem_minmax(15rem,1.35fr)_7.5rem]">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
                   <div className="relative">
                     <input
@@ -1116,15 +1116,15 @@ function NuevaConsultaForm() {
                   </div>
                 </div>
                 {isLoadingSelectedPatient && (
-                  <div className="col-span-12 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                  <div className="col-span-full flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
                     <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
                     Cargando datos del paciente seleccionado...
                   </div>
                 )}
-                <div className="col-span-6 md:col-span-1">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
                   <div className="[&>span]:hidden">
-                    <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className={`w-16 max-w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
+                    <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                     <span className="text-xs">Años</span>
                   </div>
                 </div>
@@ -1138,19 +1138,23 @@ function NuevaConsultaForm() {
                     className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-800 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isLoadingSelectedPatient ? "animate-pulse" : ""}`}
                   />
                 </div>
-                <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
-                <div className="col-span-12 md:col-span-3">
+                <div className="col-span-full md:col-span-1">
+                  <label className="block text-xs font-semibold mb-1">Nro. Afiliado</label>
+                  <input type="text" readOnly value={selectedPacienteData?.numero_afiliado || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
+                </div>
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
-                <div className="col-span-12 sm:col-span-6 md:col-span-1">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Ocupacion</label>
                   <input type="text" aria-label="Ocupacion" readOnly value={selectedPacienteData?.ocupacion || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
-                <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
+                <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
                   {antecedentesFijos.map((antecedente) => {
                     const isSelected = formData[antecedente.key];
 
