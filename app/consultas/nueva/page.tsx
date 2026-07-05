@@ -18,6 +18,7 @@ import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { clinicalDateToStoredDateTime, todayClinicalDateKey } from "@/lib/clinical-date";
 import { formatDate } from "@/lib/utils";
 import { patientBirthAge } from "@/lib/patient-birth-date";
+import { ClinicalDateInput } from "@/components/clinical-date-input";
 
 interface Paciente {
   id: string;
@@ -474,6 +475,10 @@ function NuevaConsultaForm() {
     }
   };
 
+  const handleDateChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (savedConsultation) return;
@@ -578,6 +583,11 @@ function NuevaConsultaForm() {
       : "Sin paciente seleccionado";
   const accountDoctor = user?.id === formData.medico_id ? user : null;
   const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || accountDoctor;
+  const selectedDoctorLabel = selectedDoctor
+    ? doctorLabel(selectedDoctor)
+    : formData.medico_id
+      ? "Medico asignado sin nombre visible"
+      : "Sin medico asignado";
   const isDoctorFromAccount = Boolean(accountDoctor);
 
   const patientSummaryItems = selectedPacienteData
@@ -766,7 +776,7 @@ function NuevaConsultaForm() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Antecedentes activos</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                      <span key={item} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                      <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2.5 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">
                         {item}
                       </span>
                     )) : (
@@ -939,7 +949,7 @@ function NuevaConsultaForm() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Antecedentes activos</div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                      <span key={item} className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                      <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">{item}</span>
                     )) : (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos.</span>
                     )}
@@ -1166,7 +1176,7 @@ function NuevaConsultaForm() {
                         onClick={() => toggleAntecedente(antecedente.key)}
                         className={`rounded-full border px-3 py-1.5 text-sm font-bold transition ${
                           isSelected
-                            ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                            ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                             : "border-zinc-300 bg-white text-zinc-700 hover:border-[#2d8f8f] hover:text-[#1f6b6b] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-500 dark:hover:text-emerald-300"
                         }`}
                       >
@@ -1175,8 +1185,8 @@ function NuevaConsultaForm() {
                     );
                   })}
                   <div className="flex min-w-[260px] flex-grow items-center gap-2">
-                    <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                    <span className={`font-semibold text-sm whitespace-nowrap ${formData.ant_otra.trim() ? "text-amber-700 dark:text-yellow-100" : ""}`}>OTRA:</span>
+                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                   </div>
                 </div>
               </div>
@@ -1200,7 +1210,7 @@ function NuevaConsultaForm() {
                       onClick={() => toggleAntecedente(antecedente.key)}
                       className={`rounded-full border px-3 py-1.5 text-sm font-bold transition ${
                         isSelected
-                          ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                          ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                           : "border-zinc-300 bg-white text-zinc-700 hover:border-[#2d8f8f] hover:text-[#1f6b6b] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-500 dark:hover:text-emerald-300"
                       }`}
                     >
@@ -1210,7 +1220,7 @@ function NuevaConsultaForm() {
                 })}
                 <div className="flex min-w-[260px] flex-grow items-center gap-2">
                   <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                 </div>
               </div>
             </div>
@@ -1221,7 +1231,7 @@ function NuevaConsultaForm() {
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Examen y cierre clinico</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
                 <div className="whitespace-nowrap text-xs font-semibold text-[#1f6b6b] dark:text-emerald-500">
-                  Medico responsable: <span className="font-bold">{doctorLabel(selectedDoctor)}</span>
+                  Medico responsable: <span className="font-bold">{selectedDoctorLabel}</span>
                 </div>
               </div>
 
@@ -1231,12 +1241,11 @@ function NuevaConsultaForm() {
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
                     <label className="grid max-w-[220px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-sm font-bold">
                       Fecha
-                      <input
+                      <ClinicalDateInput
                         required
-                        type="date"
                         name="fecha"
                         value={formData.fecha}
-                        onChange={handleInputChange}
+                        onChangeDate={handleDateChange}
                         className="w-full rounded-lg border border-zinc-400 bg-white px-3 py-2 font-bold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:[color-scheme:dark]"
                       />
                     </label>

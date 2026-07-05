@@ -39,6 +39,27 @@ export function formatClinicalDate(value: string | Date | undefined | null) {
   return `${day}/${month}/${year}`;
 }
 
+export function clinicalDateKeyFromDisplay(value: string | undefined | null) {
+  const normalized = String(value || "").trim();
+  if (!normalized) return "";
+
+  const isoKey = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoKey) {
+    const key = `${isoKey[1]}-${isoKey[2]}-${isoKey[3]}`;
+    return isValidClinicalDateKey(key) ? key : "";
+  }
+
+  const displayKey = normalized.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (!displayKey) return "";
+
+  const day = Number(displayKey[1]);
+  const month = Number(displayKey[2]);
+  const year = Number(displayKey[3]);
+  const key = dateKeyFromParts(year, month, day);
+
+  return isValidClinicalDateKey(key) ? key : "";
+}
+
 export function clinicalDateToStoredDateTime(value: string | Date | undefined | null) {
   const key = clinicalDateKey(value);
   return key ? `${key}T12:00:00.000Z` : "";
@@ -69,6 +90,22 @@ function parseClinicalDateKey(key: string) {
   if (!match) return null;
 
   return new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+}
+
+function isValidClinicalDateKey(key: string) {
+  const match = key.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return false;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
 function dateKeyFromParts(year: number, month: number, day: number) {

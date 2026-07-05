@@ -18,6 +18,7 @@ import { refractionHasValues } from "@/lib/refraction";
 import { emptyIfOptionalClinicalZero, normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { clinicalDateKey, clinicalDateToStoredDateTime, isClinicalDateWithinLimit, todayClinicalDateKey } from "@/lib/clinical-date";
 import { patientBirthAge } from "@/lib/patient-birth-date";
+import { ClinicalDateInput } from "@/components/clinical-date-input";
 
 interface Paciente {
   id: string;
@@ -44,6 +45,10 @@ interface Paciente {
 interface ConsultaNavigationItem {
   id: string;
   fecha?: string;
+  medico_id?: string;
+  expand?: {
+    medico_id?: Medico;
+  };
 }
 
 import { use } from "react";
@@ -139,6 +144,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [originalMedicoId, setOriginalMedicoId] = useState("");
+  const [expandedConsultaDoctor, setExpandedConsultaDoctor] = useState<Medico | null>(null);
 
   // Estado para la búsqueda de pacientes
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
@@ -154,7 +160,12 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const isReadOnly = isViewMode || !canEditConsulta;
   const canChooseDoctor = canAssignAnyDoctor(activeRole);
   const assignableDoctors = canChooseDoctor ? medicos : medicos.filter((medico) => medico.id === user?.id);
-  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || null;
+  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || expandedConsultaDoctor;
+  const selectedDoctorLabel = selectedDoctor
+    ? doctorLabel(selectedDoctor)
+    : formData.medico_id
+      ? "Medico asignado sin nombre visible"
+      : "Sin medico asignado";
   const canEditDoctorAttribution =
     !isViewMode &&
     (canChooseDoctor || (activeRole === "medico" && (!formData.medico_id || formData.medico_id === user?.id)));
@@ -252,7 +263,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     if (!id || consultaCacheRef.current.has(id)) return;
 
     pb.collection("consultas")
-      .getOne(id, { requestKey: null })
+      .getOne(id, { expand: "medico_id", requestKey: null })
       .then(cacheConsulta)
       .catch((error) => console.error("Error al precargar consulta:", error));
   };
@@ -352,7 +363,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         if (activeConsultaId) {
           const cachedConsulta = consultaCacheRef.current.get(activeConsultaId);
           const consultaRecord = cachedConsulta || cacheConsulta(
-            await pb.collection("consultas").getOne(activeConsultaId, { requestKey: null })
+            await pb.collection("consultas").getOne(activeConsultaId, { expand: "medico_id", requestKey: null })
           );
           
           let fechaFormateada = todayClinicalDateKey();
@@ -374,6 +385,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             paciente_id: normalizedConsulta.paciente_id || prev.paciente_id
           }));
           setOriginalMedicoId(normalizedConsulta.medico_id || "");
+          setExpandedConsultaDoctor(consultaRecord.expand?.medico_id || null);
           
           currentPacienteId = normalizedConsulta.paciente_id;
 
@@ -403,6 +415,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             const consultasPaciente = cachedConsultasPaciente || await pb.collection("consultas").getFullList<ConsultaNavigationItem>({
                 filter: `paciente_id = "${currentPacienteId}"`,
                 sort: "fecha,created",
+                expand: "medico_id",
                 requestKey: null,
               });
             if (!cachedConsultasPaciente) {
@@ -557,6 +570,10 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     } else {
       setFormData((prev) => ({ ...prev, [name]: value }));
     }
+  };
+
+  const handleDateChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -872,7 +889,7 @@ function continuityToneClass(tone: string) {
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Antecedentes activos</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                  <span key={item} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                  <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2.5 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">{item}</span>
                 )) : (
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos</span>
                 )}
@@ -973,7 +990,7 @@ function continuityToneClass(tone: string) {
                   <h4 className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Antecedentes activos</h4>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                      <span key={item} className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                      <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">{item}</span>
                     )) : (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos</span>
                     )}
@@ -1199,7 +1216,7 @@ function continuityToneClass(tone: string) {
                         }}
                         className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
                           isActive
-                            ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-700"
+                            ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                             : "border-zinc-400 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200"
                         } ${isReadOnly ? "cursor-default" : "hover:border-[#2d8f8f] hover:text-[#2d8f8f] dark:hover:border-emerald-500 dark:hover:text-emerald-400"}`}
                       >
@@ -1208,8 +1225,8 @@ function continuityToneClass(tone: string) {
                     );
                   })}
                   <div className="flex flex-grow items-center gap-2">
-                    <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                    <span className={`font-semibold text-sm whitespace-nowrap ${formData.ant_otra.trim() ? "text-amber-700 dark:text-yellow-100" : ""}`}>OTRA:</span>
+                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                   </div>
                 </div>
               </div>
@@ -1236,7 +1253,7 @@ function continuityToneClass(tone: string) {
                       }}
                       className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
                         isActive
-                          ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-700"
+                          ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                           : "border-zinc-400 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200"
                       } ${isReadOnly ? "cursor-default" : "hover:border-[#2d8f8f] hover:text-[#2d8f8f] dark:hover:border-emerald-500 dark:hover:text-emerald-400"}`}
                     >
@@ -1246,7 +1263,7 @@ function continuityToneClass(tone: string) {
                 })}
                 <div className="flex items-center gap-2 flex-grow">
                   <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                 </div>
               </div>
             </div>
@@ -1319,7 +1336,7 @@ function continuityToneClass(tone: string) {
                   </div>
                   <div className="h-px flex-grow bg-[#1f6b6b] dark:bg-emerald-500"></div>
                   <div className="whitespace-nowrap text-xs font-semibold text-[#1f6b6b] dark:text-emerald-500">
-                    Medico responsable: <span className="font-bold">{doctorLabel(selectedDoctor)}</span>
+                    Medico responsable: <span className="font-bold">{selectedDoctorLabel}</span>
                   </div>
                 </div>
 
@@ -1327,12 +1344,11 @@ function continuityToneClass(tone: string) {
                 <section className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
                   <label className="flex max-w-[220px] items-center gap-3">
                     <span className="text-sm font-bold">Fecha</span>
-                    <input
+                    <ClinicalDateInput
                       required
-                      type="date"
                       name="fecha"
                       value={formData.fecha}
-                      onChange={handleInputChange}
+                      onChangeDate={handleDateChange}
                       disabled={isReadOnly}
                       className="w-[168px] rounded-md border border-zinc-400 bg-white px-3 py-2 text-center font-bold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900 dark:[color-scheme:dark]"
                     />
