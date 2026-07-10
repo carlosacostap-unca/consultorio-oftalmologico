@@ -650,34 +650,6 @@ function NuevaConsultaForm() {
         {/* Contenedor del Formulario */}
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
-          {/* Header del Formulario */}
-          <div className="relative border-b-4 border-[#1f6b6b] bg-[#2d8f8f] p-2 text-white shadow-inner dark:border-emerald-950 dark:bg-emerald-800">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              aria-label="Volver"
-              title="Volver"
-              className="absolute left-3 top-1/2 flex -translate-y-1/2 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Volver
-            </button>
-            <h2 className="w-full text-center text-xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
-              Historia clinica de atencion
-            </h2>
-            <button
-              type="button"
-              onClick={() => setIsClinicalContextOpen((prev) => !prev)}
-              className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition hover:bg-white/20 2xl:inline-flex"
-              aria-expanded={isClinicalContextOpen}
-              aria-controls="clinical-context-overlay"
-            >
-              {isClinicalContextOpen ? "Ocultar contexto" : "Ver contexto"}
-            </button>
-          </div>
-          
           <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-3 font-sans text-sm text-zinc-900 dark:text-zinc-100">
             {savedConsultation && completionRecommendation && (
               <section aria-label="Cierre de consulta" className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
@@ -1058,11 +1030,6 @@ function NuevaConsultaForm() {
 
             {/* Sección: DATOS DEL PACIENTE */}
             <div className="mb-3">
-              <div className="mb-1.5 flex items-center">
-                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Carga inicial del paciente</h3>
-                <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
-              </div>
-              
               <div className="grid grid-cols-1 items-end gap-2 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-[minmax(22rem,2.6fr)_3.5rem_minmax(11rem,0.9fr)_5.75rem_minmax(15rem,1.35fr)_7.5rem]">
                 <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
@@ -1518,6 +1485,22 @@ function NuevaConsultaForm() {
 
             {/* Botones de Acción */}
             <div className="mt-3 flex flex-wrap justify-end gap-3 border-t-2 border-zinc-300 pt-3 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setIsClinicalContextOpen((prev) => !prev)}
+                className="rounded border border-[#1a5c5c] bg-[#2d8f8f] px-6 py-2 text-center font-bold text-white shadow-sm hover:bg-[#1f6b6b]"
+                aria-expanded={isClinicalContextOpen}
+                aria-controls="clinical-context-overlay"
+              >
+                {isClinicalContextOpen ? "Ocultar contexto" : "Ver contexto"}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="rounded border border-zinc-400 bg-white px-6 py-2 text-center font-bold text-zinc-800 shadow-sm hover:bg-zinc-100 dark:bg-zinc-800 dark:text-white dark:hover:bg-zinc-700"
+              >
+                Volver
+              </button>
               <button 
                 type="button"
                 onClick={() => router.back()}

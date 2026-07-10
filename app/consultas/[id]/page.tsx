@@ -1085,42 +1085,10 @@ function continuityToneClass(tone: string) {
 
         <div ref={medicalFormRef} className="order-1 mb-6 bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
-          {/* Header del Formulario */}
-          <div className="relative bg-[#2d8f8f] dark:bg-emerald-800 text-white p-3 border-b-4 border-[#1f6b6b] dark:border-emerald-950 shadow-inner">
-            <button
-              type="button"
-              onClick={goToPatientDetail}
-              aria-label="Volver"
-              title="Volver"
-              className="absolute left-3 top-1/2 flex -translate-y-1/2 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Volver
-            </button>
-            <h2 className="w-full px-32 text-center text-2xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
-              Datos Médicos del Paciente
-            </h2>
-            <button
-              type="button"
-              onClick={() => document.getElementById("clinical-context-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
-              aria-controls="clinical-context-panel"
-            >
-              Ver contexto
-            </button>
-          </div>
-          
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
             
             {/* Sección: DATOS DEL PACIENTE */}
             <div className="mb-3">
-              <div className="flex items-center mb-2">
-                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Datos del Paciente</h3>
-                <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
-              </div>
-              
               <div className="grid grid-cols-1 items-end gap-2 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-[minmax(22rem,2.6fr)_3.5rem_minmax(11rem,0.9fr)_5.75rem_minmax(15rem,1.35fr)_7.5rem]">
                 <div className="col-span-full md:col-span-1 relative">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
@@ -1557,10 +1525,27 @@ function continuityToneClass(tone: string) {
             </div>
 
             {/* Botones de acción */}
-            <div className="mt-8 flex justify-end gap-4 border-t border-zinc-300 dark:border-zinc-700 pt-6">
+            <div className="mt-8 flex flex-wrap justify-end gap-4 border-t border-zinc-300 pt-6 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => document.getElementById("clinical-context-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="rounded-lg border border-[#1f6b6b] bg-[#2d8f8f] px-6 py-2 font-bold text-white transition-colors hover:bg-[#1f6b6b] dark:bg-emerald-700 dark:hover:bg-emerald-600"
+                aria-controls="clinical-context-panel"
+              >
+                Ver contexto
+              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={goToPatientDetail}
+                  className="rounded-lg border border-zinc-400 px-6 py-2 font-bold text-zinc-700 transition-colors hover:bg-zinc-200 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Volver
+                </button>
+              )}
               <button 
                 type="button" 
-                onClick={() => router.back()}
+                onClick={isReadOnly ? goToPatientDetail : () => router.back()}
                 className="px-6 py-2 border border-zinc-400 dark:border-zinc-600 rounded-lg font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
               >
                 {isReadOnly ? "Volver" : "Cancelar"}
