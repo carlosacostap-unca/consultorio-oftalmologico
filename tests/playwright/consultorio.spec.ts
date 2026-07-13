@@ -14,6 +14,46 @@ const PATIENT_SEARCH_PLACEHOLDER = /Buscar por apellido, nombre/;
 const ACTIVE_ROLE_HEADER = "x-active-role";
 const TEST_PB_MARKERS = ["test", "testing", "localhost", "127.0.0.1"];
 
+test.describe("alta de pacientes", () => {
+  test("valida documentos existentes y disponibles mediante la ruta operativa", async ({ request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const suffix = Date.now().toString().slice(-7);
+    const existingDocument = `97${suffix}`;
+    const availableDocument = `98${suffix}`;
+    const patient = await createDemoPatient(request, env, adminToken, {
+      nombre: "VALIDACION",
+      apellido: "DNI PLAYWRIGHT",
+      tipo_documento: "DNI",
+      numero_documento: existingDocument,
+    });
+
+    try {
+      const existing = await request.get(`/api/pacientes/documento?documento=${existingDocument}&tipo_documento=DNI`);
+      expect(existing.status()).toBe(200);
+      await expect(existing.json()).resolves.toMatchObject({
+        documento: existingDocument,
+        tipo_documento: "DNI",
+        exists: true,
+      });
+
+      const available = await request.get(`/api/pacientes/documento?documento=${availableDocument}&tipo_documento=DNI`);
+      expect(available.status()).toBe(200);
+      await expect(available.json()).resolves.toEqual({
+        documento: availableDocument,
+        tipo_documento: "DNI",
+        exists: false,
+        duplicate: null,
+      });
+    } finally {
+      await request.delete(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${patient.id}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+    }
+  });
+});
+
 test.describe("configuracion de contrasena post login", () => {
   test("usuario autenticado sin contrasena configurada no ve el panel hasta guardar contrasena", async ({ page, request }) => {
     const env = loadTestEnv();

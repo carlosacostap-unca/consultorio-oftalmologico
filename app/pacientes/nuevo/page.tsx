@@ -187,16 +187,21 @@ export default function NuevoPacientePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    try {
-      const isNumeroFichaValid = await validateNumeroFicha();
-      if (!isNumeroFichaValid) {
-        setIsLoading(false);
-        return;
-      }
 
-      const isNumeroDocumentoValid = await validateNumeroDocumento();
-      if (!isNumeroDocumentoValid) {
-        setIsLoading(false);
+    try {
+      try {
+        const isNumeroFichaValid = await validateNumeroFicha();
+        if (!isNumeroFichaValid) {
+          return;
+        }
+
+        const isNumeroDocumentoValid = await validateNumeroDocumento();
+        if (!isNumeroDocumentoValid) {
+          return;
+        }
+      } catch (error) {
+        console.error("Error al validar los datos del paciente:", error);
+        alert("No se pudo validar el documento o el numero de ficha. Intenta nuevamente.");
         return;
       }
 
@@ -205,7 +210,6 @@ export default function NuevoPacientePage() {
       const fechaNacimiento = parseBirthDateInputForPocketBase(formData.fecha_nacimiento);
       if (fechaNacimiento === null) {
         alert("Ingresa la fecha de nacimiento con formato dd/mm/aaaa.");
-        setIsLoading(false);
         return;
       }
 
@@ -223,7 +227,7 @@ export default function NuevoPacientePage() {
       router.push(`/consultas/nueva?paciente_id=${paciente.id}`);
     } catch (error) {
       console.error("Error al crear paciente:", error);
-      alert("Error al guardar el paciente. Verifica que la colección 'pacientes' exista en PocketBase.");
+      alert("No se pudo guardar el paciente. Revisa los datos ingresados e intenta nuevamente.");
     } finally {
       setIsLoading(false);
     }
