@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
 import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
+import { desktopLocalMutationHeaders } from "@/lib/desktop-local-server";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,7 @@ export async function PATCH(
 
     const updated = await pbAdmin(`/api/collections/recetas/records/${encodeURIComponent(id)}`, {
       method: "PATCH",
+      headers: desktopLocalMutationHeaders(user),
       body: JSON.stringify(body),
     });
 

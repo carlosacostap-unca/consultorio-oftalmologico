@@ -5,6 +5,7 @@ import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
 import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
 import { normalizeUserRoles, type UserRole } from "@/lib/permissions";
+import { desktopLocalMutationHeaders } from "@/lib/desktop-local-server";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
 
     const created = await pbAdmin("/api/collections/consultas/records", {
       method: "POST",
+      headers: desktopLocalMutationHeaders(user),
       body: JSON.stringify(dataToSave),
     });
 

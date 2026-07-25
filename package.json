@@ -1,7 +1,10 @@
 {
   "name": "consultorio-oftalmologico",
   "version": "0.1.0",
+  "description": "Sistema clínico web y de escritorio offline para consultorio oftalmológico.",
+  "author": "Acosta Parra",
   "private": true,
+  "main": "desktop/main.mjs",
   "engines": {
     "node": ">=20.9.0"
   },
@@ -13,7 +16,8 @@
     "openspec": "openspec",
     "openspec:list": "openspec list",
     "openspec:validate": "openspec validate --all",
-    "schema:test": "node scripts/bootstrap_pocketbase_test_schema.mjs --source-env .env.local --target-env .env.test.local --require-test-pocketbase --include-users && node scripts/ensure_patient_merge_fields.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_patient_occupation_field.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_consulta_estado.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_consulta_clinical_fields.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_consulta_eventos.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_recurring_schedule.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_clinical_doctor_attribution.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_appointment_email_reminders.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_user_password_configured_field.mjs --env .env.test.local --require-test-pocketbase",
+    "schema:test": "node scripts/bootstrap_pocketbase_test_schema.mjs --source-env .env.local --target-env .env.test.local --require-test-pocketbase --include-users && node scripts/ensure_desktop_sync_schema.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_patient_merge_fields.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_patient_occupation_field.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_consulta_estado.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_consulta_clinical_fields.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_consulta_eventos.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_recurring_schedule.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_clinical_doctor_attribution.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_appointment_email_reminders.mjs --env .env.test.local --require-test-pocketbase && node scripts/ensure_user_password_configured_field.mjs --env .env.test.local --require-test-pocketbase",
+    "schema:desktop-sync": "node scripts/ensure_desktop_sync_schema.mjs",
     "schema:patient-merge": "node scripts/ensure_patient_merge_fields.mjs",
     "schema:patient-occupation": "node scripts/ensure_patient_occupation_field.mjs",
     "schema:turno-eventos": "node scripts/ensure_turno_eventos.mjs",
@@ -29,7 +33,12 @@
     "seed:test": "npm run seed:test:usuarios && npm run seed:test:agenda",
     "test:playwright": "playwright test",
     "test:playwright:test": "node scripts/run_playwright_test.mjs --env .env.test.local",
-    "test:playwright:headed": "playwright test --headed"
+    "test:playwright:headed": "playwright test --headed",
+    "test:sync-core": "node --test lib/desktop-sync/core.test.ts lib/desktop-scope.test.ts",
+    "desktop:dev": "concurrently -k \"next dev\" \"wait-on http://127.0.0.1:3000 && electron .\"",
+    "desktop:prepare-pocketbase": "node desktop/scripts/prepare-pocketbase.mjs",
+    "desktop:pack": "npm run desktop:prepare-pocketbase && npm run build && electron-builder --dir --win --x64",
+    "desktop:dist": "npm run desktop:prepare-pocketbase && npm run build && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "next": "16.2.6",
@@ -44,12 +53,83 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "10.0.3",
+    "electron": "43.1.0",
+    "electron-builder": "26.15.3",
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "9.0.10"
   },
   "overrides": {
     "postcss": "8.5.14"
+  },
+  "build": {
+    "appId": "com.acostaparra.consultoriooftalmologico",
+    "productName": "Consultorio Oftalmológico",
+    "artifactName": "Consultorio-Oftalmologico-${version}-${arch}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "dist-desktop"
+    },
+    "files": [
+      "desktop/main.mjs",
+      "desktop/preload.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone/node_modules",
+        "to": "app/node_modules",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".next/standalone",
+        "to": "app",
+        "filter": [
+          "**/*",
+          "!node_modules/**/*"
+        ]
+      },
+      {
+        "from": ".next/static",
+        "to": "app/.next/static"
+      },
+      {
+        "from": "public",
+        "to": "app/public"
+      },
+      {
+        "from": "desktop/pocketbase",
+        "to": "pocketbase",
+        "filter": [
+          "pocketbase.exe",
+          "pb_migrations/**/*",
+          "pb_hooks/**/*"
+        ]
+      }
+    ],
+    "win": {
+      "icon": "desktop/assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false
+    }
   }
 }

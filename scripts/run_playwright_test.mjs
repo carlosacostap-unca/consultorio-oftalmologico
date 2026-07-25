@@ -7,6 +7,7 @@ applyEnv(env);
 
 process.env.PLAYWRIGHT_ENV_FILE = envFile;
 process.env.REQUIRE_TEST_POCKETBASE = "true";
+process.env.DESKTOP_SYNC_ENABLED = process.env.DESKTOP_SYNC_ENABLED || "true";
 
 assertTestingPocketBaseUrl(pocketBaseUrl(process.env), { requireTest: true });
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { DesktopActivation } from "@/components/DesktopActivation";
 import {
   ACTIVE_ROLE_CHANGED_EVENT,
   activeRoleLabel,
@@ -11,6 +12,7 @@ import {
   setActiveRole,
 } from "@/lib/active-role";
 import { pb } from "@/lib/pocketbase";
+import { desktopLoginWithPassword, loadDesktopActivation } from "@/lib/desktop-sync/client";
 import type { UserRole } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
 
@@ -120,6 +122,17 @@ const ROLE_DASHBOARDS: Record<UserRole, RoleDashboard> = {
   },
 };
 
+const DESKTOP_DASHBOARD: RoleDashboard = {
+  title: "Atención offline",
+  subtitle: "Los cambios se guardan en este equipo y se sincronizan al recuperar conexión",
+  actions: [
+    { title: "Pacientes", href: "/pacientes", accentClass: "text-sky-600 bg-sky-50 dark:text-sky-300 dark:bg-sky-500/10", iconPath: "M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m0 0a4 4 0 100-7.75 4 4 0 000 7.75zm8 0a4 4 0 10-1-7.87" },
+    { title: "Consultas", href: "/consultas", accentClass: "text-blue-600 bg-blue-50 dark:text-blue-300 dark:bg-blue-500/10", iconPath: "M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414A1 1 0 0119 9.414V19a2 2 0 01-2 2z" },
+    { title: "Recetas", href: "/recetas", accentClass: "text-violet-600 bg-violet-50 dark:text-violet-300 dark:bg-violet-500/10", iconPath: "M19 21H5a2 2 0 01-2-2V7a2 2 0 012-2h8l6 6v8a2 2 0 01-2 2zM13 5v6h6" },
+    { title: "Sincronización", href: "/sincronizacion", accentClass: "text-emerald-600 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-500/10", iconPath: "M4 4v6h6M20 20v-6h-6M5.1 15A8 8 0 0018 17m.9-8A8 8 0 006 7" },
+  ],
+};
+
 export default function Home() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [activeRole, setCurrentActiveRole] = useState<UserRole | null>(null);
@@ -127,10 +140,29 @@ export default function Home() {
   const [emailLogin, setEmailLogin] = useState("");
   const [passwordLogin, setPasswordLogin] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loginNotice, setLoginNotice] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [passwordSetupError, setPasswordSetupError] = useState("");
   const [isMounted, setIsMounted] = useState(false);
+  const [desktopActivationChecked, setDesktopActivationChecked] = useState(false);
+  const [desktopActivationRequired, setDesktopActivationRequired] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    if (!window.consultorioDesktop) {
+      setDesktopActivationChecked(true);
+      return;
+    }
+    void loadDesktopActivation().then((state) => {
+      if (!active) return;
+      setDesktopActivationRequired(state?.bootstrapCompleted !== true);
+      setDesktopActivationChecked(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     setIsMounted(true);
@@ -188,6 +220,7 @@ export default function Home() {
   const loginWithGoogle = async () => {
     setIsLoading(true);
     setLoginError("");
+    setLoginNotice("");
     setPasswordSetupError("");
 
     try {
@@ -207,8 +240,12 @@ export default function Home() {
     setPasswordSetupError("");
 
     try {
-      const authData = await pb.collection("users").authWithPassword(emailLogin.trim(), passwordLogin);
+      const login = window.consultorioDesktop
+        ? await desktopLoginWithPassword(emailLogin.trim(), passwordLogin)
+        : { authData: await pb.collection("users").authWithPassword(emailLogin.trim(), passwordLogin), offline: false };
+      const authData = login.authData;
       const authUser = authData.record as AppUser;
+      if (login.offline) setLoginNotice("Ingresaste con la copia local. La sesión central se validará cuando vuelva Internet.");
       const resolvedRole = resolveActiveRole(authUser, ["secretaria"]);
 
       if (resolvedRole && authUser.id) {
@@ -288,6 +325,12 @@ export default function Home() {
     return null;
   }
 
+  if (window.consultorioDesktop && !desktopActivationChecked) return null;
+
+  if (window.consultorioDesktop && desktopActivationRequired) {
+    return <DesktopActivation onActivated={() => setDesktopActivationRequired(false)} />;
+  }
+
   if (user && user.password_configured !== true) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 p-4 dark:bg-zinc-900">
@@ -357,7 +400,9 @@ export default function Home() {
   }
 
   if (user) {
-    const dashboard = ROLE_DASHBOARDS[activeRole || "secretaria"];
+    const dashboard = window.consultorioDesktop
+      ? DESKTOP_DASHBOARD
+      : ROLE_DASHBOARDS[activeRole || "secretaria"];
 
     return (
       <div className="min-h-screen bg-zinc-50 p-4 dark:bg-zinc-950 sm:p-8">
@@ -474,6 +519,11 @@ export default function Home() {
               {loginError}
             </div>
           )}
+          {loginNotice && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+              {loginNotice}
+            </div>
+          )}
           <button
             type="submit"
             disabled={isLoading}
@@ -483,13 +533,13 @@ export default function Home() {
           </button>
         </form>
 
-        <div className="my-6 flex items-center gap-3 text-xs text-zinc-400">
+        {!window.consultorioDesktop && <div className="my-6 flex items-center gap-3 text-xs text-zinc-400">
           <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
           <span>o</span>
           <div className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
-        </div>
+        </div>}
 
-        <button
+        {!window.consultorioDesktop && <button
           onClick={loginWithGoogle}
           disabled={isLoading}
           className="flex w-full items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white px-4 py-3 font-medium text-zinc-800 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
@@ -517,7 +567,7 @@ export default function Home() {
             </svg>
           )}
           <span>{isLoading ? "Conectando..." : "Continuar con Google"}</span>
-        </button>
+        </button>}
       </div>
     </div>
   );
