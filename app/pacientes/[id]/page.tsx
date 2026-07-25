@@ -4,10 +4,15 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter, useSearchParams } from "next/navigation";
 import React from "react";
-import type { AppUser, Consulta, Mutual, Patient, Receta } from "@/lib/types";
+import type { AppUser, Consulta, Medico, Mutual, Patient, Receta } from "@/lib/types";
 import { isMergedPatient, patientDisplayName } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList } from "@/lib/doctor-attribution";
+import { resolveActiveRole } from "@/lib/active-role";
+import type { UserRole } from "@/lib/permissions";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { isClinicalDateWithinLimit } from "@/lib/clinical-date";
+import { patientBirthAgeLabel, patientBirthDateKey, patientBirthDateToStoredDateTime } from "@/lib/patient-birth-date";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -20,6 +25,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);
   const [user, setUser] = useState<AppUser | null>(null);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [mutuales, setMutuales] = useState<Mutual[]>([]);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
   const [isLoadingConsultas, setIsLoadingConsultas] = useState(true);
@@ -30,6 +36,8 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
   const [clinicalTimelineSearch, setClinicalTimelineSearch] = useState("");
   const [expandedClinicalTimelineEvent, setExpandedClinicalTimelineEvent] = useState<string | null>(null);
   const [showAllClinicalTimelineEvents, setShowAllClinicalTimelineEvents] = useState(false);
+  const [consultaEditLimitDays, setConsultaEditLimitDays] = useState(7);
+  const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const isMerged = isMergedPatient(paciente);
 
   const [formData, setFormData] = useState({
@@ -41,6 +49,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     telefono: "",
     email: "",
     fecha_nacimiento: "",
+    ocupacion: "",
     obra_social: "",
     mutual_id: "",
     numero_afiliado: "",
@@ -50,7 +59,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
 
   useEffect(() => {
     setIsMounted(true);
-    setUser(pb.authStore.record as AppUser | null);
+    const authUser = pb.authStore.record as AppUser | null;
+    setUser(authUser);
+    setActiveRole(resolveActiveRole(authUser));
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -67,6 +78,32 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           setMutuales(mutualesRecords);
         } catch (error) {
           console.error("Error al cargar mutuales:", error);
+        }
+
+        try {
+          const medicosResponse = await fetch("/api/medicos", {
+            headers: { Authorization: `Bearer ${pb.authStore.token}` },
+          });
+          if (medicosResponse.ok) {
+            const medicosData = await medicosResponse.json();
+            setMedicos(Array.isArray(medicosData.medicos) ? medicosData.medicos : []);
+          }
+        } catch (error) {
+          console.error("Error al cargar medicos:", error);
+        }
+
+        try {
+          const settingsResponse = await fetch("/api/configuracion", {
+            headers: { Authorization: `Bearer ${pb.authStore.token}` },
+          });
+          if (settingsResponse.ok) {
+            const settings = await settingsResponse.json();
+            if (settings?.consultaEditLimitDays !== undefined) {
+              setConsultaEditLimitDays(settings.consultaEditLimitDays);
+            }
+          }
+        } catch (error) {
+          console.error("Error al cargar configuracion de consultas:", error);
         }
 
         // Luego cargar paciente
@@ -103,14 +140,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           setIsLoadingRecetas(false);
         }
         
-        let fechaNacimiento = "";
-        if (record.fecha_nacimiento) {
-          try {
-            fechaNacimiento = new Date(record.fecha_nacimiento).toISOString().split('T')[0];
-          } catch (e) {
-            console.error("Error al formatear fecha:", e);
-          }
-        }
+        const fechaNacimiento = patientBirthDateKey(record.fecha_nacimiento);
 
         setFormData({
           nombre: record.nombre || "",
@@ -121,6 +151,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
           telefono: record.telefono || "",
           email: record.email || "",
           fecha_nacimiento: fechaNacimiento,
+          ocupacion: record.ocupacion || "",
           obra_social: record.obra_social || "",
           mutual_id: record.mutual_id || "",
           numero_afiliado: record.numero_afiliado || "",
@@ -170,6 +201,22 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     return true;
   };
 
+  const validateNumeroDocumento = async () => {
+    const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento || formData.dni || "");
+    if (!numeroDocumento) {
+      alert("Ingresa el numero de documento del paciente.");
+      return false;
+    }
+
+    const duplicate = await findDuplicatePatientDocumentClient(numeroDocumento, pacienteId);
+    if (duplicate) {
+      alert(duplicatePatientDocumentMessage(numeroDocumento, duplicate));
+      return false;
+    }
+
+    return true;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isMerged) {
@@ -184,9 +231,19 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
         return;
       }
 
+      const isNumeroDocumentoValid = await validateNumeroDocumento();
+      if (!isNumeroDocumentoValid) {
+        setIsLoading(false);
+        return;
+      }
+
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
+      const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento || formData.dni || "");
+      const { dni: _dni, ...patientData } = formData;
       const dataToSave = {
-        ...formData,
+        ...patientData,
+        numero_documento: numeroDocumento,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(formData.fecha_nacimiento),
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",
@@ -248,9 +305,12 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
             onClick: () => router.push(`/consultas/${ultimaConsulta.id}?mode=view`),
           }
     : null;
-  const edadPaciente = getPatientAge(formData.fecha_nacimiento);
+  const edadPaciente = patientBirthAgeLabel(formData.fecha_nacimiento);
   const antecedentesActivos = getAntecedentesActivos(paciente);
-  const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas);
+  const canEditConsultasAsDoctor = activeRole === "medico";
+  const doctorNameForConsulta = (consulta: Consulta) => doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos);
+  const doctorNameForReceta = (receta: Receta) => doctorLabelFromList(receta.medico_id, receta.expand?.medico_id, medicos);
+  const clinicalTimelineAllEvents = buildClinicalTimeline(consultas, recetas, canEditConsultasAsDoctor, consultaEditLimitDays, medicos);
   const clinicalTimelineCounts = {
     all: clinicalTimelineAllEvents.length,
     consulta: clinicalTimelineAllEvents.filter((event) => event.type === "consulta").length,
@@ -423,7 +483,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     {ultimaConsulta ? (
                       <div className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-400">
                         <div className="font-semibold text-blue-700 dark:text-blue-300">{formatDate(ultimaConsulta.fecha)}</div>
-                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(ultimaConsulta.expand?.medico_id)}</p>
+                        <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorNameForConsulta(ultimaConsulta)}</p>
                         {completedConsultaSummaryFields(ultimaConsulta, ultimoTratamiento).map((field) => (
                           <p key={field.label}><span className="font-medium text-zinc-800 dark:text-zinc-200">{field.label}:</span> {field.value}</p>
                         ))}
@@ -455,6 +515,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     ["Telefono", formData.telefono || "-"],
                     ["Email", formData.email || "-"],
                     ["Domicilio", formData.domicilio || "-"],
+                    ["Ocupacion", formData.ocupacion || "-"],
                   ]}
                 />
                 <ClinicalInfoBlock
@@ -531,6 +592,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     {consultasRecientes.map((consulta) => {
                       const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
                       const visibleFields = completedConsultaSummaryFields(consulta, tratamiento);
+                      const editHref = canEditConsultasAsDoctor && isConsultaEditable(consulta.fecha, consultaEditLimitDays)
+                        ? `/consultas/${consulta.id}`
+                        : undefined;
                       return (
                         <div key={consulta.id} className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
                           <div className="flex items-center justify-between gap-2">
@@ -543,18 +607,29 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                             <div className="mt-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">{consulta.motivo_consulta}</div>
                           )}
                           <div className="mt-2 space-y-1 text-sm text-zinc-600 dark:text-zinc-400">
-                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorLabel(consulta.expand?.medico_id)}</p>
+                            <p><span className="font-medium text-zinc-800 dark:text-zinc-200">Medico:</span> {doctorNameForConsulta(consulta)}</p>
                             {visibleFields.filter((field) => field.label !== "Motivo").map((field) => (
                               <p key={field.label}><span className="font-medium text-zinc-800 dark:text-zinc-200">{field.label}:</span> {field.value}</p>
                             ))}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => router.push(`/consultas/${consulta.id}?mode=view`)}
-                            className="mt-4 print:hidden rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
-                          >
-                            Abrir consulta
-                          </button>
+                          <div className="mt-4 flex flex-wrap gap-2 print:hidden">
+                            <button
+                              type="button"
+                              onClick={() => router.push(`/consultas/${consulta.id}?mode=view`)}
+                              className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                            >
+                              Abrir consulta
+                            </button>
+                            {editHref && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(editHref)}
+                                className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-[#1f6b6b]"
+                              >
+                                Editar
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -669,6 +744,15 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                             >
                               {event.type === "consulta" ? "Abrir consulta" : "Ver receta"}
                             </button>
+                            {event.editHref && (
+                              <button
+                                type="button"
+                                onClick={() => router.push(event.editHref!)}
+                                className="rounded-lg bg-[#2d8f8f] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#1f6b6b]"
+                              >
+                                Editar
+                              </button>
+                            )}
                             {event.printHref && (
                               <button
                                 type="button"
@@ -748,7 +832,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{formatDate(receta.fecha)}</span>
                       <div className="min-w-0 text-sm text-zinc-600 dark:text-zinc-400">
                         <div className="truncate font-medium text-zinc-900 dark:text-zinc-100">{receta.medicamentos || "Sin medicamentos cargados"}</div>
-                        <div className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-500">Medico: {doctorLabel(receta.expand?.medico_id)}</div>
+                        <div className="mt-1 text-xs font-medium text-zinc-500 dark:text-zinc-500">Medico: {doctorNameForReceta(receta)}</div>
                         {receta.indicaciones && <div className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-500">{receta.indicaciones}</div>}
                         <div className="mt-2 text-xs">
                           {receta.consulta_id ? (
@@ -860,6 +944,11 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                     <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Fecha de Nacimiento</label>
                     <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark] disabled:opacity-70" />
                   </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Ocupacion</label>
+                    <input type="text" name="ocupacion" value={formData.ocupacion} onChange={handleInputChange} disabled={isViewMode} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 disabled:opacity-70" />
+                  </div>
                 </div>
 
                 {/* Contacto y Cobertura */}
@@ -962,6 +1051,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Estado</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Motivo</th>
                       <th className="px-6 py-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Diagnóstico</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -970,9 +1060,12 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                       let fechaStr = "-";
                       try {
                         if (consulta.fecha) {
-                          fechaStr = new Date(consulta.fecha).toLocaleDateString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+                          fechaStr = formatDate(consulta.fecha);
                         }
                       } catch {}
+                      const editHref = canEditConsultasAsDoctor && isConsultaEditable(consulta.fecha, consultaEditLimitDays)
+                        ? `/consultas/${consulta.id}`
+                        : undefined;
 
                       return (
                         <tr
@@ -991,7 +1084,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                             {fechaStr}
                           </td>
                           <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400">
-                            {doctorLabel(consulta.expand?.medico_id)}
+                            {doctorNameForConsulta(consulta)}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm">
                             <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
@@ -1003,6 +1096,32 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                           </td>
                           <td className="px-6 py-4 text-sm text-zinc-600 dark:text-zinc-400 max-w-[200px] truncate" title={consulta.diagnostico}>
                             {consulta.diagnostico || "-"}
+                          </td>
+                          <td className="px-6 py-4 text-right text-sm">
+                            <div className="flex flex-wrap justify-end gap-2 print:hidden">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  router.push(`/consultas/${consulta.id}?mode=view`);
+                                }}
+                                className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-900 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800"
+                              >
+                                Ver
+                              </button>
+                              {editHref && (
+                                <button
+                                  type="button"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    router.push(editHref);
+                                  }}
+                                  className="rounded-lg bg-[#2d8f8f] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#1f6b6b]"
+                                >
+                                  Editar
+                                </button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1045,6 +1164,7 @@ type ClinicalTimelineEvent = {
   secondary?: string;
   doctor: string;
   primaryHref: string;
+  editHref?: string;
   printHref?: string;
   newPrescriptionHref?: string;
   linkedConsultaHref?: string;
@@ -1062,13 +1182,19 @@ function completedConsultaSummaryFields(consulta: Consulta, tratamiento?: string
   ].filter((field) => field.value.length > 0);
 }
 
-function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): ClinicalTimelineEvent[] {
+function buildClinicalTimeline(
+  consultas: Consulta[],
+  recetas: Receta[],
+  canEditConsultasAsDoctor: boolean,
+  consultaEditLimitDays: number,
+  medicos: readonly Medico[]
+): ClinicalTimelineEvent[] {
   const consultaEvents = consultas.map((consulta) => {
     const tratamiento = (consulta as Consulta & { tratamiento?: string }).tratamiento;
     const title = consulta.motivo_consulta || "Consulta sin motivo cargado";
     const description = consulta.diagnostico ? `Diagnostico: ${consulta.diagnostico}` : "";
     const secondary = tratamiento ? `Tratamiento: ${tratamiento}` : undefined;
-    const doctor = doctorLabel(consulta.expand?.medico_id);
+    const doctor = doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos);
     return {
       key: `consulta-${consulta.id}`,
       type: "consulta" as const,
@@ -1078,6 +1204,9 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
       secondary,
       doctor,
       primaryHref: `/consultas/${consulta.id}?mode=view`,
+      editHref: canEditConsultasAsDoctor && isConsultaEditable(consulta.fecha, consultaEditLimitDays)
+        ? `/consultas/${consulta.id}`
+        : undefined,
       printHref: `/consultas/${consulta.id}/imprimir`,
       newPrescriptionHref: `/recetas/nueva?consulta_id=${consulta.id}&paciente_id=${consulta.paciente_id}`,
       detailRows: [
@@ -1097,7 +1226,7 @@ function buildClinicalTimeline(consultas: Consulta[], recetas: Receta[]): Clinic
     const secondary = receta.consulta_id
       ? `Vinculada a consulta${receta.expand?.consulta_id?.fecha ? ` del ${formatDate(receta.expand.consulta_id.fecha)}` : ""}`
       : "Receta libre";
-    const doctor = doctorLabel(receta.expand?.medico_id);
+    const doctor = doctorLabelFromList(receta.medico_id, receta.expand?.medico_id, medicos);
 
     return {
       key: `receta-${receta.id}`,
@@ -1142,6 +1271,10 @@ function getDateTime(value?: string) {
   return Number.isNaN(time) ? 0 : time;
 }
 
+function isConsultaEditable(fecha: string | undefined, limitDays: number) {
+  return isClinicalDateWithinLimit(fecha, limitDays);
+}
+
 function ClinicalMetric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-800 dark:bg-zinc-950">
@@ -1168,33 +1301,23 @@ function getAntecedentesActivos(paciente: Patient | null) {
   ].filter(Boolean);
 }
 
-function getPatientAge(fechaNacimiento: string) {
-  if (!fechaNacimiento) return "";
-
-  const birthDate = new Date(`${fechaNacimiento}T00:00:00`);
-  if (Number.isNaN(birthDate.getTime())) return "";
-
-  const today = new Date();
-  let age = today.getFullYear() - birthDate.getFullYear();
-  const monthDiff = today.getMonth() - birthDate.getMonth();
-
-  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-    age -= 1;
-  }
-
-  return `${age} anos`;
-}
-
 function formatDate(value?: string) {
   if (!value) return "-";
 
   try {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      const [year, month, day] = value.split("-");
+    const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateOnly) {
+      const [, year, month, day] = dateOnly;
       return `${day}/${month}/${year}`;
     }
 
-    return new Date(value).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   } catch {
     return "-";
   }

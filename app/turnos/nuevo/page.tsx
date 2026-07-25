@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { resolveActiveRole } from "@/lib/active-role";
 import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
-import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import { ACTIVE_PATIENT_FILTER, buildActivePatientSearchFilter } from "@/lib/patient-merge";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { formatDate } from "@/lib/utils";
+import { patientBirthDateKey, patientBirthDateToStoredDateTime } from "@/lib/patient-birth-date";
 
 interface Paciente {
   id: string;
@@ -85,10 +88,6 @@ function addMinutes(date: Date, minutes: number) {
 
 function rangesOverlap(startA: Date, endA: Date, startB: Date, endB: Date) {
   return startA < endB && startB < endA;
-}
-
-function escapePocketBaseFilter(value: string) {
-  return value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 }
 
 function removeAccents(str: string) {
@@ -301,9 +300,8 @@ export default function NuevoTurnoPage() {
     const timeout = window.setTimeout(async () => {
       setIsSearchingPatients(true);
       try {
-        const safeTerm = escapePocketBaseFilter(term);
         const result = await pb.collection("pacientes").getList<Paciente>(1, 20, {
-          filter: `${ACTIVE_PATIENT_FILTER} && (nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}")`,
+          filter: buildActivePatientSearchFilter(term, ["nombre", "apellido", "numero_documento", "telefono"]),
           sort: "apellido,nombre",
           requestKey: null,
         });
@@ -587,9 +585,10 @@ export default function NuevoTurnoPage() {
     e.preventDefault();
     setPatientError("");
 
-    // Validar DNI
-    if (pacientes.some(p => patientDocument(p) === newPatientData.dni)) {
-      setPatientError("Ya existe un paciente registrado con este DNI.");
+    const normalizedDni = normalizePatientDocumentInput(newPatientData.dni);
+    const duplicate = await findDuplicatePatientDocumentClient(normalizedDni);
+    if (duplicate) {
+      setPatientError(duplicatePatientDocumentMessage(normalizedDni, duplicate));
       return;
     }
 
@@ -598,7 +597,8 @@ export default function NuevoTurnoPage() {
       const { dni, ...patientData } = newPatientData;
       const record = await pb.collection("pacientes").create<Paciente>({
         ...patientData,
-        numero_documento: dni,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(newPatientData.fecha_nacimiento),
+        numero_documento: normalizedDni,
       });
 
       setPacientes(prev => {
@@ -634,7 +634,21 @@ export default function NuevoTurnoPage() {
 
     setIsUpdatingPatient(true);
     try {
-      const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, editingPatientData);
+      const normalizedDni = normalizePatientDocumentInput(editingPatientData.dni || editingPatientData.numero_documento || "");
+      if (normalizedDni) {
+        const duplicate = await findDuplicatePatientDocumentClient(normalizedDni, formData.paciente_id);
+        if (duplicate) {
+          alert(duplicatePatientDocumentMessage(normalizedDni, duplicate));
+          return;
+        }
+      }
+
+      const { dni: _dni, ...patientData } = editingPatientData;
+      const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, {
+        ...patientData,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(editingPatientData.fecha_nacimiento),
+        numero_documento: normalizedDni,
+      });
 
       setPacientes(prev => prev.map(p => p.id === formData.paciente_id ? updatedRecord : p).sort((a, b) => a.apellido.localeCompare(b.apellido)));
       setSearchTerm(`${updatedRecord.apellido}, ${updatedRecord.nombre} (DNI: ${patientDocument(updatedRecord)})`);
@@ -896,7 +910,7 @@ export default function NuevoTurnoPage() {
                             onClick={() => {
                               setFormData(prev => ({ ...prev, paciente_id: p.id }));
                               setSearchTerm(`${p.apellido}, ${p.nombre} (DNI: ${patientDocument(p)})`);
-                              setEditingPatientData(p);
+                              setEditingPatientData({ ...p, fecha_nacimiento: patientBirthDateKey(p.fecha_nacimiento) });
                               setIsEditingPatient(false);
                               setShowDropdown(false);
                               setPatientWarningsAcknowledged(false);
@@ -944,7 +958,7 @@ export default function NuevoTurnoPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingPatientData(selectedPatient);
+                          setEditingPatientData({ ...selectedPatient, fecha_nacimiento: patientBirthDateKey(selectedPatient.fecha_nacimiento) });
                           setIsEditingPatient(true);
                         }}
                         className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded"
@@ -958,7 +972,7 @@ export default function NuevoTurnoPage() {
                           type="button"
                           onClick={() => {
                             setIsEditingPatient(false);
-                            setEditingPatientData(selectedPatient);
+                            setEditingPatientData({ ...selectedPatient, fecha_nacimiento: patientBirthDateKey(selectedPatient.fecha_nacimiento) });
                           }}
                           className="text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 font-medium px-2 py-1"
                         >
@@ -1109,7 +1123,7 @@ export default function NuevoTurnoPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                     <span className="font-medium capitalize">
-                      {formData.fecha ? new Date(formData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' }) : ''}
+                      {formData.fecha ? formatDate(new Date(formData.fecha + 'T12:00:00')) : ''}
                     </span>
                   </div>
                   <div className="hidden sm:block text-zinc-300 dark:text-zinc-700">|</div>

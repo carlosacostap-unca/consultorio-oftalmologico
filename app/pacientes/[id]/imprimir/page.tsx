@@ -212,12 +212,19 @@ function formatDate(value?: string) {
   if (!value) return "-";
 
   try {
-    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-      const [year, month, day] = value.split("-");
+    const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (dateOnly) {
+      const [, year, month, day] = dateOnly;
       return `${day}/${month}/${year}`;
     }
 
-    return new Date(value).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "-";
+
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `${day}/${month}/${year}`;
   } catch {
     return "-";
   }

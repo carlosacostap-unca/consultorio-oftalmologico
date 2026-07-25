@@ -5,9 +5,8 @@ import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { appendActivePatientFilter } from "@/lib/patient-merge";
+import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
 import type { ConsultaEstado } from "@/lib/consulta-estado";
-import { consultaEstadoLabel } from "@/lib/consulta-estado";
 import { normalizeUserRoles } from "@/lib/permissions";
 import type { AppUser, Medico } from "@/lib/types";
 import { doctorLabel } from "@/lib/doctor-attribution";
@@ -15,6 +14,10 @@ import { refractionHasValues } from "@/lib/refraction";
 import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
 import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
+import { clinicalDateToStoredDateTime, todayClinicalDateKey } from "@/lib/clinical-date";
+import { formatDate } from "@/lib/utils";
+import { patientBirthAge } from "@/lib/patient-birth-date";
+import { ClinicalDateInput } from "@/components/clinical-date-input";
 
 interface Paciente {
   id: string;
@@ -26,6 +29,7 @@ interface Paciente {
   mutual_id?: string;
   numero_afiliado: string;
   fecha_nacimiento: string;
+  ocupacion?: string;
   domicilio?: string;
   numero_ficha?: string;
   ant_diabetes?: boolean;
@@ -151,8 +155,8 @@ function NuevaConsultaForm() {
     paciente_id: initialPacienteId,
     medico_id: initialMedicoId,
     numero_ficha: "",
-    estado: "en_curso" as ConsultaEstado,
-    fecha: new Date().toISOString().split('T')[0],
+    estado: "finalizada" as ConsultaEstado,
+    fecha: todayClinicalDateKey(),
     motivo_consulta: "",
     
     av_sc_od: "", av_sc_oi: "",
@@ -196,14 +200,7 @@ function NuevaConsultaForm() {
 
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
   const formatClinicalDate = (value?: string) => {
-    if (!value) return "Sin fecha";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "Sin fecha";
-    return date.toLocaleDateString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
+    return formatDate(value) || "Sin fecha";
   };
 
   const getAntecedentesFromPaciente = (paciente: Paciente) => ({
@@ -240,7 +237,7 @@ function NuevaConsultaForm() {
     const authUser = pb.authStore.record as AppUser | null;
     const accountDoctorId = normalizeUserRoles(authUser).includes("medico") ? authUser?.id || "" : "";
     setUser(authUser);
-    setActiveRole(resolveActiveRole(authUser, ["medico"]));
+    setActiveRole(accountDoctorId ? "medico" : resolveActiveRole(authUser, ["medico"]));
 
     if (accountDoctorId) {
       setFormData((prev) => ({ ...prev, medico_id: accountDoctorId }));
@@ -322,18 +319,9 @@ function NuevaConsultaForm() {
     const loadPatientSearchResults = async () => {
       setIsSearchingPatients(true);
       try {
-        const filterParts: string[] = [];
-        const searchVal = debouncedPatientSearchQuery.toLowerCase().replace(/"/g, '\\"');
-        const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
-
-        if (terms.length > 0) {
-          const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || numero_ficha ~ "${term}")`);
-          filterParts.push(`(${termFilters.join(" && ")})`);
-        }
-
         const result = await pb.collection("pacientes").getList<Paciente>(1, 50, {
           sort: "apellido,nombre",
-          filter: appendActivePatientFilter(filterParts.join(" && ")),
+          filter: buildActivePatientSearchFilter(debouncedPatientSearchQuery),
           expand: "mutual_id",
           requestKey: null,
         });
@@ -486,12 +474,15 @@ function NuevaConsultaForm() {
     }
   };
 
+  const handleDateChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (savedConsultation) return;
 
-    const submitter = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
-    const targetEstado: ConsultaEstado = submitter?.value === "finalizada" ? "finalizada" : "en_curso";
+    const targetEstado: ConsultaEstado = "finalizada";
     if (!formData.medico_id) {
       alert("No se pudo definir el medico responsable de la consulta.");
       return;
@@ -503,7 +494,7 @@ function NuevaConsultaForm() {
       const dataToSave = {
         ...normalizeOptionalClinicalZeros(formData),
         estado: targetEstado,
-        fecha: new Date(formData.fecha).toISOString(),
+        fecha: clinicalDateToStoredDateTime(formData.fecha),
         ant_gota: false,
         turno_id: turnoId || "",
       };
@@ -521,7 +512,7 @@ function NuevaConsultaForm() {
 
       const nuevaConsulta = await response.json();
       let turnoUpdated = false;
-      const targetTurnoEstado = targetEstado === "finalizada" ? "Atendido" : "En consulta";
+      const targetTurnoEstado = "Atendido";
       
       // Si venimos desde un turno, lo actualizamos para enlazarlo y marcarlo como Atendido
       if (turnoId) {
@@ -551,7 +542,7 @@ function NuevaConsultaForm() {
       router.push(patientClinicalRecordHref);
     } catch (error) {
       console.error("Error al crear consulta:", error);
-      alert("Error al guardar. Verifica que la colección 'consultas' exista con los campos correspondientes.");
+      alert(error instanceof Error ? error.message : "Error al guardar la consulta.");
       setIsLoading(false);
     }
   };
@@ -580,15 +571,7 @@ function NuevaConsultaForm() {
 
   // Función auxiliar para calcular edad
   const calcularEdad = (fechaNacimiento: string) => {
-    if (!fechaNacimiento) return "-";
-    const hoy = new Date();
-    const nacimiento = new Date(fechaNacimiento);
-    let edad = hoy.getFullYear() - nacimiento.getFullYear();
-    const m = hoy.getMonth() - nacimiento.getMonth();
-    if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-      edad--;
-    }
-    return edad;
+    return patientBirthAge(fechaNacimiento) ?? "-";
   };
 
   const pacienteNombre = selectedPacienteData
@@ -598,6 +581,11 @@ function NuevaConsultaForm() {
       : "Sin paciente seleccionado";
   const accountDoctor = user?.id === formData.medico_id ? user : null;
   const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || accountDoctor;
+  const selectedDoctorLabel = selectedDoctor
+    ? doctorLabel(selectedDoctor)
+    : formData.medico_id
+      ? "Medico asignado sin nombre visible"
+      : "Sin medico asignado";
   const isDoctorFromAccount = Boolean(accountDoctor);
 
   const patientSummaryItems = selectedPacienteData
@@ -622,13 +610,10 @@ function NuevaConsultaForm() {
   ].filter(Boolean);
 
   const turnoDateLabel = selectedTurnoData?.fecha_hora
-    ? new Date(selectedTurnoData.fecha_hora).toLocaleString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
+    ? `${formatDate(selectedTurnoData.fecha_hora)} ${new Date(selectedTurnoData.fecha_hora).toLocaleTimeString("es-AR", {
         hour: "2-digit",
         minute: "2-digit",
-      })
+      })}`
     : "";
 
   const hasTreatmentForCompletion = formData.tratamiento.trim() !== "";
@@ -665,50 +650,22 @@ function NuevaConsultaForm() {
         {/* Contenedor del Formulario */}
         <div className="bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
-          {/* Header del Formulario */}
-          <div className="relative border-b-4 border-[#1f6b6b] bg-[#2d8f8f] p-2 text-white shadow-inner dark:border-emerald-950 dark:bg-emerald-800">
-            <button
-              type="button"
-              onClick={() => router.back()}
-              aria-label="Volver"
-              title="Volver"
-              className="absolute left-3 top-1/2 flex -translate-y-1/2 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Volver
-            </button>
-            <h2 className="w-full text-center text-xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
-              Historia clinica de atencion
-            </h2>
-            <button
-              type="button"
-              onClick={() => setIsClinicalContextOpen((prev) => !prev)}
-              className="absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition hover:bg-white/20 2xl:inline-flex"
-              aria-expanded={isClinicalContextOpen}
-              aria-controls="clinical-context-overlay"
-            >
-              {isClinicalContextOpen ? "Ocultar contexto" : "Ver contexto"}
-            </button>
-          </div>
-          
           <form ref={formRef} onKeyDown={handleKeyDown} onSubmit={handleSubmit} className="p-3 font-sans text-sm text-zinc-900 dark:text-zinc-100">
             {savedConsultation && completionRecommendation && (
               <section aria-label="Cierre de consulta" className="mb-6 rounded-xl border border-emerald-300 bg-emerald-50 p-4 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/30">
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
-                      {savedConsultation.estado === "finalizada" ? "Consulta finalizada correctamente" : "Avance guardado correctamente"}
+                      Consulta finalizada correctamente
                     </p>
                     <h3 className="mt-1 text-lg font-bold text-zinc-900 dark:text-zinc-100">
                       {savedConsultation.turnoUpdated
-                        ? `Consulta ${consultaEstadoLabel(savedConsultation.estado).toLowerCase()} y turno actualizado`
-                        : `La consulta quedo ${consultaEstadoLabel(savedConsultation.estado).toLowerCase()}`}
+                        ? "Consulta finalizada y turno actualizado"
+                        : "La consulta quedo finalizada"}
                     </h3>
                     <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
                       {savedConsultation.turnoUpdated
-                        ? `El turno fue marcado como ${savedConsultation.estado === "finalizada" ? "Atendido" : "En consulta"}.`
+                        ? "El turno fue marcado como Atendido."
                         : "Podes continuar con una accion relacionada o volver al contexto anterior."}
                     </p>
                   </div>
@@ -789,7 +746,7 @@ function NuevaConsultaForm() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Antecedentes activos</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                      <span key={item} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                      <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2.5 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">
                         {item}
                       </span>
                     )) : (
@@ -962,7 +919,7 @@ function NuevaConsultaForm() {
                   <div className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">Antecedentes activos</div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                      <span key={item} className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                      <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">{item}</span>
                     )) : (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos.</span>
                     )}
@@ -1073,13 +1030,8 @@ function NuevaConsultaForm() {
 
             {/* Sección: DATOS DEL PACIENTE */}
             <div className="mb-3">
-              <div className="mb-1.5 flex items-center">
-                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Carga inicial del paciente</h3>
-                <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
-              </div>
-              
-              <div className="grid grid-cols-1 items-end gap-3 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-12">
-                <div className="col-span-12 md:col-span-5">
+              <div className="grid grid-cols-1 items-end gap-2 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-[minmax(22rem,2.6fr)_3.5rem_minmax(11rem,0.9fr)_5.75rem_minmax(15rem,1.35fr)_7.5rem]">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
                   <div className="relative">
                     <input
@@ -1139,12 +1091,12 @@ function NuevaConsultaForm() {
                   </div>
                 </div>
                 {isLoadingSelectedPatient && (
-                  <div className="col-span-12 flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
+                  <div className="col-span-full flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300">
                     <div className="h-4 w-4 rounded-full border-2 border-blue-500 border-t-transparent animate-spin"></div>
                     Cargando datos del paciente seleccionado...
                   </div>
                 )}
-                <div className="col-span-6 md:col-span-1">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
                   <div className="[&>span]:hidden">
                     <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
@@ -1161,15 +1113,23 @@ function NuevaConsultaForm() {
                     className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-800 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isLoadingSelectedPatient ? "animate-pulse" : ""}`}
                   />
                 </div>
-                <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
-                <div className="col-span-12 md:col-span-4">
+                <div className="col-span-full md:col-span-1">
+                  <label className="block text-xs font-semibold mb-1">Nro. Afiliado</label>
+                  <input type="text" readOnly value={selectedPacienteData?.numero_afiliado || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
+                </div>
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
                 </div>
-                <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
+                <div className="col-span-full md:col-span-1">
+                  <label className="block text-xs font-semibold mb-1">Ocupacion</label>
+                  <input type="text" aria-label="Ocupacion" readOnly value={selectedPacienteData?.ocupacion || ""} className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 ${isLoadingSelectedPatient ? "animate-pulse" : ""}`} />
+                </div>
+                <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
                   {antecedentesFijos.map((antecedente) => {
                     const isSelected = formData[antecedente.key];
 
@@ -1181,7 +1141,7 @@ function NuevaConsultaForm() {
                         onClick={() => toggleAntecedente(antecedente.key)}
                         className={`rounded-full border px-3 py-1.5 text-sm font-bold transition ${
                           isSelected
-                            ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                            ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                             : "border-zinc-300 bg-white text-zinc-700 hover:border-[#2d8f8f] hover:text-[#1f6b6b] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-500 dark:hover:text-emerald-300"
                         }`}
                       >
@@ -1190,8 +1150,8 @@ function NuevaConsultaForm() {
                     );
                   })}
                   <div className="flex min-w-[260px] flex-grow items-center gap-2">
-                    <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                    <span className={`font-semibold text-sm whitespace-nowrap ${formData.ant_otra.trim() ? "text-amber-700 dark:text-yellow-100" : ""}`}>OTRA:</span>
+                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                   </div>
                 </div>
               </div>
@@ -1215,7 +1175,7 @@ function NuevaConsultaForm() {
                       onClick={() => toggleAntecedente(antecedente.key)}
                       className={`rounded-full border px-3 py-1.5 text-sm font-bold transition ${
                         isSelected
-                          ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-600"
+                          ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                           : "border-zinc-300 bg-white text-zinc-700 hover:border-[#2d8f8f] hover:text-[#1f6b6b] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-emerald-500 dark:hover:text-emerald-300"
                       }`}
                     >
@@ -1225,7 +1185,7 @@ function NuevaConsultaForm() {
                 })}
                 <div className="flex min-w-[260px] flex-grow items-center gap-2">
                   <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                 </div>
               </div>
             </div>
@@ -1236,7 +1196,7 @@ function NuevaConsultaForm() {
                 <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Examen y cierre clinico</h3>
                 <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
                 <div className="whitespace-nowrap text-xs font-semibold text-[#1f6b6b] dark:text-emerald-500">
-                  Medico responsable: <span className="font-bold">{doctorLabel(selectedDoctor)}</span>
+                  Medico responsable: <span className="font-bold">{selectedDoctorLabel}</span>
                 </div>
               </div>
 
@@ -1246,12 +1206,11 @@ function NuevaConsultaForm() {
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
                     <label className="grid max-w-[220px] grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-sm font-bold">
                       Fecha
-                      <input
+                      <ClinicalDateInput
                         required
-                        type="date"
                         name="fecha"
                         value={formData.fecha}
-                        onChange={handleInputChange}
+                        onChangeDate={handleDateChange}
                         className="w-full rounded-lg border border-zinc-400 bg-white px-3 py-2 font-bold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100 dark:[color-scheme:dark]"
                       />
                     </label>
@@ -1262,7 +1221,6 @@ function NuevaConsultaForm() {
                         value={formData.motivo_consulta}
                         onChange={handleInputChange}
                         rows={1}
-                        placeholder="Motivo principal de la atencion..."
                         className="min-h-10 w-full flex-1 resize-y rounded-lg border-2 border-zinc-400 bg-white px-3 py-2 text-base font-semibold text-zinc-900 outline-none transition focus:border-[#2d8f8f] focus:ring-2 focus:ring-[#2d8f8f]/20 dark:border-zinc-600 dark:bg-zinc-950 dark:text-zinc-100"
                       />
                     </label>
@@ -1527,20 +1485,28 @@ function NuevaConsultaForm() {
 
             {/* Botones de Acción */}
             <div className="mt-3 flex flex-wrap justify-end gap-3 border-t-2 border-zinc-300 pt-3 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => setIsClinicalContextOpen((prev) => !prev)}
+                className="rounded border border-[#1a5c5c] bg-[#2d8f8f] px-6 py-2 text-center font-bold text-white shadow-sm hover:bg-[#1f6b6b]"
+                aria-expanded={isClinicalContextOpen}
+                aria-controls="clinical-context-overlay"
+              >
+                {isClinicalContextOpen ? "Ocultar contexto" : "Ver contexto"}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.back()}
+                className="rounded border border-zinc-400 bg-white px-6 py-2 text-center font-bold text-zinc-800 shadow-sm hover:bg-zinc-100 dark:bg-zinc-800 dark:text-white dark:hover:bg-zinc-700"
+              >
+                Volver
+              </button>
               <button 
                 type="button"
                 onClick={() => router.back()}
                 className="px-6 py-2 bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-zinc-800 dark:text-white font-bold rounded shadow-sm border border-zinc-400 text-center"
               >
                 CANCELAR
-              </button>
-              <button 
-                type="submit" 
-                value="en_curso"
-                disabled={isLoading || !formData.paciente_id || Boolean(savedConsultation)}
-                className="px-8 py-2 bg-zinc-700 hover:bg-zinc-800 text-white font-bold rounded shadow-md border border-zinc-800 disabled:opacity-50 flex items-center gap-2 dark:bg-zinc-700 dark:hover:bg-zinc-600"
-              >
-                {isLoading ? 'GUARDANDO...' : savedConsultation ? 'AVANCE GUARDADO' : 'GUARDAR AVANCE'}
               </button>
               <button 
                 type="submit" 

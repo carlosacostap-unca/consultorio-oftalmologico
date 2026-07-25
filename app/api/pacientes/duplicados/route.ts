@@ -1,6 +1,13 @@
 import { NextRequest } from "next/server";
 import { pbAdmin, requireAdmin } from "@/lib/pocketbase-admin";
-import { ACTIVE_PATIENT_FILTER, MERGED_PATIENT_STATUS, isMergedPatient, patientDisplayName, patientDocument } from "@/lib/patient-merge";
+import {
+  ACTIVE_PATIENT_FILTER,
+  MERGED_PATIENT_STATUS,
+  buildPatientSearchFilter,
+  isMergedPatient,
+  patientDisplayName,
+  patientDocument,
+} from "@/lib/patient-merge";
 import type { Patient } from "@/lib/types";
 
 interface PocketBaseList<T> {
@@ -220,17 +227,7 @@ function normalizeGroupValue(value: string | undefined) {
 }
 
 function searchFilter(query: string) {
-  const terms = query
-    .toLowerCase()
-    .replace(/"/g, '\\"')
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (terms.length === 0) return "id != ''";
-
-  return terms
-    .map((term) => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || telefono ~ "${term}" || numero_ficha ~ "${term}")`)
-    .join(" && ");
+  return buildPatientSearchFilter(query, ["nombre", "apellido", "numero_documento", "telefono", "numero_ficha"]) || "id != ''";
 }
 
 async function relatedCounts(patientId: string): Promise<RelatedCounts> {

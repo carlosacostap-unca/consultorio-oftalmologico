@@ -7,6 +7,7 @@ export interface AppUser extends RecordModel {
   name?: string;
   role?: UserRole;
   roles?: UserRole[];
+  password_configured?: boolean;
 }
 
 export interface Medico extends RecordModel {
@@ -23,6 +24,7 @@ export interface Patient extends RecordModel {
   telefono: string;
   email: string;
   fecha_nacimiento: string;
+  ocupacion?: string;
   obra_social: string;
   numero_afiliado: string;
   domicilio: string;

@@ -1,0 +1,5 @@
+- [x] Agregar especificacion para bloquear documentos duplicados en alta y edicion de pacientes.
+- [x] Crear helper/API de validacion de documento duplicado.
+- [x] Validar documento antes de crear pacientes.
+- [x] Validar documento antes de editar pacientes.
+- [x] Ejecutar build de verificacion.

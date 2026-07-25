@@ -31,6 +31,7 @@ const pacienteLibre = await upsertPaciente({
   numero_documento: "99000001",
   telefono: "2604000001",
   email: "paciente.libre.demo@consultorio.local",
+  ocupacion: "DOCENTE",
 });
 
 const pacienteOcupado = await upsertPaciente({
@@ -39,6 +40,7 @@ const pacienteOcupado = await upsertPaciente({
   numero_documento: "99000002",
   telefono: "2604000002",
   email: "paciente.ocupado.demo@consultorio.local",
+  ocupacion: "COMERCIANTE",
 });
 
 const pacienteDuplicadoPrincipal = await upsertPaciente({

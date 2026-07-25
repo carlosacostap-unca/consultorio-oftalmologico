@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { pb } from "@/lib/pocketbase";
 import { useRouter } from "next/navigation";
 import type { AppUser, Mutual } from "@/lib/types";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { formatBirthDateInput, parseBirthDateInputForPocketBase } from "@/lib/patient-birth-date";
 
 export default function NuevoPacientePage() {
   const router = useRouter();
@@ -31,6 +33,7 @@ export default function NuevoPacientePage() {
     telefono: "",
     email: "",
     fecha_nacimiento: "",
+    ocupacion: "",
     obra_social: "",
     mutual_id: "",
     numero_afiliado: "",
@@ -85,6 +88,10 @@ export default function NuevoPacientePage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleBirthDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setFormData((prev) => ({ ...prev, fecha_nacimiento: formatBirthDateInput(e.target.value) }));
+  };
+
   const handleNewMutualInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewMutualData((prev) => ({ ...prev, [name]: value }));
@@ -107,6 +114,22 @@ export default function NuevoPacientePage() {
     if (data.exists) {
       const paciente = data.duplicate;
       alert(`El número de ficha ${numeroFicha} ya está asignado a ${paciente.apellido || ""}, ${paciente.nombre || ""}.`);
+      return false;
+    }
+
+    return true;
+  };
+
+  const validateNumeroDocumento = async () => {
+    const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento);
+    if (!numeroDocumento) {
+      alert("Ingresa el numero de documento del paciente.");
+      return false;
+    }
+
+    const duplicate = await findDuplicatePatientDocumentClient(numeroDocumento);
+    if (duplicate) {
+      alert(duplicatePatientDocumentMessage(numeroDocumento, duplicate));
       return false;
     }
 
@@ -164,17 +187,37 @@ export default function NuevoPacientePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+
     try {
-      const isNumeroFichaValid = await validateNumeroFicha();
-      if (!isNumeroFichaValid) {
-        setIsLoading(false);
+      try {
+        const isNumeroFichaValid = await validateNumeroFicha();
+        if (!isNumeroFichaValid) {
+          return;
+        }
+
+        const isNumeroDocumentoValid = await validateNumeroDocumento();
+        if (!isNumeroDocumentoValid) {
+          return;
+        }
+      } catch (error) {
+        console.error("Error al validar los datos del paciente:", error);
+        alert("No se pudo validar el documento o el numero de ficha. Intenta nuevamente.");
         return;
       }
 
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
+      const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento);
+      const fechaNacimiento = parseBirthDateInputForPocketBase(formData.fecha_nacimiento);
+      if (fechaNacimiento === null) {
+        alert("Ingresa la fecha de nacimiento con formato dd/mm/aaaa.");
+        return;
+      }
+
       const dataToSave = {
         ...formData,
         tipo_documento: "DNI",
+        numero_documento: numeroDocumento,
+        fecha_nacimiento: fechaNacimiento,
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",
@@ -184,7 +227,7 @@ export default function NuevoPacientePage() {
       router.push(`/consultas/nueva?paciente_id=${paciente.id}`);
     } catch (error) {
       console.error("Error al crear paciente:", error);
-      alert("Error al guardar el paciente. Verifica que la colección 'pacientes' exista en PocketBase.");
+      alert("No se pudo guardar el paciente. Revisa los datos ingresados e intenta nuevamente.");
     } finally {
       setIsLoading(false);
     }
@@ -239,7 +282,12 @@ export default function NuevoPacientePage() {
                 
                 <div>
                   <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Fecha de Nacimiento</label>
-                  <input type="date" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 dark:[color-scheme:dark]" />
+                  <input type="text" inputMode="numeric" maxLength={10} placeholder="dd/mm/aaaa" name="fecha_nacimiento" value={formData.fecha_nacimiento} onChange={handleBirthDateChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Ocupacion</label>
+                  <input type="text" name="ocupacion" value={formData.ocupacion} onChange={handleInputChange} className="w-full px-3 py-2 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200" />
                 </div>
               </div>
 

@@ -16,6 +16,9 @@ import type { Medico } from "@/lib/types";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
 import { emptyIfOptionalClinicalZero, normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
+import { clinicalDateKey, clinicalDateToStoredDateTime, isClinicalDateWithinLimit, todayClinicalDateKey } from "@/lib/clinical-date";
+import { patientBirthAge } from "@/lib/patient-birth-date";
+import { ClinicalDateInput } from "@/components/clinical-date-input";
 
 interface Paciente {
   id: string;
@@ -27,6 +30,7 @@ interface Paciente {
   mutual_id?: string;
   numero_afiliado: string;
   fecha_nacimiento: string;
+  ocupacion?: string;
   domicilio?: string;
   numero_ficha?: string;
   estado_registro?: string;
@@ -41,6 +45,10 @@ interface Paciente {
 interface ConsultaNavigationItem {
   id: string;
   fecha?: string;
+  medico_id?: string;
+  expand?: {
+    medico_id?: Medico;
+  };
 }
 
 import { use } from "react";
@@ -95,7 +103,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     medico_id: "",
     numero_ficha: "",
     estado: "finalizada" as ConsultaEstado,
-    fecha: new Date().toISOString().split('T')[0],
+    fecha: todayClinicalDateKey(),
     motivo_consulta: "",
     
     av_sc_od: "", av_sc_oi: "",
@@ -136,6 +144,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [medicos, setMedicos] = useState<Medico[]>([]);
   const [originalMedicoId, setOriginalMedicoId] = useState("");
+  const [expandedConsultaDoctor, setExpandedConsultaDoctor] = useState<Medico | null>(null);
 
   // Estado para la búsqueda de pacientes
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
@@ -151,11 +160,17 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const isReadOnly = isViewMode || !canEditConsulta;
   const canChooseDoctor = canAssignAnyDoctor(activeRole);
   const assignableDoctors = canChooseDoctor ? medicos : medicos.filter((medico) => medico.id === user?.id);
-  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || null;
+  const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || expandedConsultaDoctor;
+  const selectedDoctorLabel = selectedDoctor
+    ? doctorLabel(selectedDoctor)
+    : formData.medico_id
+      ? "Medico asignado sin nombre visible"
+      : "Sin medico asignado";
   const canEditDoctorAttribution =
     !isViewMode &&
     (canChooseDoctor || (activeRole === "medico" && (!formData.medico_id || formData.medico_id === user?.id)));
   const doctorAttributionChanged = formData.medico_id !== originalMedicoId;
+  const showDoctorEditAction = isViewMode && activeRole === "medico" && canEditConsulta;
   const showSaveActions = !isReadOnly || (canEditDoctorAttribution && doctorAttributionChanged);
   const shouldAnchorConsultaNavigation = () => {
     const formTop = medicalFormRef.current
@@ -248,7 +263,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     if (!id || consultaCacheRef.current.has(id)) return;
 
     pb.collection("consultas")
-      .getOne(id, { requestKey: null })
+      .getOne(id, { expand: "medico_id", requestKey: null })
       .then(cacheConsulta)
       .catch((error) => console.error("Error al precargar consulta:", error));
   };
@@ -348,13 +363,13 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         if (activeConsultaId) {
           const cachedConsulta = consultaCacheRef.current.get(activeConsultaId);
           const consultaRecord = cachedConsulta || cacheConsulta(
-            await pb.collection("consultas").getOne(activeConsultaId, { requestKey: null })
+            await pb.collection("consultas").getOne(activeConsultaId, { expand: "medico_id", requestKey: null })
           );
           
-          let fechaFormateada = new Date().toISOString().split('T')[0];
+          let fechaFormateada = todayClinicalDateKey();
           try {
             if (consultaRecord.fecha) {
-              fechaFormateada = new Date(consultaRecord.fecha).toISOString().split('T')[0];
+              fechaFormateada = clinicalDateKey(consultaRecord.fecha);
             }
           } catch (e) {
             console.error("Error al formatear fecha:", e);
@@ -370,6 +385,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             paciente_id: normalizedConsulta.paciente_id || prev.paciente_id
           }));
           setOriginalMedicoId(normalizedConsulta.medico_id || "");
+          setExpandedConsultaDoctor(consultaRecord.expand?.medico_id || null);
           
           currentPacienteId = normalizedConsulta.paciente_id;
 
@@ -399,6 +415,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             const consultasPaciente = cachedConsultasPaciente || await pb.collection("consultas").getFullList<ConsultaNavigationItem>({
                 filter: `paciente_id = "${currentPacienteId}"`,
                 sort: "fecha,created",
+                expand: "medico_id",
                 requestKey: null,
               });
             if (!cachedConsultasPaciente) {
@@ -555,6 +572,10 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     }
   };
 
+  const handleDateChange = (name: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const onlyDoctorAttributionChange = doctorAttributionChanged && !canEditConsulta;
@@ -577,7 +598,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         : {
             ...normalizeOptionalClinicalZeros(formData),
             estado: targetEstado,
-            fecha: new Date(formData.fecha).toISOString(),
+            fecha: clinicalDateToStoredDateTime(formData.fecha),
             ant_gota: false,
           };
       
@@ -617,15 +638,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   // Función auxiliar para calcular edad
   const calcularEdad = (fechaNacimiento: string) => {
-    if (!fechaNacimiento) return "-";
-    const hoy = new Date();
-    const nacimiento = new Date(fechaNacimiento);
-    let edad = hoy.getFullYear() - nacimiento.getFullYear();
-    const m = hoy.getMonth() - nacimiento.getMonth();
-    if (m < 0 || (m === 0 && hoy.getDate() < nacimiento.getDate())) {
-      edad--;
-    }
-    return edad;
+    return patientBirthAge(fechaNacimiento) ?? "-";
   };
 
   const displayValue = (value?: string | number | null) => {
@@ -639,23 +652,16 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   };
 
   const consultaDateLabel = formData.fecha
-    ? new Date(`${formData.fecha}T12:00:00`).toLocaleDateString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        year: "numeric",
-      })
+    ? formatDate(formData.fecha)
     : "-";
   const formatAuditDate = (value?: string) => {
     if (!value) return "-";
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
+    return `${formatDate(value)} ${date.toLocaleTimeString("es-AR", {
       hour: "2-digit",
       minute: "2-digit",
-    });
+    })}`;
   };
   const consultaEventoTipoLabel = (tipo: ConsultaEvento["tipo"]) => {
     switch (tipo) {
@@ -678,6 +684,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         getPacienteDocumento(selectedPacienteData) ? `DNI ${getPacienteDocumento(selectedPacienteData)}` : "",
         selectedPacienteData.fecha_nacimiento ? `${calcularEdad(selectedPacienteData.fecha_nacimiento)} anos` : "",
         getPacienteObraSocial(selectedPacienteData),
+        selectedPacienteData.ocupacion ? `Ocupacion ${selectedPacienteData.ocupacion}` : "",
       ].filter(Boolean)
     : [];
 
@@ -796,21 +803,8 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   };
 
   function isConsultaEditable(fecha: string | undefined, limitDays: number) {
-    if (!fecha) return true;
-
-    const consultaDate = new Date(fecha);
-    if (Number.isNaN(consultaDate.getTime())) return false;
-
-    const today = startOfDay(new Date());
-    const minDate = new Date(today);
-    minDate.setDate(today.getDate() - limitDays);
-
-    return consultaDate >= minDate;
+    return isClinicalDateWithinLimit(fecha, limitDays);
   }
-
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
-}
 
 function continuityToneClass(tone: string) {
   switch (tone) {
@@ -846,6 +840,11 @@ function continuityToneClass(tone: string) {
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Resumen para continuar el flujo clinico sin perder el contexto de la consulta.</p>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
+              {showDoctorEditAction && (
+                <Link href={`/consultas/${activeConsultaId}`} className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-[#1f6b6b]">
+                  Editar consulta
+                </Link>
+              )}
               <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                 Ficha clinica
               </Link>
@@ -890,7 +889,7 @@ function continuityToneClass(tone: string) {
               <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Antecedentes activos</h3>
               <div className="mt-2 flex flex-wrap gap-2">
                 {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                  <span key={item} className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                  <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2.5 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">{item}</span>
                 )) : (
                   <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos</span>
                 )}
@@ -928,6 +927,11 @@ function continuityToneClass(tone: string) {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
+                {showDoctorEditAction && (
+                  <Link href={`/consultas/${activeConsultaId}`} className="rounded-lg bg-[#2d8f8f] px-3 py-2 text-center text-sm font-bold text-white transition-colors hover:bg-[#1f6b6b]">
+                    Editar consulta
+                  </Link>
+                )}
                 <Link href={formData.paciente_id ? `/pacientes/${formData.paciente_id}?mode=view` : "#"} className={`rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm font-semibold transition-colors dark:border-zinc-700 ${formData.paciente_id ? "bg-white text-zinc-900 hover:bg-zinc-100 dark:bg-zinc-950 dark:text-zinc-100 dark:hover:bg-zinc-800" : "pointer-events-none bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"}`}>
                   Ver paciente
                 </Link>
@@ -986,7 +990,7 @@ function continuityToneClass(tone: string) {
                   <h4 className="text-xs font-semibold uppercase text-zinc-500 dark:text-zinc-400">Antecedentes activos</h4>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {activeAntecedentes.length > 0 ? activeAntecedentes.map((item) => (
-                      <span key={item} className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item}</span>
+                      <span key={item} className="rounded-full border border-amber-500 bg-amber-800 px-2 py-1 text-xs font-semibold text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100">{item}</span>
                     )) : (
                       <span className="text-sm text-zinc-500 dark:text-zinc-400">Sin antecedentes activos</span>
                     )}
@@ -1081,44 +1085,12 @@ function continuityToneClass(tone: string) {
 
         <div ref={medicalFormRef} className="order-1 mb-6 bg-[#f0f0f0] dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-300 dark:border-zinc-700 overflow-hidden">
           
-          {/* Header del Formulario */}
-          <div className="relative bg-[#2d8f8f] dark:bg-emerald-800 text-white p-3 border-b-4 border-[#1f6b6b] dark:border-emerald-950 shadow-inner">
-            <button
-              type="button"
-              onClick={goToPatientDetail}
-              aria-label="Volver"
-              title="Volver"
-              className="absolute left-3 top-1/2 flex -translate-y-1/2 items-center gap-2 rounded-md border border-white/25 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition-colors hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
-            >
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              Volver
-            </button>
-            <h2 className="w-full px-32 text-center text-2xl font-bold italic tracking-wide shadow-sm" style={{ textShadow: '1px 1px 2px rgba(0,0,0,0.3)' }}>
-              Datos Médicos del Paciente
-            </h2>
-            <button
-              type="button"
-              onClick={() => document.getElementById("clinical-context-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg border border-white/30 bg-white/10 px-3 py-1.5 text-sm font-bold text-white transition hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/60"
-              aria-controls="clinical-context-panel"
-            >
-              Ver contexto
-            </button>
-          </div>
-          
           <form onSubmit={handleSubmit} className="p-4 sm:p-6 text-sm text-zinc-900 dark:text-zinc-100 font-sans">
             
             {/* Sección: DATOS DEL PACIENTE */}
             <div className="mb-3">
-              <div className="flex items-center mb-2">
-                <h3 className="text-[#1f6b6b] dark:text-emerald-500 font-bold uppercase mr-2 whitespace-nowrap">Datos del Paciente</h3>
-                <div className="h-px bg-[#1f6b6b] dark:bg-emerald-500 flex-grow"></div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-white dark:bg-zinc-800 p-3 rounded border border-zinc-300 dark:border-zinc-700 shadow-sm">
-                <div className="col-span-12 md:col-span-5 relative">
+              <div className="grid grid-cols-1 items-end gap-2 rounded border border-zinc-300 bg-white p-3 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 md:grid-cols-[minmax(22rem,2.6fr)_3.5rem_minmax(11rem,0.9fr)_5.75rem_minmax(15rem,1.35fr)_7.5rem]">
+                <div className="col-span-full md:col-span-1 relative">
                   <label className="block text-xs font-semibold mb-1">Paciente:</label>
                   <input
                     type="text"
@@ -1163,7 +1135,7 @@ function continuityToneClass(tone: string) {
                     </div>
                   )}
                 </div>
-                <div className="col-span-6 md:col-span-1">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Edad</label>
                   <div className="[&>span]:hidden">
                     <input type="text" readOnly value={selectedPacienteData ? calcularEdad(selectedPacienteData.fecha_nacimiento) : ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700 text-center" />
@@ -1181,15 +1153,23 @@ function continuityToneClass(tone: string) {
                     className={`w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 font-semibold focus:ring-2 focus:ring-blue-500 outline-none ${isReadOnly ? 'bg-zinc-200 dark:bg-zinc-700' : 'bg-white dark:bg-zinc-800'}`}
                   />
                 </div>
-                <div className="col-span-12 sm:col-span-6 md:col-span-2">
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Obra Social</label>
                   <input type="text" readOnly value={getPacienteObraSocial(selectedPacienteData)} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
-                <div className="col-span-12 md:col-span-4">
+                <div className="col-span-full md:col-span-1">
+                  <label className="block text-xs font-semibold mb-1">Nro. Afiliado</label>
+                  <input type="text" readOnly value={selectedPacienteData?.numero_afiliado || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+                <div className="col-span-full md:col-span-1">
                   <label className="block text-xs font-semibold mb-1">Domicilio</label>
                   <input type="text" readOnly value={selectedPacienteData?.domicilio || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
                 </div>
-                <div className="col-span-12 flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
+                <div className="col-span-full md:col-span-1">
+                  <label className="block text-xs font-semibold mb-1">Ocupacion</label>
+                  <input type="text" aria-label="Ocupacion" readOnly value={selectedPacienteData?.ocupacion || ""} className="w-full px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-zinc-200 dark:bg-zinc-700" />
+                </div>
+                <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl border-2 border-zinc-300 bg-zinc-50 p-2.5 shadow-inner dark:border-zinc-600 dark:bg-zinc-800">
                   {fixedAntecedenteChips.map((antecedente) => {
                     const isActive = Boolean(formData[antecedente.key]);
 
@@ -1204,7 +1184,7 @@ function continuityToneClass(tone: string) {
                         }}
                         className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
                           isActive
-                            ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-700"
+                            ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                             : "border-zinc-400 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200"
                         } ${isReadOnly ? "cursor-default" : "hover:border-[#2d8f8f] hover:text-[#2d8f8f] dark:hover:border-emerald-500 dark:hover:text-emerald-400"}`}
                       >
@@ -1213,8 +1193,8 @@ function continuityToneClass(tone: string) {
                     );
                   })}
                   <div className="flex flex-grow items-center gap-2">
-                    <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                    <span className={`font-semibold text-sm whitespace-nowrap ${formData.ant_otra.trim() ? "text-amber-700 dark:text-yellow-100" : ""}`}>OTRA:</span>
+                    <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                   </div>
                 </div>
               </div>
@@ -1241,7 +1221,7 @@ function continuityToneClass(tone: string) {
                       }}
                       className={`rounded-full border px-3 py-1.5 text-xs font-bold transition-colors ${
                         isActive
-                          ? "border-[#2d8f8f] bg-[#2d8f8f] text-white shadow-sm dark:border-emerald-500 dark:bg-emerald-700"
+                          ? "border-amber-500 bg-amber-800 text-yellow-100 shadow-sm dark:border-amber-400 dark:bg-amber-800/80 dark:text-yellow-100"
                           : "border-zinc-400 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200"
                       } ${isReadOnly ? "cursor-default" : "hover:border-[#2d8f8f] hover:text-[#2d8f8f] dark:hover:border-emerald-500 dark:hover:text-emerald-400"}`}
                     >
@@ -1251,7 +1231,7 @@ function continuityToneClass(tone: string) {
                 })}
                 <div className="flex items-center gap-2 flex-grow">
                   <span className="font-semibold text-sm whitespace-nowrap">OTRA:</span>
-                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className="flex-grow px-2 py-1 border border-zinc-400 dark:border-zinc-600 bg-white dark:bg-zinc-900 focus:outline-none focus:border-[#2d8f8f]" />
+                  <input type="text" name="ant_otra" value={formData.ant_otra} onChange={handleInputChange} disabled={isReadOnly} className={`flex-grow px-2 py-1 border bg-white dark:bg-zinc-900 focus:outline-none ${formData.ant_otra.trim() ? "border-amber-500 text-amber-900 dark:border-amber-400 dark:text-yellow-100" : "border-zinc-400 dark:border-zinc-600 focus:border-[#2d8f8f]"}`} />
                 </div>
               </div>
             </div>
@@ -1324,7 +1304,7 @@ function continuityToneClass(tone: string) {
                   </div>
                   <div className="h-px flex-grow bg-[#1f6b6b] dark:bg-emerald-500"></div>
                   <div className="whitespace-nowrap text-xs font-semibold text-[#1f6b6b] dark:text-emerald-500">
-                    Medico responsable: <span className="font-bold">{doctorLabel(selectedDoctor)}</span>
+                    Medico responsable: <span className="font-bold">{selectedDoctorLabel}</span>
                   </div>
                 </div>
 
@@ -1332,12 +1312,11 @@ function continuityToneClass(tone: string) {
                 <section className="grid min-w-0 grid-cols-1 gap-3 rounded-lg border border-zinc-300 bg-zinc-100 p-2.5 dark:border-zinc-700 dark:bg-zinc-900/30 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-center">
                   <label className="flex max-w-[220px] items-center gap-3">
                     <span className="text-sm font-bold">Fecha</span>
-                    <input
+                    <ClinicalDateInput
                       required
-                      type="date"
                       name="fecha"
                       value={formData.fecha}
-                      onChange={handleInputChange}
+                      onChangeDate={handleDateChange}
                       disabled={isReadOnly}
                       className="w-[168px] rounded-md border border-zinc-400 bg-white px-3 py-2 text-center font-bold focus:border-[#2d8f8f] focus:outline-none disabled:opacity-80 dark:border-zinc-600 dark:bg-zinc-900 dark:[color-scheme:dark]"
                     />
@@ -1546,10 +1525,27 @@ function continuityToneClass(tone: string) {
             </div>
 
             {/* Botones de acción */}
-            <div className="mt-8 flex justify-end gap-4 border-t border-zinc-300 dark:border-zinc-700 pt-6">
+            <div className="mt-8 flex flex-wrap justify-end gap-4 border-t border-zinc-300 pt-6 dark:border-zinc-700">
+              <button
+                type="button"
+                onClick={() => document.getElementById("clinical-context-panel")?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                className="rounded-lg border border-[#1f6b6b] bg-[#2d8f8f] px-6 py-2 font-bold text-white transition-colors hover:bg-[#1f6b6b] dark:bg-emerald-700 dark:hover:bg-emerald-600"
+                aria-controls="clinical-context-panel"
+              >
+                Ver contexto
+              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={goToPatientDetail}
+                  className="rounded-lg border border-zinc-400 px-6 py-2 font-bold text-zinc-700 transition-colors hover:bg-zinc-200 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Volver
+                </button>
+              )}
               <button 
                 type="button" 
-                onClick={() => router.back()}
+                onClick={isReadOnly ? goToPatientDetail : () => router.back()}
                 className="px-6 py-2 border border-zinc-400 dark:border-zinc-600 rounded-lg font-bold text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-colors"
               >
                 {isReadOnly ? "Volver" : "Cancelar"}

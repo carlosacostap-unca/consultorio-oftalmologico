@@ -226,6 +226,41 @@ export default function UsuariosPage() {
     }
   };
 
+  const deleteUser = async (user: ManagedUser) => {
+    if (currentUser?.id === user.id) {
+      alert("No podes eliminar tu propio usuario.");
+      return;
+    }
+
+    const userLabel = user.name ? `${user.name} (${user.email})` : user.email;
+    if (!window.confirm(`Vas a eliminar el usuario ${userLabel}. Esta accion no se puede deshacer. ¿Continuar?`)) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/usuarios", {
+        method: "DELETE",
+        headers: {
+          ...activeRoleJsonHeaders(pb.authStore.token, activeRole),
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "No se pudo eliminar el usuario.");
+      }
+
+      setUsers((prev) => prev.filter((item) => item.id !== user.id));
+    } catch (error) {
+      console.error("Error al eliminar usuario:", error);
+      alert(error instanceof Error ? error.message : "No se pudo eliminar el usuario.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const toggleCreateUserRole = (role: UserRole) => {
     setCreateUserForm((prev) => {
       const roles = prev.roles.includes(role)
@@ -370,6 +405,7 @@ export default function UsuariosPage() {
                 <tr>
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Usuario</th>
                   <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400">Roles</th>
+                  <th className="px-6 py-4 text-sm font-semibold text-zinc-600 dark:text-zinc-400 text-right">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
@@ -400,6 +436,20 @@ export default function UsuariosPage() {
                           );
                         })}
                       </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {currentUser?.id === user.id ? (
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">Cuenta activa</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => deleteUser(user)}
+                          disabled={isSaving}
+                          className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))}

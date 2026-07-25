@@ -7,12 +7,16 @@ import { resolveActiveRole } from "@/lib/active-role";
 import { createTurnoEvento } from "@/lib/turno-eventos";
 import type { UserRole } from "@/lib/permissions";
 import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
+import { formatDate } from "@/lib/utils";
+import { patientBirthDateKey, patientBirthDateToStoredDateTime } from "@/lib/patient-birth-date";
 
 interface Paciente {
   id: string;
   nombre: string;
   apellido: string;
-  dni: string;
+  dni?: string;
+  numero_documento?: string;
   telefono?: string;
   email?: string;
   fecha_nacimiento?: string;
@@ -113,6 +117,8 @@ export default function NuevoTurnoPage() {
   const removeAccents = (str: string) => {
     return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   };
+
+  const patientDocument = (patient?: Paciente | null) => patient?.numero_documento || patient?.dni || "";
 
   useEffect(() => {
     const fetchTurnos = async () => {
@@ -379,15 +385,21 @@ export default function NuevoTurnoPage() {
     e.preventDefault();
     setPatientError("");
 
-    // Validar DNI
-    if (pacientes.some(p => p.dni === newPatientData.dni)) {
-      setPatientError("Ya existe un paciente registrado con este DNI.");
+    const normalizedDni = normalizePatientDocumentInput(newPatientData.dni);
+    const duplicate = await findDuplicatePatientDocumentClient(normalizedDni);
+    if (duplicate) {
+      setPatientError(duplicatePatientDocumentMessage(normalizedDni, duplicate));
       return;
     }
 
     setIsSavingPatient(true);
     try {
-      const record = await pb.collection("pacientes").create<Paciente>(newPatientData);
+      const { dni: _dni, ...patientData } = newPatientData;
+      const record = await pb.collection("pacientes").create<Paciente>({
+        ...patientData,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(newPatientData.fecha_nacimiento),
+        numero_documento: normalizedDni,
+      });
       
       setPacientes(prev => {
         const newList = [...prev, record];
@@ -396,7 +408,7 @@ export default function NuevoTurnoPage() {
       
       // Seleccionar automáticamente el nuevo paciente
       setFormData(prev => ({ ...prev, paciente_id: record.id }));
-      setSearchTerm(`${record.apellido}, ${record.nombre} (DNI: ${record.dni})`);
+      setSearchTerm(`${record.apellido}, ${record.nombre} (DNI: ${record.numero_documento || record.dni || ""})`);
       setShowNewPatientModal(false);
       setNewPatientData({ 
         nombre: "", 
@@ -422,10 +434,24 @@ export default function NuevoTurnoPage() {
     
     setIsUpdatingPatient(true);
     try {
-      const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, editingPatientData);
+      const normalizedDni = normalizePatientDocumentInput(editingPatientData.numero_documento || editingPatientData.dni || "");
+      if (normalizedDni) {
+        const duplicate = await findDuplicatePatientDocumentClient(normalizedDni, formData.paciente_id);
+        if (duplicate) {
+          alert(duplicatePatientDocumentMessage(normalizedDni, duplicate));
+          return;
+        }
+      }
+
+      const { dni: _dni, ...patientData } = editingPatientData;
+      const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, {
+        ...patientData,
+        fecha_nacimiento: patientBirthDateToStoredDateTime(editingPatientData.fecha_nacimiento),
+        numero_documento: normalizedDni,
+      });
       
       setPacientes(prev => prev.map(p => p.id === formData.paciente_id ? updatedRecord : p).sort((a, b) => a.apellido.localeCompare(b.apellido)));
-      setSearchTerm(`${updatedRecord.apellido}, ${updatedRecord.nombre} (DNI: ${updatedRecord.dni})`);
+      setSearchTerm(`${updatedRecord.apellido}, ${updatedRecord.nombre} (DNI: ${updatedRecord.numero_documento || updatedRecord.dni || ""})`);
       setIsEditingPatient(false);
     } catch (error) {
       console.error("Error al actualizar paciente:", error);
@@ -510,25 +536,25 @@ export default function NuevoTurnoPage() {
                       {pacientes.filter(p => 
                         removeAccents(p.nombre).toLowerCase().includes(removeAccents(searchTerm).toLowerCase()) ||
                         removeAccents(p.apellido).toLowerCase().includes(removeAccents(searchTerm).toLowerCase()) ||
-                        p.dni.includes(searchTerm)
+                        patientDocument(p).includes(searchTerm)
                       ).length > 0 ? (
                         pacientes.filter(p => 
                           removeAccents(p.nombre).toLowerCase().includes(removeAccents(searchTerm).toLowerCase()) ||
                           removeAccents(p.apellido).toLowerCase().includes(removeAccents(searchTerm).toLowerCase()) ||
-                          p.dni.includes(searchTerm)
+                          patientDocument(p).includes(searchTerm)
                         ).map(p => (
                           <div
                             key={p.id}
                             className="px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 cursor-pointer text-sm text-zinc-700 dark:text-zinc-300"
                             onClick={() => {
                               setFormData(prev => ({ ...prev, paciente_id: p.id }));
-                              setSearchTerm(`${p.apellido}, ${p.nombre} (DNI: ${p.dni})`);
-                              setEditingPatientData(p);
+                              setSearchTerm(`${p.apellido}, ${p.nombre} (DNI: ${patientDocument(p)})`);
+                              setEditingPatientData({ ...p, fecha_nacimiento: patientBirthDateKey(p.fecha_nacimiento) });
                               setIsEditingPatient(false);
                               setShowDropdown(false);
                             }}
                           >
-                            {p.apellido}, {p.nombre} (DNI: {p.dni})
+                            {p.apellido}, {p.nombre} (DNI: {patientDocument(p)})
                           </div>
                         ))
                       ) : (
@@ -567,7 +593,7 @@ export default function NuevoTurnoPage() {
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingPatientData(selectedPatient);
+                          setEditingPatientData({ ...selectedPatient, fecha_nacimiento: patientBirthDateKey(selectedPatient.fecha_nacimiento) });
                           setIsEditingPatient(true);
                         }}
                         className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium flex items-center gap-1 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded"
@@ -581,7 +607,7 @@ export default function NuevoTurnoPage() {
                           type="button"
                           onClick={() => {
                             setIsEditingPatient(false);
-                            setEditingPatientData(selectedPatient);
+                            setEditingPatientData({ ...selectedPatient, fecha_nacimiento: patientBirthDateKey(selectedPatient.fecha_nacimiento) });
                           }}
                           className="text-xs text-zinc-600 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 font-medium px-2 py-1"
                         >
@@ -624,8 +650,8 @@ export default function NuevoTurnoPage() {
                       <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1">DNI</label>
                       <input
                         type="text"
-                        value={isEditingPatient ? editingPatientData.dni || "" : selectedPatient.dni}
-                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, dni: e.target.value }))}
+                        value={isEditingPatient ? editingPatientData.numero_documento || editingPatientData.dni || "" : patientDocument(selectedPatient)}
+                        onChange={(e) => setEditingPatientData(prev => ({ ...prev, dni: e.target.value, numero_documento: e.target.value }))}
                         disabled={!isEditingPatient}
                         className="w-full px-2.5 py-1.5 text-sm bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md disabled:bg-zinc-100 disabled:text-zinc-500 dark:disabled:bg-zinc-800/50 dark:disabled:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
                       />
@@ -721,7 +747,7 @@ export default function NuevoTurnoPage() {
                   <div>
                     <div className="text-xs text-orange-600 dark:text-orange-400 font-medium uppercase">Nuevo Sobreturno</div>
                     <div className="text-sm font-bold text-orange-700 dark:text-orange-300">
-                      {formData.fecha && formData.hora ? `${new Date(formData.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })} a las ${formData.hora}` : 'Horario no definido'}
+                      {formData.fecha && formData.hora ? `${formatDate(new Date(formData.fecha + 'T12:00:00'))} a las ${formData.hora}` : 'Horario no definido'}
                     </div>
                   </div>
                 </div>

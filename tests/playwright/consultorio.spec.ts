@@ -9,9 +9,124 @@ const OVERBOOKING_SLOT = "09:15";
 const DEMO_PATIENT_DOCUMENT = "99000001";
 const OCCUPIED_PATIENT_DOCUMENT = "99000002";
 const ADMIN_SECRETARY_EMAIL = "admin.secretaria.demo@consultorio.local";
+const PASSWORD_SETUP_EMAIL = "password.setup.demo@consultorio.local";
 const PATIENT_SEARCH_PLACEHOLDER = /Buscar por apellido, nombre/;
 const ACTIVE_ROLE_HEADER = "x-active-role";
 const TEST_PB_MARKERS = ["test", "testing", "localhost", "127.0.0.1"];
+
+test.describe("alta de pacientes", () => {
+  test("valida documentos existentes y disponibles mediante la ruta operativa", async ({ request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const suffix = Date.now().toString().slice(-7);
+    const existingDocument = `97${suffix}`;
+    const availableDocument = `98${suffix}`;
+    const patient = await createDemoPatient(request, env, adminToken, {
+      nombre: "VALIDACION",
+      apellido: "DNI PLAYWRIGHT",
+      tipo_documento: "DNI",
+      numero_documento: existingDocument,
+    });
+
+    try {
+      const existing = await request.get(`/api/pacientes/documento?documento=${existingDocument}&tipo_documento=DNI`);
+      expect(existing.status()).toBe(200);
+      await expect(existing.json()).resolves.toMatchObject({
+        documento: existingDocument,
+        tipo_documento: "DNI",
+        exists: true,
+      });
+
+      const available = await request.get(`/api/pacientes/documento?documento=${availableDocument}&tipo_documento=DNI`);
+      expect(available.status()).toBe(200);
+      await expect(available.json()).resolves.toEqual({
+        documento: availableDocument,
+        tipo_documento: "DNI",
+        exists: false,
+        duplicate: null,
+      });
+    } finally {
+      await request.delete(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${patient.id}`, {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      });
+    }
+  });
+});
+
+test.describe("configuracion de contrasena post login", () => {
+  test("usuario autenticado sin contrasena configurada no ve el panel hasta guardar contrasena", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const userId = await getUserIdByEmail(request, env, adminToken, PASSWORD_SETUP_EMAIL);
+
+    await resetPasswordSetupDemoUser(request, env, adminToken, userId);
+    const auth = await authenticateUser(request, env, PASSWORD_SETUP_EMAIL);
+
+    await page.addInitScript((authData) => {
+      window.localStorage.setItem("pocketbase_auth", JSON.stringify(authData));
+    }, { token: auth.token, record: auth.record });
+
+    try {
+      await page.goto("/");
+      await expect(page.getByRole("heading", { name: "Configura tu contrasena" })).toBeVisible();
+      await expect(page.getByText("Rol activo: Secretaria")).toHaveCount(0);
+
+      await page.getByLabel("Nueva contrasena").fill("ClaveNueva123!");
+      await page.getByLabel("Repetir contrasena").fill("OtraClave123!");
+      await page.getByRole("button", { name: "Guardar contrasena" }).click();
+      await expect(page.getByText("Las contrasenas no coinciden.")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Configura tu contrasena" })).toBeVisible();
+
+      await page.getByLabel("Repetir contrasena").fill("ClaveNueva123!");
+      const passwordResponse = page.waitForResponse(
+        (response) => response.url().includes("/api/usuarios/password") && response.request().method() === "POST"
+      );
+      await page.getByRole("button", { name: "Guardar contrasena" }).click();
+      expect((await passwordResponse).ok()).toBeTruthy();
+      await expect(page.getByText("Rol activo: Secretaria")).toBeVisible();
+
+      const updated = await pbGet(request, env, adminToken, "users", userId);
+      expect(updated.password_configured).toBe(true);
+    } finally {
+      await resetPasswordSetupDemoUser(request, env, adminToken, userId);
+    }
+  });
+
+  test("usuario cambia su contrasena desde el perfil lateral", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const userId = await getUserIdByEmail(request, env, adminToken, "secretaria.demo@consultorio.local");
+
+    try {
+      await login(page, "secretaria.demo@consultorio.local");
+      await page.getByRole("button", { name: "Expandir menu lateral" }).click();
+      await page.getByRole("button", { name: "Abrir opciones de usuario" }).click();
+      await expect(page.getByRole("button", { name: "Cambiar contrasena" })).toBeVisible();
+
+      await page.getByRole("button", { name: "Cambiar contrasena" }).click();
+      await expect(page.getByRole("heading", { name: "Cambiar contrasena" })).toBeVisible();
+      await page.getByLabel("Nueva contrasena").fill("NuevaSecretaria123!");
+      await page.getByLabel("Repetir contrasena").fill("OtraSecretaria123!");
+      await page.getByRole("button", { name: "Guardar" }).click();
+      await expect(page.getByText("Las contrasenas no coinciden.")).toBeVisible();
+
+      await page.getByLabel("Repetir contrasena").fill("NuevaSecretaria123!");
+      const passwordResponse = page.waitForResponse(
+        (response) => response.url().includes("/api/usuarios/password") && response.request().method() === "PATCH"
+      );
+      await page.getByRole("button", { name: "Guardar" }).click();
+      expect((await passwordResponse).ok()).toBeTruthy();
+      await expect(page.getByRole("heading", { name: "Cambiar contrasena" })).toHaveCount(0);
+      await expect(page.getByText("Contrasena actualizada.")).toBeVisible();
+      await expect(page.getByText("Rol activo: Secretaria")).toBeVisible();
+    } finally {
+      await resetDemoUserPassword(request, env, adminToken, userId);
+    }
+  });
+});
 
 test.describe("roles y otorgamiento de turnos", () => {
   test("secretaria ingresa y puede ver todos los medicos", async ({ page }) => {
@@ -271,6 +386,117 @@ test.describe("roles y otorgamiento de turnos", () => {
     await expect(await findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT)).toBeTruthy();
 
     await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT);
+  });
+
+  test("circuito critico secretaria medico consulta receta e impresiones", async ({ page, request }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const motivo = `Playwright circuito critico ${Date.now()}`;
+    let createdConsultaId = "";
+    let createdRecetaId = "";
+    await cleanupDemoAppointment(request, env, adminToken, medicoId, undefined, QUICK_SLOT);
+
+    try {
+      await login(page, "secretaria.demo@consultorio.local");
+      await page.goto("/turnos");
+      await page.getByRole("button", { name: "Agenda Diaria" }).click();
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+      await page.getByRole("button", { name: /09:00.*Libre/ }).click();
+
+      await expect(page.getByRole("heading", { name: "Alta rapida de turno" })).toBeVisible();
+      await page.getByPlaceholder(PATIENT_SEARCH_PLACEHOLDER).fill(DEMO_PATIENT_DOCUMENT);
+      await page.getByText(/Libre Demo, Paciente/).click();
+      await page.getByPlaceholder("Ej: Control general").fill(motivo);
+      await page.getByRole("button", { name: "Guardar turno" }).click();
+
+      await expect(page.getByText("Turno creado")).toBeVisible();
+      await expect(page.getByRole("button", { name: `Gestionar turno ${motivo}` })).toBeVisible();
+      await expect
+        .poll(() => findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "En espera"), {
+          timeout: 10_000,
+        })
+        .toBeTruthy();
+
+      await page.evaluate(() => window.localStorage.clear());
+      await page.goto("/");
+      await expect(page.locator('input[type="email"]')).toBeVisible();
+
+      await login(page, "medico.demo@consultorio.local");
+      await page.goto("/turnos");
+      await expect(page.getByText("Mi jornada medica")).toBeVisible();
+      await page.locator('main input[type="date"]').fill(DEMO_DATE);
+      const row = page
+        .getByRole("button", { name: `Gestionar turno ${motivo}` })
+        .locator("xpath=ancestor::div[contains(@class,'grid')][1]");
+      await expect(row.getByRole("button", { name: "Iniciar consulta" })).toBeVisible();
+      await row.getByRole("button", { name: "Iniciar consulta" }).click();
+
+      await expect(page).toHaveURL(/\/consultas\/nueva/);
+      await page.getByLabel("Motivo").fill(motivo);
+      await page.getByLabel("BMC").fill("Biomicroscopia del circuito critico sin particularidades.");
+      await page.getByLabel("FO").fill("Fondo de ojo del circuito critico conservado.");
+      await page.getByLabel("DX").fill("Diagnostico del circuito critico automatizado.");
+      await page.getByLabel("TTO").fill("Tratamiento del circuito critico con control posterior.");
+      await page.getByRole("button", { name: "FINALIZAR CONSULTA" }).click();
+
+      await expect
+        .poll(async () => {
+          const appointment = await findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "Atendido");
+          return Boolean(appointment?.consulta_id);
+        }, { timeout: 10_000 })
+        .toBeTruthy();
+      const completedAppointment = await findDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT, "Atendido");
+      createdConsultaId = String(completedAppointment?.consulta_id || "");
+      expect(createdConsultaId).toBeTruthy();
+
+      await page.goto(`/consultas/${createdConsultaId}`);
+      await expect(page.getByText("Detalle clinico")).toBeVisible();
+      await expect(page.getByText("Ocupacion DOCENTE").first()).toBeVisible();
+      await expect(page.getByText("Diagnostico del circuito critico automatizado.").first()).toBeVisible();
+      await expect(page.getByLabel("Continuidad clinica").getByRole("link", { name: "Crear receta" })).toBeVisible();
+      await page.getByLabel("Continuidad clinica").getByRole("link", { name: "Crear receta" }).click();
+
+      await expect(page).toHaveURL(new RegExp(`/recetas/nueva\\?consulta_id=${createdConsultaId}`));
+      await page.locator("textarea").first().fill("Receta del circuito critico automatizado");
+      await page.locator("textarea").nth(1).fill("Usar segun indicacion del circuito critico.");
+      await page.getByRole("button", { name: "Guardar Receta" }).click();
+      await expect(page.getByText("Receta guardada correctamente")).toBeVisible();
+      const recetaHref = await page.getByRole("link", { name: "Ver receta" }).getAttribute("href");
+      createdRecetaId = recetaHref?.match(/\/recetas\/([^?]+)/)?.[1] || "";
+      expect(createdRecetaId).toBeTruthy();
+
+      await page.getByRole("link", { name: "Volver a consulta" }).click();
+      await expect(page.getByLabel("Continuidad clinica").getByText("1 receta emitida en esta consulta.")).toBeVisible();
+
+      await page.getByLabel("Continuidad clinica").getByRole("link", { name: "Imprimir informe" }).click();
+      await expect(page).toHaveURL(new RegExp(`/consultas/${createdConsultaId}/imprimir`));
+      await expect(page.getByRole("heading", { name: "Informe clinico de consulta" })).toBeVisible();
+      await expect(page.getByText("Receta del circuito critico automatizado").first()).toBeVisible();
+
+      await page.goto(`/recetas/${createdRecetaId}/imprimir`);
+      await expect(page.getByRole("heading", { name: "Receta medica" })).toBeVisible();
+      await expect(page.getByText("Receta del circuito critico automatizado").first()).toBeVisible();
+      await expect(page.getByText("Usar segun indicacion del circuito critico.").first()).toBeVisible();
+    } finally {
+      if (createdRecetaId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/recetas/records/${createdRecetaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      if (createdConsultaId) {
+        await cleanupConsultationEvents(request, env, adminToken, createdConsultaId);
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${createdConsultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      await cleanupDemoAppointment(request, env, adminToken, medicoId, motivo, QUICK_SLOT);
+    }
   });
 
   test("secretaria crea paciente desde alta rapida de turno", async ({ page, request }) => {
@@ -579,6 +805,34 @@ test.describe("roles y otorgamiento de turnos", () => {
       },
     });
     expect(secretaryResponse.status()).toBe(403);
+  });
+
+  test("admin configura recordatorios de turnos sin exponer App Password", async ({ page }) => {
+    await login(page, "admin.demo@consultorio.local");
+    await page.goto("/edicion-consultas");
+
+    await expect(page.getByRole("heading", { name: "Configuracion clinica" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Recordatorios de turnos por email" })).toBeVisible();
+
+    await page.getByLabel("Horas de anticipacion").fill("24");
+    await page.getByLabel("Host SMTP").fill("smtp.gmail.com");
+    await page.getByLabel("Puerto SMTP").fill("465");
+    await page.getByLabel("Usuario SMTP").fill("recordatorios@consultorio.local");
+    await page.getByLabel("Email remitente").fill("recordatorios@consultorio.local");
+    await page.getByLabel("Nombre remitente").fill("Consultorio oftalmologico");
+    await page.getByLabel("Asunto del recordatorio").fill("Recordatorio para {{paciente}}");
+    await page.getByLabel("Mensaje del recordatorio").fill("Hola {{paciente}}, tu turno es el {{fecha}} a las {{hora}}.");
+    await expect(page.locator("code").filter({ hasText: "{{paciente}}" })).toBeVisible();
+    await expect(page.locator("code").filter({ hasText: "{{fecha}}" })).toBeVisible();
+    await expect(page.getByLabel("Email para prueba")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Enviar prueba" })).toBeDisabled();
+    await page.getByLabel("Email para prueba").fill("prueba@consultorio.local");
+    await expect(page.getByRole("button", { name: "Enviar prueba" })).toBeEnabled();
+
+    const passwordInput = page.getByLabel("App Password SMTP");
+    await expect(passwordInput).toHaveAttribute("type", "password");
+    await passwordInput.fill("clave-no-enviada");
+    await expect(page.getByText("clave-no-enviada")).toHaveCount(0);
   });
 
   test("admin fusiona pacientes duplicados desde la pantalla administrativa", async ({ page, request }) => {
@@ -1117,6 +1371,7 @@ test.describe("roles y otorgamiento de turnos", () => {
 
       await expect(page).toHaveURL(/\/consultas\/nueva/);
       await expect(page).toHaveURL(new RegExp(`turno_id=${turno.id}`));
+      await expect(page.getByLabel("Ocupacion")).toHaveValue("DOCENTE");
       const contextToggle = page.getByRole("button", { name: "Ver contexto" });
       const isCompactDesktop = await contextToggle.isVisible().catch(() => false);
       if (!isCompactDesktop) {
@@ -1384,6 +1639,18 @@ async function getUserToken(request: APIRequestContext, env: Record<string, stri
 
   expect(response.ok()).toBeTruthy();
   return (await response.json()).token as string;
+}
+
+async function authenticateUser(request: APIRequestContext, env: Record<string, string>, email: string) {
+  const response = await request.post(`${pocketBaseUrl(env)}/api/collections/users/auth-with-password`, {
+    data: {
+      identity: email,
+      password: DEMO_PASSWORD,
+    },
+  });
+
+  expect(response.ok()).toBeTruthy();
+  return response.json() as Promise<{ token: string; record: Record<string, string | boolean> }>;
 }
 
 async function getUserIdByEmail(
@@ -1724,6 +1991,40 @@ async function updateDemoPatient(
   const response = await request.patch(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${patientId}`, {
     headers: { Authorization: `Bearer ${token}` },
     data,
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+async function resetPasswordSetupDemoUser(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  userId: string
+) {
+  const response = await request.patch(`${pocketBaseUrl(env)}/api/collections/users/records/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      password: DEMO_PASSWORD,
+      passwordConfirm: DEMO_PASSWORD,
+      password_configured: false,
+    },
+  });
+  expect(response.ok()).toBeTruthy();
+}
+
+async function resetDemoUserPassword(
+  request: APIRequestContext,
+  env: Record<string, string>,
+  token: string,
+  userId: string
+) {
+  const response = await request.patch(`${pocketBaseUrl(env)}/api/collections/users/records/${userId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: {
+      password: DEMO_PASSWORD,
+      passwordConfirm: DEMO_PASSWORD,
+      password_configured: true,
+    },
   });
   expect(response.ok()).toBeTruthy();
 }

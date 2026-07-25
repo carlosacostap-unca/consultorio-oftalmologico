@@ -3,21 +3,26 @@
 import { useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { AppUser, Mutual } from "@/lib/types";
+
+const MUTUALES_LIST_SCROLL_KEY = "mutuales-list-scroll-y";
 
 export default function MutualesPage() {
   const router = useRouter();
+  const pathname = usePathname();
   const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [mutuales, setMutuales] = useState<Mutual[]>([]);
   const [patientCounts, setPatientCounts] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingPatientCounts, setIsLoadingPatientCounts] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     setIsMounted(true);
     setUser(pb.authStore.record as AppUser | null);
+    setSearchQuery(new URLSearchParams(window.location.search).get("q") || "");
 
     if (!pb.authStore.isValid) {
       router.push("/");
@@ -25,6 +30,7 @@ export default function MutualesPage() {
     }
 
     const loadPatientCounts = async (records: Mutual[]) => {
+      setIsLoadingPatientCounts(true);
       try {
         const counts: Record<string, number> = {};
 
@@ -49,6 +55,8 @@ export default function MutualesPage() {
         }
       } catch (error) {
         console.error("Error al cargar cantidad de pacientes por mutual:", error);
+      } finally {
+        setIsLoadingPatientCounts(false);
       }
     };
 
@@ -58,10 +66,10 @@ export default function MutualesPage() {
           sort: "nombre",
         });
         setMutuales(records);
-        await loadPatientCounts(records);
+        setIsLoading(false);
+        void loadPatientCounts(records);
       } catch (error) {
         console.error("Error al cargar mutuales:", error);
-      } finally {
         setIsLoading(false);
       }
     };
@@ -73,12 +81,18 @@ export default function MutualesPage() {
       .subscribe<Mutual>("*", (e) => {
         if (e.action === "create") {
           setMutuales((prev) => [...prev, e.record].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+          setPatientCounts((prev) => ({ ...prev, [e.record.id]: 0 }));
         } else if (e.action === "update") {
           setMutuales((prev) =>
             prev.map((m) => (m.id === e.record.id ? e.record : m)).sort((a, b) => a.nombre.localeCompare(b.nombre))
           );
         } else if (e.action === "delete") {
           setMutuales((prev) => prev.filter((m) => m.id !== e.record.id));
+          setPatientCounts((prev) => {
+            const next = { ...prev };
+            delete next[e.record.id];
+            return next;
+          });
         }
       })
       .then((unsub) => {
@@ -90,6 +104,18 @@ export default function MutualesPage() {
       if (unsubscribe) unsubscribe();
     };
   }, [router]);
+
+  useEffect(() => {
+    if (isLoading || !isMounted) return;
+
+    const savedScrollY = window.sessionStorage.getItem(MUTUALES_LIST_SCROLL_KEY);
+    if (!savedScrollY) return;
+
+    window.sessionStorage.removeItem(MUTUALES_LIST_SCROLL_KEY);
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: Number(savedScrollY) || 0 });
+    });
+  }, [isLoading, isMounted]);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta mutual?")) {
@@ -107,8 +133,26 @@ export default function MutualesPage() {
       m.codigo?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSearchChange = (value: string) => {
+    setSearchQuery(value);
+
+    const nextSearchParams = new URLSearchParams(window.location.search);
+    if (value.trim()) {
+      nextSearchParams.set("q", value);
+    } else {
+      nextSearchParams.delete("q");
+    }
+
+    const queryString = nextSearchParams.toString();
+    router.replace(queryString ? `${pathname}?${queryString}` : pathname, { scroll: false });
+  };
+
   const openMutualDetail = (id: string) => {
-    router.push(`/mutuales/${id}?mode=view`);
+    window.sessionStorage.setItem(MUTUALES_LIST_SCROLL_KEY, String(window.scrollY));
+
+    const queryString = window.location.search.slice(1);
+    const returnTo = `${pathname}${queryString ? `?${queryString}` : ""}`;
+    router.push(`/mutuales/${id}?mode=view&returnTo=${encodeURIComponent(returnTo)}`);
   };
 
   if (!isMounted) return null;
@@ -154,7 +198,7 @@ export default function MutualesPage() {
               type="text"
               placeholder="Buscar por nombre o código..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-zinc-200 transition-shadow"
             />
           </div>
@@ -218,7 +262,7 @@ export default function MutualesPage() {
                       </td>
                       <td className="px-6 py-4 text-right text-zinc-600 dark:text-zinc-300">
                         <span className="inline-flex min-w-12 justify-center rounded-md bg-zinc-100 px-2 py-1 text-sm font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                          {patientCounts[mutual.id] ?? "-"}
+                          {patientCounts[mutual.id] ?? (isLoadingPatientCounts ? "..." : 0)}
                         </span>
                       </td>
                     </tr>

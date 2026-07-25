@@ -8,8 +8,9 @@ import { ACTIVE_ROLE_CHANGED_EVENT, resolveActiveRole } from "@/lib/active-role"
 import type { UserRole } from "@/lib/permissions";
 import { createTurnoEvento, type TurnoEvento } from "@/lib/turno-eventos";
 import { formatDate } from "@/lib/utils";
-import { ACTIVE_PATIENT_FILTER } from "@/lib/patient-merge";
+import { ACTIVE_PATIENT_FILTER, buildActivePatientSearchFilter } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
+import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 import {
   blockAppliesToSlot,
   findConflictingAppointments,
@@ -679,13 +680,13 @@ export default function TurnosPage() {
     if (turno.estado === "En consulta") return "En atencion";
     return diffMinutes > 0 ? `Atrasado ${diffMinutes} min` : "Horario actual";
   };
-  const eventDateTime = (value: string) => new Date(value).toLocaleString([], {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const eventDateTime = (value: string) => {
+    const date = new Date(value);
+    return `${formatDate(date)} ${date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    })}`;
+  };
   const eventDateLabel = (value?: string) => value ? `${formatDate(new Date(value))} ${shortTime(new Date(value))}` : "";
   const isSensitiveStatus = (estado: string) => estado === "Ausente" || estado === "Cancelado";
 
@@ -818,12 +819,24 @@ export default function TurnosPage() {
 
     setPatientQuickCard((prev) => ({ ...prev, isSaving: true, error: "", success: "" }));
     try {
+      const numeroDocumento = normalizePatientDocumentInput(form.numero_documento);
+      if (numeroDocumento) {
+        const duplicate = await findDuplicatePatientDocumentClient(numeroDocumento, patientQuickCard.pacienteId);
+        if (duplicate) {
+          setPatientQuickCard((prev) => ({
+            ...prev,
+            isSaving: false,
+            error: duplicatePatientDocumentMessage(numeroDocumento, duplicate),
+          }));
+          return;
+        }
+      }
+
       const dataToSave = {
         nombre: form.nombre.trim(),
         apellido: form.apellido.trim(),
         tipo_documento: form.tipo_documento.trim() || "DNI",
-        numero_documento: form.numero_documento.trim(),
-        dni: form.numero_documento.trim(),
+        numero_documento: numeroDocumento,
         telefono: form.telefono.trim(),
         email: form.email.trim(),
         obra_social: form.obra_social.trim(),
@@ -969,15 +982,11 @@ export default function TurnosPage() {
 
     updateQuickNewPatient({ isSaving: true, error: "" });
     try {
+      const normalizedDni = normalizePatientDocumentInput(dni);
       if (dni) {
-        const safeDni = escapePocketBaseFilter(dni);
-        const existing = await pb.collection("pacientes").getList<Paciente>(1, 1, {
-          filter: `${ACTIVE_PATIENT_FILTER} && numero_documento = "${safeDni}"`,
-          requestKey: null,
-        });
-
-        if (existing.items.length > 0) {
-          updateQuickNewPatient({ error: "Ya existe un paciente registrado con este DNI.", isSaving: false });
+        const duplicate = await findDuplicatePatientDocumentClient(normalizedDni);
+        if (duplicate) {
+          updateQuickNewPatient({ error: duplicatePatientDocumentMessage(normalizedDni, duplicate), isSaving: false });
           return;
         }
       }
@@ -985,7 +994,7 @@ export default function TurnosPage() {
       const record = await pb.collection("pacientes").create<Paciente>({
         nombre,
         apellido,
-        numero_documento: dni,
+        numero_documento: normalizedDni,
         telefono,
         obra_social: obraSocial,
       });
@@ -1180,7 +1189,8 @@ export default function TurnosPage() {
       return;
     }
 
-    const cancelNote = `[Cancelado ${new Date().toLocaleString()}] ${reason}`;
+    const now = new Date();
+    const cancelNote = `[Cancelado ${formatDate(now)} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}] ${reason}`;
     const nextObservaciones = editObservaciones.trim()
       ? `${editObservaciones.trim()}\n${cancelNote}`
       : cancelNote;
@@ -1231,7 +1241,8 @@ export default function TurnosPage() {
     const duration = slotDurationForAvailability(disponibilidad);
     const previousLabel = `${formatDate(previousDate)} ${previousDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
     const nextLabel = `${formatDate(nextDate)} ${nextDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-    const note = `[Reprogramado ${new Date().toLocaleString()}] de ${previousLabel} a ${nextLabel}`;
+    const now = new Date();
+    const note = `[Reprogramado ${formatDate(now)} ${now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}] de ${previousLabel} a ${nextLabel}`;
     const nextObservaciones = editObservaciones.trim()
       ? `${editObservaciones.trim()}\n${note}`
       : note;
@@ -1414,9 +1425,8 @@ export default function TurnosPage() {
     const timeout = window.setTimeout(async () => {
       updateQuickAppointment({ isSearching: true, error: "" });
       try {
-        const safeTerm = escapePocketBaseFilter(term);
         const result = await pb.collection("pacientes").getList<Paciente>(1, 12, {
-          filter: `${ACTIVE_PATIENT_FILTER} && (nombre ~ "${safeTerm}" || apellido ~ "${safeTerm}" || numero_documento ~ "${safeTerm}" || telefono ~ "${safeTerm}")`,
+          filter: buildActivePatientSearchFilter(term, ["nombre", "apellido", "numero_documento", "telefono"]),
           sort: "apellido,nombre",
           requestKey: null,
         });

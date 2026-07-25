@@ -4,6 +4,7 @@ import { loadSystemSettings } from "@/lib/system-settings-server";
 import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
 import { consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-estado";
 import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
+import { clinicalDateToStoredDateTime, isClinicalDateWithinLimit } from "@/lib/clinical-date";
 import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ export async function PATCH(
 
     const { id } = await context.params;
     const current = await pbAdmin(`/api/collections/consultas/records/${encodeURIComponent(id)}`);
-    const body = normalizeOptionalClinicalZeros(await request.json());
+    const body = normalizeConsultaPatchBody(normalizeOptionalClinicalZeros(await request.json()));
     const settings = await loadSystemSettings();
     const isOnlyDoctorAttributionChange = onlyDoctorAttributionChanged(body);
     const activeRole = activeRoleFromRequest(request, user);
@@ -91,18 +92,14 @@ function normalizeValue(value: unknown) {
 }
 
 function isConsultaEditable(fecha: string | undefined, limitDays: number) {
-  if (!fecha) return true;
-
-  const consultaDate = new Date(fecha);
-  if (Number.isNaN(consultaDate.getTime())) return false;
-
-  const today = startOfDay(new Date());
-  const minDate = new Date(today);
-  minDate.setDate(today.getDate() - limitDays);
-
-  return consultaDate >= minDate;
+  return isClinicalDateWithinLimit(fecha, limitDays);
 }
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+function normalizeConsultaPatchBody(body: Record<string, unknown>) {
+  if (typeof body.fecha !== "string" || !body.fecha) return body;
+
+  return {
+    ...body,
+    fecha: clinicalDateToStoredDateTime(body.fecha),
+  };
 }

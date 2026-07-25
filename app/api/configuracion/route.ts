@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { authenticatedUser, requireAdmin } from "@/lib/pocketbase-admin";
 import { DEFAULT_CONSULTA_EDIT_LIMIT_DAYS } from "@/lib/system-settings";
-import { loadSystemSettings, saveConsultaEditLimitDays } from "@/lib/system-settings-server";
+import { loadSystemSettings, saveSystemSettings } from "@/lib/system-settings-server";
 
 export const dynamic = "force-dynamic";
 
@@ -30,9 +30,12 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    return Response.json(await saveConsultaEditLimitDays(body.consultaEditLimitDays));
+    return Response.json(await saveSystemSettings(body));
   } catch (error) {
     console.error("Error al guardar configuracion:", error);
-    return Response.json({ error: "No se pudo guardar la configuracion" }, { status: 500 });
+    return Response.json(
+      { error: error instanceof Error ? error.message : "No se pudo guardar la configuracion" },
+      { status: 500 }
+    );
   }
 }

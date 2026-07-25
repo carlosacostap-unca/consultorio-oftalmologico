@@ -1,0 +1,4 @@
+- [x] 1.1 Eliminar el boton `Guardar avance` de `/consultas/nueva`.
+- [x] 1.2 Ajustar el submit para que la nueva consulta se cree como `finalizada` por defecto.
+- [x] 1.3 Ajustar mensajes posteriores al guardado para no mencionar avance.
+- [x] 1.4 Validar con OpenSpec y build.

@@ -1,0 +1,5 @@
+- [x] 1.1 Agregar helpers para parsear y formatear fecha clinica visible como `dd/mm/aaaa`.
+- [x] 1.2 Reemplazar los campos nativos de fecha en nueva consulta y consulta existente por un control con formato fijo.
+- [x] 1.3 Cargar consultas existentes con medico expandido y usarlo como fallback de visualizacion.
+- [x] 1.4 Ajustar la etiqueta de medico responsable para roles operativos cuando exista `medico_id`.
+- [x] 1.5 Validar con build y OpenSpec.

@@ -26,11 +26,12 @@ export async function pbAdmin(path: string, options: RequestInit = {}) {
     cache: "no-store",
   });
 
+  const text = await response.text();
   if (!response.ok) {
-    throw new Error(`PocketBase ${response.status}: ${await response.text()}`);
+    throw new Error(`PocketBase ${response.status}: ${text}`);
   }
 
-  return response.json();
+  return text ? JSON.parse(text) : null;
 }
 
 export async function authenticatedUser(request: Request) {

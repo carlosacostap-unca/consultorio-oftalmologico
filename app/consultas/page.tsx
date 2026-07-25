@@ -6,9 +6,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Medico, Patient } from "@/lib/types";
-import { appendActivePatientFilter } from "@/lib/patient-merge";
+import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patient-merge";
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList } from "@/lib/doctor-attribution";
+import { todayClinicalDateKey } from "@/lib/clinical-date";
 
 interface Consulta {
   id: string;
@@ -30,6 +31,7 @@ export default function ConsultasPage() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   // Estados para paginación y filtros
@@ -69,12 +71,8 @@ export default function ConsultasPage() {
         }
 
         if (debouncedFilterPatient) {
-          const searchVal = debouncedFilterPatient.toLowerCase().replace(/"/g, '\\"');
-          const terms = searchVal.split(/\s+/).filter(term => term.length > 0);
-          if (terms.length > 0) {
-            const termFilters = terms.map(term => `(nombre ~ "${term}" || apellido ~ "${term}" || numero_documento ~ "${term}" || numero_ficha ~ "${term}")`);
-            patientFilterParts.push(`(${termFilters.join(" && ")})`);
-          }
+          const searchFilter = buildPatientSearchFilter(debouncedFilterPatient);
+          if (searchFilter) patientFilterParts.push(searchFilter);
         }
 
         // Primero buscar los pacientes que coincidan
@@ -96,12 +94,14 @@ export default function ConsultasPage() {
       }
       if (filterDate) {
         filterParts.push(`fecha >= "${filterDate} 00:00:00" && fecha <= "${filterDate} 23:59:59"`);
+      } else {
+        filterParts.push(`fecha <= "${todayClinicalDateKey()} 23:59:59"`);
       }
       
       const filterString = filterParts.join(" && ");
 
       const result = await pb.collection("consultas").getList<Consulta>(page, 20, {
-        sort: "-fecha",
+        sort: "-fecha,-created",
         expand: "paciente_id,medico_id",
         filter: filterString,
       });
@@ -125,6 +125,17 @@ export default function ConsultasPage() {
 
     loadData();
   }, [router, page, selectedLetter, debouncedFilterPatient, filterDate]);
+
+  useEffect(() => {
+    if (!pb.authStore.isValid) return;
+
+    fetch("/api/medicos", {
+      headers: { Authorization: `Bearer ${pb.authStore.token}` },
+    })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => setMedicos(Array.isArray(data?.medicos) ? data.medicos : []))
+      .catch((error) => console.error("Error al cargar medicos:", error));
+  }, []);
 
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta consulta?")) {
@@ -267,22 +278,20 @@ export default function ConsultasPage() {
                     </td>
                   </tr>
                 ) : (
-                  consultas.map((consulta, index) => {
-                    const fecha = new Date(consulta.fecha);
-                    return (
-                      <tr key={consulta.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="font-medium text-zinc-900 dark:text-zinc-100">
-                            {formatDate(fecha)}
-                          </div>
-                        </td>
+                  consultas.map((consulta, index) => (
+                    <tr key={consulta.id || `temp-key-${index}`} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-zinc-900 dark:text-zinc-100">
+                          {formatDate(consulta.fecha)}
+                        </div>
+                      </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-zinc-900 dark:text-zinc-100">
                             {consulta.expand?.paciente_id ? `${consulta.expand.paciente_id.apellido}, ${consulta.expand.paciente_id.nombre}` : 'Paciente no encontrado'}
                           </div>
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
-                          {doctorLabel(consulta.expand?.medico_id)}
+                          {doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos)}
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
                           {consulta.numero_ficha || consulta.expand?.paciente_id?.numero_ficha || '-'}
@@ -328,9 +337,8 @@ export default function ConsultasPage() {
                             </svg>
                           </button>
                         </td>
-                      </tr>
-                    );
-                  })
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>

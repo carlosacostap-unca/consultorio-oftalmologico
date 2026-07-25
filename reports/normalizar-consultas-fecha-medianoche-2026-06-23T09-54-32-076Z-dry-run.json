@@ -1,0 +1,116 @@
+{
+  "mode": "dry-run",
+  "generatedAt": "2026-06-23T09:54:32.843Z",
+  "pocketBaseUrl": "https://pocketbase-consultorio-oftalmologico.acostaparra.com",
+  "totalCandidates": 174,
+  "samples": [
+    {
+      "id": "qadzmm2rxk2ylir",
+      "previousFecha": "2026-06-16 00:00:00.000Z",
+      "nextFecha": "2026-06-16 12:00:00.000Z",
+      "paciente_id": "ypgrv58o3wd5zx7",
+      "numero_ficha": "41755",
+      "motivo_consulta": "PARTE FACO OI SIN COMPLIC COMFORT 400 USD ",
+      "created": "2026-06-16 16:21:41.472Z"
+    },
+    {
+      "id": "isahxngh0a8swhg",
+      "previousFecha": "2026-06-16 00:00:00.000Z",
+      "nextFecha": "2026-06-16 12:00:00.000Z",
+      "paciente_id": "kvbjpwp4fybao7e",
+      "numero_ficha": "55257",
+      "motivo_consulta": "SIENTE ARENILLA Y SENTÍA EL OJO MÁS GRANDE",
+      "created": "2026-06-16 17:11:11.159Z"
+    },
+    {
+      "id": "o3z479xnhw0cif4",
+      "previousFecha": "2026-06-16 00:00:00.000Z",
+      "nextFecha": "2026-06-16 12:00:00.000Z",
+      "paciente_id": "eybmsxi1i8h545t",
+      "numero_ficha": "62146",
+      "motivo_consulta": "TOPO MOÑO REGULAR, PAQUI ADELGAZADA, DRS NORMAL, OCT CORNEA OK",
+      "created": "2026-06-16 17:28:39.325Z"
+    },
+    {
+      "id": "jq0g77n13dpnuh1",
+      "previousFecha": "2026-06-16 00:00:00.000Z",
+      "nextFecha": "2026-06-16 12:00:00.000Z",
+      "paciente_id": "qoimtd1r6achikp",
+      "numero_ficha": "63976",
+      "motivo_consulta": "CHISPA AMOLADORA OD HACE 4 DIAS",
+      "created": "2026-06-16 17:47:45.472Z"
+    },
+    {
+      "id": "av9amvqrt75yy2o",
+      "previousFecha": "2026-06-16 00:00:00.000Z",
+      "nextFecha": "2026-06-16 12:00:00.000Z",
+      "paciente_id": "42zsqllmgs0to2v",
+      "numero_ficha": "63977",
+      "motivo_consulta": "CX GLAUCOMA OI 12 MAYO, PIDEN OTRA OPINION",
+      "created": "2026-06-16 18:07:42.500Z"
+    },
+    {
+      "id": "1ko9a4r9z3u7m4j",
+      "previousFecha": "2026-06-16 00:00:00.000Z",
+      "nextFecha": "2026-06-16 12:00:00.000Z",
+      "paciente_id": "xpjqh8pldhigzjt",
+      "numero_ficha": "39668",
+      "motivo_consulta": "OCT AO PAPILA SE FRENA PERDIDA, CVC PERDIDA LEVE, DRS EXC 0,8, PAQUI OK",
+      "created": "2026-06-16 18:20:21.553Z"
+    },
+    {
+      "id": "sgcw8vc1r8nw359",
+      "previousFecha": "2026-06-17 00:00:00.000Z",
+      "nextFecha": "2026-06-17 12:00:00.000Z",
+      "paciente_id": "7xe3mempbe88w93",
+      "numero_ficha": "15551",
+      "motivo_consulta": "PARTE FACO OD SIN COMPLIC TEA VISION AMARILLA 250",
+      "created": "2026-06-17 12:40:01.691Z"
+    },
+    {
+      "id": "gudwwcrseiyml6b",
+      "previousFecha": "2026-06-17 00:00:00.000Z",
+      "nextFecha": "2026-06-17 12:00:00.000Z",
+      "paciente_id": "a773xva2qljl7ej",
+      "numero_ficha": "63013",
+      "motivo_consulta": "PARTE FACO OD SIN COMPLIC LIO 250 ",
+      "created": "2026-06-17 12:51:08.262Z"
+    },
+    {
+      "id": "a74bvccbachh2jv",
+      "previousFecha": "2026-06-17 00:00:00.000Z",
+      "nextFecha": "2026-06-17 12:00:00.000Z",
+      "paciente_id": "fc6htxyw8ob9ohs",
+      "numero_ficha": "51113",
+      "motivo_consulta": "LE PICAN Y ARDEN OJOS, USA AUCIC, VE MENOS OI",
+      "created": "2026-06-17 13:08:36.034Z"
+    },
+    {
+      "id": "t0kipmg2i2cmvtr",
+      "previousFecha": "2026-06-17 00:00:00.000Z",
+      "nextFecha": "2026-06-17 12:00:00.000Z",
+      "paciente_id": "dz6m5x413lmv9bc",
+      "numero_ficha": "50025",
+      "motivo_consulta": "PARTE AVASTIN OD 28/04 PARTIC SIN COMPLIC",
+      "created": "2026-06-17 13:20:55.467Z"
+    },
+    {
+      "id": "rzw0v1tifzbqfks",
+      "previousFecha": "2026-06-17 00:00:00.000Z",
+      "nextFecha": "2026-06-17 12:00:00.000Z",
+      "paciente_id": "l30icdt7aeujmjz",
+      "numero_ficha": "62109",
+      "motivo_consulta": "CTROL YAG OI SE SIENTE MEJOR",
+      "created": "2026-06-17 13:32:46.276Z"
+    },
+    {
+      "id": "64wypfbd1hglm4t",
+      "previousFecha": "2026-06-17 00:00:00.000Z",
+      "nextFecha": "2026-06-17 12:00:00.000Z",
+      "paciente_id": "tulb1ikmdx5uep1",
+      "numero_ficha": "37076",
+      "motivo_consulta": "CTROL PIO 10 AM",
+      "created": "2026-06-17 13:40:14.318Z"
+    }
+  ]
+}

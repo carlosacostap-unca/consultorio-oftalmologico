@@ -1,0 +1,5 @@
+- [x] Agregar especificacion para listado admin de DNI duplicados.
+- [x] Crear API admin para agrupar DNI presentes en mas de una ficha activa.
+- [x] Crear pantalla admin de DNI duplicados.
+- [x] Agregar opcion al menu Calidad de datos.
+- [x] Ejecutar validaciones.
