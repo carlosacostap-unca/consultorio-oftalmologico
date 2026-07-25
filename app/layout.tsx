@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
+import { DesktopSyncProvider } from "@/components/DesktopSyncProvider";
+import { DesktopScopeGuard } from "@/components/DesktopScopeGuard";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,9 +31,10 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="h-full flex flex-row overflow-hidden bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100">
+        <DesktopSyncProvider />
         <Sidebar />
         <main className="min-w-0 w-full flex-1 overflow-y-auto">
-          {children}
+          <DesktopScopeGuard>{children}</DesktopScopeGuard>
         </main>
       </body>
     </html>

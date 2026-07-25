@@ -89,7 +89,7 @@ export default function PacientesPage() {
     setOpeningPatientId(id);
     try {
       const latestConsulta = await pb.collection("consultas").getList<Consulta>(1, 1, {
-        filter: `paciente_id = "${id}"`,
+        filter: `paciente_id = "${id}" && sync_deleted != true`,
         sort: "-fecha,-created",
         requestKey: null,
       });

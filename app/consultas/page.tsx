@@ -10,6 +10,7 @@ import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patie
 import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-estado";
 import { doctorLabelFromList } from "@/lib/doctor-attribution";
 import { todayClinicalDateKey } from "@/lib/clinical-date";
+import { deleteClinicalRecord } from "@/lib/desktop-clinical";
 
 interface Consulta {
   id: string;
@@ -97,6 +98,7 @@ export default function ConsultasPage() {
       } else {
         filterParts.push(`fecha <= "${todayClinicalDateKey()} 23:59:59"`);
       }
+      filterParts.push("sync_deleted != true");
       
       const filterString = filterParts.join(" && ");
 
@@ -140,7 +142,7 @@ export default function ConsultasPage() {
   const handleDelete = async (id: string) => {
     if (window.confirm("¿Estás seguro de que deseas eliminar esta consulta?")) {
       try {
-        await pb.collection("consultas").delete(id);
+        await deleteClinicalRecord("consultas", id);
         loadData(); // Recargar después de eliminar
       } catch (error) {
         console.error("Error al eliminar consulta:", error);

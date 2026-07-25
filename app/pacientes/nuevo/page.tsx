@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { AppUser, Mutual } from "@/lib/types";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 import { formatBirthDateInput, parseBirthDateInputForPocketBase } from "@/lib/patient-birth-date";
+import { nextDesktopTemporaryFicha } from "@/lib/desktop-clinical";
 
 export default function NuevoPacientePage() {
   const router = useRouter();
@@ -64,6 +65,11 @@ export default function NuevoPacientePage() {
     const loadNextFicha = async () => {
       setIsLoadingNextFicha(true);
       try {
+        if (window.consultorioDesktop) {
+          const temporary = await nextDesktopTemporaryFicha();
+          setFormData((prev) => (prev.numero_ficha ? prev : { ...prev, numero_ficha: temporary }));
+          return;
+        }
         const response = await fetch("/api/pacientes/ficha");
         if (!response.ok) {
           throw new Error(await response.text());
@@ -221,7 +227,8 @@ export default function NuevoPacientePage() {
         nombre: formData.nombre.toUpperCase(),
         apellido: formData.apellido.toUpperCase(),
         obra_social: selectedMutual?.nombre || "",
-        numero_ficha: formData.numero_ficha.toUpperCase()
+        numero_ficha: formData.numero_ficha.toUpperCase(),
+        ...(window.consultorioDesktop ? { sync_ficha_provisoria: formData.numero_ficha.toUpperCase() } : {}),
       };
       const paciente = await pb.collection("pacientes").create(dataToSave);
       router.push(`/consultas/nueva?paciente_id=${paciente.id}`);
@@ -362,7 +369,7 @@ export default function NuevoPacientePage() {
                             }}
                             className="w-full border-t border-zinc-200 px-3 py-2 text-left text-sm font-medium text-blue-700 hover:bg-blue-50 dark:border-zinc-800 dark:text-blue-300 dark:hover:bg-blue-500/10"
                           >
-                            Registrar "{mutualSearchQuery.toUpperCase()}"
+                            Registrar &quot;{mutualSearchQuery.toUpperCase()}&quot;
                           </button>
                         )}
                       </div>
