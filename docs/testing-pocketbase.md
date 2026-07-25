@@ -11,7 +11,9 @@ En el VPS, crear una instancia separada de PocketBase con:
 - Sin datos reales de pacientes.
 - Usuario superadmin propio para testing.
 
-La URL debe contener `test`, `testing`, `localhost` o `127.0.0.1`. Si no, los scripts de testing abortan por seguridad.
+El hostname debe contener `test`, `testing` o `staging`, o ser `localhost` o `127.0.0.1`. Si no, los scripts protegidos abortan por seguridad. Un marcador presente solamente en la ruta o query de la URL no es suficiente.
+
+Una instancia de staging restaurada desde produccion puede usarse para validar esquemas y realizar un piloto manual controlado. Si contiene datos clinicos reales, no ejecutar `seed:test` ni Playwright destructivo contra ella; restringir su acceso y deshabilitar correos u otras integraciones salientes.
 
 ## 2. Configurar variables
 
@@ -70,7 +72,7 @@ El runner carga `.env.test.local`, inicia Next con esas variables y exige una UR
 
 ## 5. Guardas
 
-Los scripts abortan si `REQUIRE_TEST_POCKETBASE=true` y la URL no parece de testing.
+Los scripts abortan si `REQUIRE_TEST_POCKETBASE=true` y el hostname no parece de testing o staging. Los hosts productivos conocidos permanecen bloqueados aunque la ruta mencione un entorno no productivo.
 
 Existe un override deliberado:
 
