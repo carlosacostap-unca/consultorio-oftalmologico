@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { use } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList, loadAuthenticatedDoctors } from "@/lib/doctor-attribution";
+import type { Medico } from "@/lib/types";
 import { emptyIfOptionalClinicalZero } from "@/lib/clinical-empty-values";
 
 interface Consulta {
@@ -38,6 +39,7 @@ interface Consulta {
       numero_afiliado?: string;
     };
     medico_id?: {
+      id: string;
       name?: string;
       email?: string;
     };
@@ -47,15 +49,23 @@ interface Consulta {
 export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const [consulta, setConsulta] = useState<Consulta | null>(null);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const record = await pb.collection("consultas").getOne<Consulta>(resolvedParams.id, {
-          expand: "paciente_id,medico_id",
-        });
+        const [record, medicosRecords] = await Promise.all([
+          pb.collection("consultas").getOne<Consulta>(resolvedParams.id, {
+            expand: "paciente_id,medico_id",
+          }),
+          loadAuthenticatedDoctors(pb.authStore.token).catch((error) => {
+            console.error("Error al cargar medicos para la receta de anteojos", error);
+            return [];
+          }),
+        ]);
         setConsulta(record);
+        setMedicos(medicosRecords);
       } catch (error) {
         console.error("Error al cargar la consulta", error);
       } finally {
@@ -84,7 +94,7 @@ export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id:
         <section className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Info label="Paciente" value={pacienteNombre} />
           <Info label="Fecha" value={formatDate(consulta.fecha)} />
-          <Info label="Medico" value={doctorLabel(consulta.expand?.medico_id)} />
+          <Info label="Medico" value={doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos)} />
           <Info label="Documento" value={documento || "-"} />
           <Info label="Ficha" value={paciente?.numero_ficha || "-"} />
           <Info label="Obra social" value={paciente?.obra_social || "-"} />
