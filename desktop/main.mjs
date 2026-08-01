@@ -57,12 +57,12 @@ async function findFreePort() {
   });
 }
 
-async function waitForHealth(url, timeoutMs = 30_000) {
+async function waitForHealth(url, timeoutMs = 30_000, requestTimeoutMs = 2_000) {
   const deadline = Date.now() + timeoutMs;
   let lastError = null;
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      const response = await fetch(url, { signal: AbortSignal.timeout(requestTimeoutMs) });
       if (response.ok) return;
       lastError = new Error(`HTTP ${response.status}`);
     } catch (error) {
@@ -197,7 +197,7 @@ async function ensureLocalSuperuser() {
 
 async function startNextServer() {
   if (isDevelopment) {
-    await waitForHealth(runtime.rendererUrl);
+    await waitForHealth(runtime.rendererUrl, 90_000, 15_000);
     return;
   }
   if (!existsSync(runtime.nextServer)) throw new Error(`No se encontro el servidor standalone en ${runtime.nextServer}.`);
@@ -216,7 +216,7 @@ async function startNextServer() {
       DESKTOP_DEVICE_ID: runtime.deviceId,
     },
   });
-  await waitForHealth(runtime.rendererUrl);
+  await waitForHealth(runtime.rendererUrl, 90_000, 15_000);
 }
 
 function publicRuntime() {

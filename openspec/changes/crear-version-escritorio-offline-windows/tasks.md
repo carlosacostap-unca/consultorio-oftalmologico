@@ -1,6 +1,6 @@
 ## 1. Baseline y contratos
 
-- [ ] 1.1 Confirmar la versión/esquema de PocketBase central y documentar las variables de URL central sin exponer secretos
+- [x] 1.1 Confirmar la versión/esquema de PocketBase central y documentar las variables de URL central sin exponer secretos
 - [x] 1.2 Leer las guías locales de Next.js para configuración, Route Handlers, runtime Node y despliegue standalone
 - [x] 1.3 Incorporar tipos compartidos para dispositivo, operación, cursor, conflicto, estado y resultados de sincronización
 - [x] 1.4 Implementar y probar utilidades puras de IDs, fichas provisorias, comparación de versiones, campos cambiados y orden de dependencias
