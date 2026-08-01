@@ -2,6 +2,7 @@ import "server-only";
 
 import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
 import { normalizeUserRoles, type UserRole } from "@/lib/permissions";
+import { desktopDeviceAccess } from "./server-auth-policy";
 import type { SyncDevice, SyncEntity, SyncOperationAction } from "./types";
 
 export const DESKTOP_DEVICE_HEADER = "x-consultorio-device-id";
@@ -46,8 +47,9 @@ export async function requireDesktopSyncContext(
   if (roles.length === 0) throw new DesktopSyncHttpError("La cuenta no tiene un rol operativo", 403, "missing_role");
 
   const deviceId = request.headers.get(DESKTOP_DEVICE_HEADER)?.trim() || "";
-  if (!options.requireDevice && !deviceId) return { user, roles, device: null };
-  if (!deviceId) throw new DesktopSyncHttpError("Falta la identidad del equipo", 400, "missing_device");
+  const deviceAccess = desktopDeviceAccess(options.requireDevice, deviceId);
+  if (deviceAccess === "skip") return { user, roles, device: null };
+  if (deviceAccess === "missing") throw new DesktopSyncHttpError("Falta la identidad del equipo", 400, "missing_device");
 
   const device = await findDeviceByKey(deviceId);
   if (!device) throw new DesktopSyncHttpError("El equipo no está activado", 403, "unknown_device");
