@@ -3,6 +3,8 @@
 import type { RecordAuthResponse, RecordModel } from "pocketbase";
 import { getDesktopRuntime } from "@/lib/desktop-runtime";
 import { pb } from "@/lib/pocketbase";
+import { localUserCreationError } from "@/lib/desktop-sync/client-error";
+import { deriveLocalPassword } from "@/lib/desktop-sync/local-password";
 
 const ACTIVATION_SECRET = "desktop-activation";
 const BOOTSTRAP_ENTITIES = ["users", "mutuales", "settings", "pacientes", "consultas", "recetas"] as const;
@@ -82,7 +84,9 @@ export async function activateDesktop(
 
   onProgress?.("Preparando el usuario local...");
   const users = await downloadBootstrapEntity(centralAppUrl, "users", onProgress);
-  await prepareLocalUsers(users, auth.user.id, input.password);
+  onProgress?.("Guardando el usuario local...");
+  const localPassword = await deriveLocalPassword(input.password, runtime.deviceId);
+  await prepareLocalUsers(users, auth.user.id, localPassword, input.password);
 
   for (const entity of BOOTSTRAP_ENTITIES.filter((value) => value !== "users")) {
     const items = await downloadBootstrapEntity(centralAppUrl, entity, onProgress);
@@ -101,8 +105,10 @@ export async function desktopLoginWithPassword(
   email: string,
   password: string,
 ): Promise<{ authData: RecordAuthResponse<RecordModel>; offline: boolean }> {
-  const authData = await pb.collection("users").authWithPassword(email.trim(), password);
   const state = await loadDesktopActivation();
+  const runtime = getDesktopRuntime();
+  const localPassword = state && runtime ? await deriveLocalPassword(password, runtime.deviceId) : password;
+  const authData = await authenticateLocalUser(email.trim(), localPassword, password);
   if (!state) return { authData, offline: false };
 
   try {
@@ -136,11 +142,16 @@ async function downloadBootstrapEntity(
   return items;
 }
 
-async function prepareLocalUsers(users: Record<string, unknown>[], currentUserId: string, password: string) {
+async function prepareLocalUsers(
+  users: Record<string, unknown>[],
+  currentUserId: string,
+  localPassword: string,
+  legacyPassword: string,
+) {
   const current = users.find((user) => String(user.id || "") === currentUserId);
   if (!current) throw new Error("El usuario activado no fue incluido en la copia inicial.");
-  await ensureLocalUser(current, password, true);
-  await pb.collection("users").authWithPassword(String(current.email || ""), password);
+  await ensureLocalUser(current, localPassword, true, legacyPassword);
+  await pb.collection("users").authWithPassword(String(current.email || ""), localPassword);
 
   for (const user of users) {
     if (String(user.id || "") === currentUserId) continue;
@@ -148,29 +159,59 @@ async function prepareLocalUsers(users: Record<string, unknown>[], currentUserId
   }
 }
 
-async function ensureLocalUser(user: Record<string, unknown>, password: string, current: boolean) {
+async function ensureLocalUser(
+  user: Record<string, unknown>,
+  password: string,
+  current: boolean,
+  legacyPassword?: string,
+) {
   const id = String(user.id || "");
   if (!id) return;
+
+  if (current) {
+    try {
+      await authenticateLocalUser(String(user.email || ""), password, legacyPassword || password);
+      return;
+    } catch (error) {
+      if (!isValidationError(error)) throw error;
+    }
+  }
+
   try {
     await pb.collection("users").getOne(id, { requestKey: null });
-    if (current) {
-      await pb.collection("users").authWithPassword(String(user.email || ""), password);
-    }
     return;
   } catch (error) {
     if (!isNotFound(error)) throw error;
   }
 
-  await pb.collection("users").create(
-    {
-      ...sanitizeRecord(user),
-      id,
-      password,
-      passwordConfirm: password,
-      password_configured: current ? true : user.password_configured === true,
-    },
-    { headers: { "x-consultorio-sync-origin": "central" }, requestKey: null },
-  );
+  try {
+    await pb.collection("users").create(
+      {
+        ...sanitizeRecord(user),
+        id,
+        password,
+        passwordConfirm: password,
+        password_configured: current ? true : user.password_configured === true,
+      },
+      { headers: { "x-consultorio-sync-origin": "central" }, requestKey: null },
+    );
+  } catch (error) {
+    throw localUserCreationError(error);
+  }
+}
+
+async function authenticateLocalUser(email: string, localPassword: string, legacyPassword: string) {
+  try {
+    return await pb.collection("users").authWithPassword(email, localPassword);
+  } catch (error) {
+    if (localPassword === legacyPassword || !isValidationError(error)) throw error;
+    const authData = await pb.collection("users").authWithPassword(email, legacyPassword);
+    await pb.collection("users").update(authData.record.id, {
+      password: localPassword,
+      passwordConfirm: localPassword,
+    });
+    return authData;
+  }
 }
 
 async function upsertLocalRecord(collection: string, item: Record<string, unknown>) {
@@ -215,6 +256,10 @@ function sanitizeRecord(item: Record<string, unknown>) {
 
 function isNotFound(error: unknown) {
   return Boolean(error && typeof error === "object" && "status" in error && error.status === 404);
+}
+
+function isValidationError(error: unknown) {
+  return Boolean(error && typeof error === "object" && "status" in error && error.status === 400);
 }
 
 function normalizeHttpsUrl(value: string) {
