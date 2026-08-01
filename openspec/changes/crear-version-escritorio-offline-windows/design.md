@@ -43,7 +43,7 @@ Las credenciales administrativas locales serán aleatorias, distintas por equipo
 
 ### 3. Activación online y sesión offline local
 
-La primera activación exigirá conexión. El usuario ingresará email y contraseña contra PocketBase central; la aplicación validará que su rol pueda usar los módulos incluidos, descargará su perfil y creará/actualizará el usuario equivalente en la base local con la contraseña recién ingresada. La contraseña no se almacenará: PocketBase local conservará sólo su verificador. El token central se cifrará con `safeStorage` para sincronizar y se renovará cuando exista conexión.
+La primera activación exigirá conexión. El usuario ingresará email y contraseña contra PocketBase central; la aplicación validará que su rol pueda usar los módulos incluidos, descargará su perfil y creará/actualizará el usuario equivalente en la base local. Antes de entregarla a PocketBase local, la aplicación derivará en memoria una credencial separada por equipo y dominio a partir de la contraseña ingresada; la contraseña central no se almacenará y PocketBase local conservará sólo el verificador de esa credencial derivada. El token central se cifrará con `safeStorage` para sincronizar y se renovará cuando exista conexión.
 
 Los usuarios que sólo usaban Google deberán configurar primero una contraseña propia, tal como recomienda la propuesta comercial. El ingreso offline se hará contra `users` local y conservará email, id central, roles y atribución médica. La desactivación central se aplicará en la siguiente sincronización; hasta entonces sólo podrá ingresar un usuario ya activado en ese equipo. Se mostrará claramente cuándo la sesión está operando sin validación central reciente.
 
