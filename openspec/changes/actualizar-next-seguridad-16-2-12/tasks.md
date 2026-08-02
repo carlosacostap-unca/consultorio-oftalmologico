@@ -24,5 +24,5 @@
 
 ## 5. Integración del release
 
-- [ ] 5.1 Publicar la actualización revisada mediante un pull request hacia `develop`.
+- [x] 5.1 Publicar la actualización revisada mediante un pull request hacia `develop`.
 - [ ] 5.2 Tras la integración, regenerar el instalador final desde el commit fusionado y registrar su hash SHA-256.
