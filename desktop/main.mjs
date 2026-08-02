@@ -6,6 +6,7 @@ import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { normalizeLocalSystemSetting, normalizeLocalUserId } from "./local-record-policy.mjs";
 
 const desktopDir = path.dirname(fileURLToPath(import.meta.url));
 const isDevelopment = !app.isPackaged;
@@ -13,6 +14,7 @@ const children = new Set();
 let mainWindow = null;
 let shuttingDown = false;
 let runtime = null;
+let localAdminToken = "";
 
 app.commandLine.appendSwitch("disable-features", "AutofillServerCommunication");
 
@@ -195,6 +197,61 @@ async function ensureLocalSuperuser() {
   runtime.localAdminPassword = password;
 }
 
+async function authenticateLocalSuperuser() {
+  const response = await fetch(`${runtime.pocketBaseUrl}/api/collections/_superusers/auth-with-password`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ identity: runtime.localAdminEmail, password: runtime.localAdminPassword }),
+    signal: AbortSignal.timeout(5_000),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || !data.token) throw new Error("No se pudo autenticar el acceso técnico local.");
+  localAdminToken = data.token;
+  return localAdminToken;
+}
+
+async function localSuperuserRequest(pathname, options = {}, retried = false) {
+  const token = localAdminToken || await authenticateLocalSuperuser();
+  const response = await fetch(`${runtime.pocketBaseUrl}${pathname}`, {
+    ...options,
+    headers: { ...(options.headers || {}), Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!retried && (response.status === 401 || response.status === 403)) {
+    localAdminToken = "";
+    return localSuperuserRequest(pathname, options, true);
+  }
+  return response;
+}
+
+async function localUserExists(id) {
+  const response = await localSuperuserRequest(`/api/collections/users/records/${encodeURIComponent(id)}`);
+  if (response.status === 404) return false;
+  if (!response.ok) throw new Error(`No se pudo comprobar el usuario local: HTTP ${response.status}.`);
+  return true;
+}
+
+async function upsertLocalSystemSetting(input) {
+  const setting = normalizeLocalSystemSetting(input);
+  const collectionPath = "/api/collections/system_settings/records";
+  const recordPath = `${collectionPath}/${encodeURIComponent(setting.id)}`;
+  const existing = await localSuperuserRequest(recordPath);
+  if (!existing.ok && existing.status !== 404) {
+    throw new Error(`No se pudo comprobar la configuración local: HTTP ${existing.status}.`);
+  }
+
+  const create = existing.status === 404;
+  const response = await localSuperuserRequest(create ? collectionPath : recordPath, {
+    method: create ? "POST" : "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(create ? setting : { key: setting.key, value: setting.value }),
+  });
+  if (!response.ok) {
+    throw new Error(`No se pudo guardar la configuración local: HTTP ${response.status}.`);
+  }
+  return true;
+}
+
 async function startNextServer() {
   if (isDevelopment) {
     await waitForHealth(runtime.rendererUrl, 90_000, 15_000);
@@ -306,6 +363,13 @@ function registerIpc() {
       signal: AbortSignal.timeout(30_000),
     });
     return { status: response.status, ok: response.ok, body: await response.json().catch(() => ({})) };
+  });
+  ipcMain.handle("desktop:local:user-exists", async (_event, input) => {
+    const id = normalizeLocalUserId(input?.id);
+    return localUserExists(id);
+  });
+  ipcMain.handle("desktop:local:upsert-system-setting", async (_event, input) => {
+    return upsertLocalSystemSetting(input);
   });
   ipcMain.handle("desktop:secret:delete", async (_event, key) => {
     if (key !== "desktop-activation") throw new Error("Secreto no disponible para el renderer.");

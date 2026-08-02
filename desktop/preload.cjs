@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld("consultorioDesktop", Object.freeze({
     openFolder: () => ipcRenderer.invoke("desktop:diagnostics:open"),
     export: () => ipcRenderer.invoke("desktop:diagnostics:export"),
   }),
+  local: Object.freeze({
+    userExists: (input) => ipcRenderer.invoke("desktop:local:user-exists", input),
+    upsertSystemSetting: (input) => ipcRenderer.invoke("desktop:local:upsert-system-setting", input),
+  }),
   central: Object.freeze({
     authenticate: (input) => ipcRenderer.invoke("desktop:central:authenticate", input),
     request: (input) => ipcRenderer.invoke("desktop:central:request", input),

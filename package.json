@@ -34,7 +34,7 @@
     "test:playwright": "playwright test",
     "test:playwright:test": "node scripts/run_playwright_test.mjs --env .env.test.local",
     "test:playwright:headed": "playwright test --headed",
-    "test:sync-core": "node --test lib/desktop-sync/core.test.ts lib/desktop-sync/server-auth-policy.test.ts lib/desktop-sync/client-error.test.ts lib/desktop-sync/local-password.test.ts lib/desktop-scope.test.ts",
+    "test:sync-core": "node --test desktop/local-record-policy.test.mjs lib/desktop-sync/core.test.ts lib/desktop-sync/server-auth-policy.test.ts lib/desktop-sync/client-error.test.ts lib/desktop-sync/local-password.test.ts lib/desktop-sync/local-user-bootstrap.test.ts lib/desktop-sync/local-settings-bootstrap.test.ts lib/desktop-scope.test.ts lib/pocketbase-request.test.ts",
     "desktop:dev": "concurrently -k \"next dev\" \"wait-on http://127.0.0.1:3000 && electron .\"",
     "desktop:prepare-pocketbase": "node desktop/scripts/prepare-pocketbase.mjs",
     "desktop:pack": "npm run desktop:prepare-pocketbase && npm run build && electron-builder --dir --win --x64",
@@ -75,6 +75,7 @@
     },
     "files": [
       "desktop/main.mjs",
+      "desktop/local-record-policy.mjs",
       "desktop/preload.cjs",
       "package.json"
     ],
