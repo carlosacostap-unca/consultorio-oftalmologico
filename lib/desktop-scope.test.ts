@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   desktopCollectionFromRequest,
+  isDesktopBootstrapWritableCollection,
   isDesktopSupportedPath,
   isDesktopWritableCollection,
 } from "./desktop-scope.ts";
@@ -12,6 +13,13 @@ test("limita las escrituras offline a datos clínicos y estado técnico", () => 
   }
   for (const collection of ["turnos", "mutuales", "permissions", "settings"]) {
     assert.equal(isDesktopWritableCollection(collection), false, collection);
+  }
+});
+
+test("limita la excepción de copia inicial directa a mutuales", () => {
+  assert.equal(isDesktopBootstrapWritableCollection("mutuales"), true);
+  for (const collection of ["system_settings", "turnos", "permissions", "settings", "users"]) {
+    assert.equal(isDesktopBootstrapWritableCollection(collection), false, collection);
   }
 });
 

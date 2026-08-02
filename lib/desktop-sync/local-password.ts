@@ -5,3 +5,7 @@ export async function deriveLocalPassword(password: string, deviceId: string) {
   const digest = await crypto.subtle.digest("SHA-256", material);
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
+
+export function generateTemporaryLocalPassword() {
+  return `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
+}

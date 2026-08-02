@@ -4,7 +4,13 @@ import type { RecordAuthResponse, RecordModel } from "pocketbase";
 import { getDesktopRuntime } from "@/lib/desktop-runtime";
 import { pb } from "@/lib/pocketbase";
 import { localUserCreationError } from "@/lib/desktop-sync/client-error";
-import { deriveLocalPassword } from "@/lib/desktop-sync/local-password";
+import { deriveLocalPassword, generateTemporaryLocalPassword } from "@/lib/desktop-sync/local-password";
+import { additionalLocalUserNeedsCreation } from "@/lib/desktop-sync/local-user-bootstrap";
+import { upsertLocalBootstrapRecord } from "@/lib/desktop-sync/local-settings-bootstrap";
+import {
+  DESKTOP_CENTRAL_SYNC_ORIGIN,
+  DESKTOP_SYNC_ORIGIN_HEADER,
+} from "@/lib/desktop-scope";
 
 const ACTIVATION_SECRET = "desktop-activation";
 const BOOTSTRAP_ENTITIES = ["users", "mutuales", "settings", "pacientes", "consultas", "recetas"] as const;
@@ -92,7 +98,12 @@ export async function activateDesktop(
     const items = await downloadBootstrapEntity(centralAppUrl, entity, onProgress);
     const localCollection = entity === "settings" ? "system_settings" : entity;
     onProgress?.(`Guardando ${labelForEntity(entity)} en la base local...`);
-    for (const item of items) await upsertLocalRecord(localCollection, item);
+    for (const item of items) {
+      await upsertLocalBootstrapRecord(localCollection, item, {
+        upsertSystemSetting: (setting) => bridge.local.upsertSystemSetting(setting),
+        upsertRecord: upsertLocalRecord,
+      });
+    }
   }
 
   state = { ...state, bootstrapCompleted: true };
@@ -155,7 +166,7 @@ async function prepareLocalUsers(
 
   for (const user of users) {
     if (String(user.id || "") === currentUserId) continue;
-    await ensureLocalUser(user, `${crypto.randomUUID()}-${crypto.randomUUID()}`, false);
+    await ensureLocalUser(user, generateTemporaryLocalPassword(), false);
   }
 }
 
@@ -167,6 +178,16 @@ async function ensureLocalUser(
 ) {
   const id = String(user.id || "");
   if (!id) return;
+
+  if (
+    !current
+    && !await additionalLocalUserNeedsCreation(
+      id,
+      (userId) => window.consultorioDesktop!.local.userExists({ id: userId }),
+    )
+  ) {
+    return;
+  }
 
   if (current) {
     try {
@@ -193,7 +214,7 @@ async function ensureLocalUser(
         passwordConfirm: password,
         password_configured: current ? true : user.password_configured === true,
       },
-      { headers: { "x-consultorio-sync-origin": "central" }, requestKey: null },
+      { headers: { [DESKTOP_SYNC_ORIGIN_HEADER]: DESKTOP_CENTRAL_SYNC_ORIGIN }, requestKey: null },
     );
   } catch (error) {
     throw localUserCreationError(error);
@@ -218,7 +239,10 @@ async function upsertLocalRecord(collection: string, item: Record<string, unknow
   const id = String(item.id || "");
   if (!id) return;
   const payload = sanitizeRecord(item);
-  const options = { headers: { "x-consultorio-sync-origin": "central" }, requestKey: null };
+  const options = {
+    headers: { [DESKTOP_SYNC_ORIGIN_HEADER]: DESKTOP_CENTRAL_SYNC_ORIGIN },
+    requestKey: null,
+  };
   try {
     await pb.collection(collection).getOne(id, { requestKey: null });
     await pb.collection(collection).update(id, payload, options);

@@ -19,6 +19,10 @@ export interface ConsultorioDesktopBridge {
     openFolder(): Promise<string>;
     export(): Promise<string>;
   };
+  local: {
+    userExists(input: { id: string }): Promise<boolean>;
+    upsertSystemSetting(input: { id: string; key: string; value: unknown }): Promise<boolean>;
+  };
   central: {
     authenticate(input: { pocketBaseUrl: string; email: string; password: string }): Promise<{
       user: Record<string, unknown> & { id: string };
