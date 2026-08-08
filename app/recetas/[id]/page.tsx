@@ -9,8 +9,15 @@ import { use } from "react";
 import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import type { UserRole } from "@/lib/permissions";
-import type { Consulta, Medico, Patient, Receta } from "@/lib/types";
+import type { AppUser, Consulta, Medico, Patient, Receta } from "@/lib/types";
 import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
+
+const patientDocument = (patient?: Patient | null) => patient?.numero_documento || patient?.dni || "";
+
+const formatPatientOption = (patient: Patient) => {
+  const document = patientDocument(patient);
+  return `${patient.apellido}, ${patient.nombre}${document ? ` - DNI: ${document}` : ""}${patient.numero_ficha ? ` - Ficha: ${patient.numero_ficha}` : ""}`;
+};
 
 export default function EditarRecetaPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
@@ -28,7 +35,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
   
   const isViewMode = searchParams.get("mode") === "view";
   
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [pacientes, setPacientes] = useState<Patient[]>([]);
@@ -52,11 +59,6 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
   });
   const [isDoctorManuallySelected, setIsDoctorManuallySelected] = useState(false);
 
-  const patientDocument = (patient?: Patient | null) => patient?.numero_documento || patient?.dni || "";
-  const formatPatientOption = (patient: Patient) => {
-    const document = patientDocument(patient);
-    return `${patient.apellido}, ${patient.nombre}${document ? ` - DNI: ${document}` : ""}${patient.numero_ficha ? ` - Ficha: ${patient.numero_ficha}` : ""}`;
-  };
   const upsertPatient = (patient: Patient) => {
     setPacientes((prev) => [patient, ...prev.filter((item) => item.id !== patient.id)]);
   };
@@ -91,7 +93,7 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
     setIsMounted(true);
     const authUser = pb.authStore.record;
     const resolvedRole = resolveActiveRole(authUser, ["medico"]);
-    setUser(authUser);
+    setUser(authUser as AppUser | null);
     setActiveRole(resolvedRole);
 
     if (!pb.authStore.isValid) {

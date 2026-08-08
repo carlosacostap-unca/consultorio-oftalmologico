@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -60,7 +60,7 @@ export default function ConsultasPage() {
     setPage(1);
   }, [selectedLetter]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
       const filterParts: string[] = [];
@@ -114,7 +114,7 @@ export default function ConsultasPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [debouncedFilterPatient, filterDate, page, selectedLetter]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -125,8 +125,8 @@ export default function ConsultasPage() {
       return;
     }
 
-    loadData();
-  }, [router, page, selectedLetter, debouncedFilterPatient, filterDate]);
+    void loadData();
+  }, [loadData, router]);
 
   useEffect(() => {
     if (!pb.authStore.isValid) return;

@@ -50,6 +50,36 @@ interface Paciente {
   };
 }
 
+const getPacienteDocumento = (paciente: Paciente) => paciente.numero_documento || paciente.dni || "";
+
+const formatPacienteLabel = (paciente: Paciente) => {
+  const documento = getPacienteDocumento(paciente);
+  return `${paciente.apellido}, ${paciente.nombre}${documento ? ` - DNI: ${documento}` : ""}${paciente.numero_ficha ? ` - Ficha: ${paciente.numero_ficha}` : ""}`;
+};
+
+const getAntecedentesFromPaciente = (paciente: Paciente) => ({
+  ant_diabetes: paciente.ant_diabetes || false,
+  ant_glaucoma: paciente.ant_glaucoma || false,
+  ant_maculopatia: paciente.ant_maculopatia || false,
+  ant_asmatico: paciente.ant_asmatico || false,
+  ant_hipertension: paciente.ant_hipertension || false,
+  ant_alergico: paciente.ant_alergico || false,
+  ant_reuma: paciente.ant_reuma || false,
+  ant_herpes: paciente.ant_herpes || false,
+  ant_otra: paciente.ant_otra || "",
+});
+
+const hasAntecedentes = (antecedentes: ReturnType<typeof getAntecedentesFromPaciente>) =>
+  antecedentes.ant_diabetes ||
+  antecedentes.ant_glaucoma ||
+  antecedentes.ant_maculopatia ||
+  antecedentes.ant_asmatico ||
+  antecedentes.ant_hipertension ||
+  antecedentes.ant_alergico ||
+  antecedentes.ant_reuma ||
+  antecedentes.ant_herpes ||
+  antecedentes.ant_otra.trim() !== "";
+
 interface TurnoContext {
   id: string;
   fecha_hora?: string;
@@ -191,39 +221,10 @@ function NuevaConsultaForm() {
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [isSearchingPatients, setIsSearchingPatients] = useState(false);
 
-  const getPacienteDocumento = (paciente: Paciente) => paciente.numero_documento || paciente.dni || "";
-
-  const formatPacienteLabel = (paciente: Paciente) => {
-    const documento = getPacienteDocumento(paciente);
-    return `${paciente.apellido}, ${paciente.nombre}${documento ? ` - DNI: ${documento}` : ""}${paciente.numero_ficha ? ` - Ficha: ${paciente.numero_ficha}` : ""}`;
-  };
-
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
   const formatClinicalDate = (value?: string) => {
     return formatDate(value) || "Sin fecha";
   };
-
-  const getAntecedentesFromPaciente = (paciente: Paciente) => ({
-    ant_diabetes: paciente.ant_diabetes || false,
-    ant_glaucoma: paciente.ant_glaucoma || false,
-    ant_maculopatia: paciente.ant_maculopatia || false,
-    ant_asmatico: paciente.ant_asmatico || false,
-    ant_hipertension: paciente.ant_hipertension || false,
-    ant_alergico: paciente.ant_alergico || false,
-    ant_reuma: paciente.ant_reuma || false,
-    ant_herpes: paciente.ant_herpes || false,
-    ant_otra: paciente.ant_otra || "",
-  });
-  const hasAntecedentes = (antecedentes: ReturnType<typeof getAntecedentesFromPaciente>) =>
-    antecedentes.ant_diabetes ||
-    antecedentes.ant_glaucoma ||
-    antecedentes.ant_maculopatia ||
-    antecedentes.ant_asmatico ||
-    antecedentes.ant_hipertension ||
-    antecedentes.ant_alergico ||
-    antecedentes.ant_reuma ||
-    antecedentes.ant_herpes ||
-    antecedentes.ant_otra.trim() !== "";
 
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -309,7 +310,7 @@ function NuevaConsultaForm() {
     };
 
     loadData();
-  }, [router]);
+  }, [initialPacienteId, router, turnoId]);
 
   useEffect(() => {
     if (!isMounted || !pb.authStore.isValid || formData.paciente_id) {
@@ -377,7 +378,7 @@ function NuevaConsultaForm() {
               ant_otra: lastConsulta.ant_otra || "",
             }));
           }
-        } catch (err) {
+        } catch {
           // Si no hay consulta previa, no hacemos nada
         }
       };
@@ -523,9 +524,10 @@ function NuevaConsultaForm() {
           });
           turnoUpdated = true;
           setSelectedTurnoData((prev) => prev ? { ...prev, consulta_id: nuevaConsulta.id, estado: targetTurnoEstado } : prev);
-        } catch (turnoError: any) {
+        } catch (turnoError: unknown) {
           console.error("Error al actualizar el turno:", turnoError);
-          alert(`La consulta se guardó, pero hubo un error al enlazarla con el turno. Detalle: ${turnoError?.message || 'Error desconocido'}. Verifica que el campo 'consulta_id' exista y sea de tipo relación simple.`);
+          const detalle = turnoError instanceof Error ? turnoError.message : "Error desconocido";
+          alert(`La consulta se guardó, pero hubo un error al enlazarla con el turno. Detalle: ${detalle}. Verifica que el campo 'consulta_id' exista y sea de tipo relación simple.`);
         }
       }
 
@@ -586,8 +588,6 @@ function NuevaConsultaForm() {
     : formData.medico_id
       ? "Medico asignado sin nombre visible"
       : "Sin medico asignado";
-  const isDoctorFromAccount = Boolean(accountDoctor);
-
   const patientSummaryItems = selectedPacienteData
     ? [
         selectedPacienteData.numero_ficha ? `Ficha ${selectedPacienteData.numero_ficha}` : "",

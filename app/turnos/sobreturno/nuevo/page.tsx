@@ -394,7 +394,16 @@ export default function NuevoTurnoPage() {
 
     setIsSavingPatient(true);
     try {
-      const { dni: _dni, ...patientData } = newPatientData;
+      const patientData = {
+        nombre: newPatientData.nombre,
+        apellido: newPatientData.apellido,
+        telefono: newPatientData.telefono,
+        email: newPatientData.email,
+        fecha_nacimiento: newPatientData.fecha_nacimiento,
+        obra_social: newPatientData.obra_social,
+        numero_afiliado: newPatientData.numero_afiliado,
+        domicilio: newPatientData.domicilio,
+      };
       const record = await pb.collection("pacientes").create<Paciente>({
         ...patientData,
         fecha_nacimiento: patientBirthDateToStoredDateTime(newPatientData.fecha_nacimiento),
@@ -443,7 +452,8 @@ export default function NuevoTurnoPage() {
         }
       }
 
-      const { dni: _dni, ...patientData } = editingPatientData;
+      const patientData = { ...editingPatientData };
+      delete patientData.dni;
       const updatedRecord = await pb.collection("pacientes").update<Paciente>(formData.paciente_id, {
         ...patientData,
         fecha_nacimiento: patientBirthDateToStoredDateTime(editingPatientData.fecha_nacimiento),

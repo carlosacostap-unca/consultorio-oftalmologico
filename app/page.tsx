@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image, { type ImageLoaderProps } from "next/image";
 import Link from "next/link";
 import { DesktopActivation } from "@/components/DesktopActivation";
 import {
@@ -15,6 +16,8 @@ import { pb } from "@/lib/pocketbase";
 import { desktopLoginWithPassword, loadDesktopActivation } from "@/lib/desktop-sync/client";
 import type { UserRole } from "@/lib/permissions";
 import type { AppUser } from "@/lib/types";
+
+const passthroughImageLoader = ({ src }: ImageLoaderProps) => src;
 
 type DashboardAction = {
   title: string;
@@ -410,9 +413,13 @@ export default function Home() {
           <div className="mb-8 flex flex-col items-center justify-between rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row">
             <div className="mb-4 flex items-center gap-4 sm:mb-0">
               {user.avatar ? (
-                <img
+                <Image
                   src={pb.files.getURL(user, user.avatar)}
                   alt="Avatar"
+                  width={64}
+                  height={64}
+                  loader={passthroughImageLoader}
+                  unoptimized
                   className="h-16 w-16 rounded-full border-2 border-blue-500 object-cover"
                 />
               ) : (

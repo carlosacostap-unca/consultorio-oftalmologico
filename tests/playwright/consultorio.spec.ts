@@ -286,7 +286,6 @@ test.describe("roles y otorgamiento de turnos", () => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
     const adminToken = await getAdminToken(request, env);
-    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
     const medicoDosId = await getUserIdByEmail(request, env, adminToken, "medico.dos.demo@consultorio.local");
     const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
     expect(patient).toBeTruthy();

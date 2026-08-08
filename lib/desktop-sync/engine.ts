@@ -121,7 +121,7 @@ async function pushPendingOperations(centralAppUrl: string, deviceId: string) {
     }
     const body = (await desktopCentralRequest(centralAppUrl, "/api/desktop-sync/v1/push", {
       deviceId,
-      operations: batch.map(({ localQueueId: _localQueueId, ...operation }) => operation),
+      operations: batch.map(toSyncOperation),
     })) as unknown as SyncPushResponse;
     for (const confirmation of body.confirmations || []) await applyConfirmation(confirmation, batch);
   }
@@ -275,6 +275,26 @@ async function publishStatus(status: SyncStatusSnapshot): Promise<SyncStatusSnap
 
 interface LocalSyncOperation extends SyncOperation {
   localQueueId: string;
+}
+
+function toSyncOperation(operation: LocalSyncOperation): SyncOperation {
+  return {
+    operationId: operation.operationId,
+    entity: operation.entity,
+    recordId: operation.recordId,
+    action: operation.action,
+    payload: operation.payload,
+    baseSnapshot: operation.baseSnapshot,
+    baseUpdated: operation.baseUpdated,
+    changedFields: operation.changedFields,
+    actorId: operation.actorId,
+    deviceId: operation.deviceId,
+    localCreatedAt: operation.localCreatedAt,
+    status: operation.status,
+    attempts: operation.attempts,
+    lastError: operation.lastError,
+    dependsOn: operation.dependsOn,
+  };
 }
 
 function mapLocalOperation(record: RecordModel): LocalSyncOperation {

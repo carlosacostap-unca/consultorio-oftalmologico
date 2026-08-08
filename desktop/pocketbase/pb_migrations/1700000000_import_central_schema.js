@@ -3216,6 +3216,6 @@ migrate((app) => {
   }
 ];
   app.importCollections(snapshot, false);
-}, (app) => {
+}, () => {
   // La base local es durable: no se elimina el esquema automaticamente.
 });

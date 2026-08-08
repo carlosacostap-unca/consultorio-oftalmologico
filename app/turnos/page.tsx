@@ -325,6 +325,103 @@ const getEstadoColor = (estado?: string) => {
   }
 };
 
+const patientDocument = (patient?: Paciente | null) => patient?.dni || patient?.numero_documento || "";
+
+const escapePocketBaseFilter = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
+const normalizeDuplicateText = (value?: string) =>
+  (value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+
+const compactDuplicateText = (value?: string) => normalizeDuplicateText(value).replace(/[^a-z0-9]/g, "");
+
+const isSameDuplicateValue = (left?: string, right?: string) => {
+  const normalizedLeft = compactDuplicateText(left);
+  const normalizedRight = compactDuplicateText(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+};
+
+const hasSimilarText = (left?: string, right?: string, minLength = 3) => {
+  const normalizedLeft = normalizeDuplicateText(left);
+  const normalizedRight = normalizeDuplicateText(right);
+  if (normalizedLeft.length < minLength || normalizedRight.length < minLength) return false;
+  return normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
+};
+
+const hasDuplicateLookupSignal = (input: PatientDuplicateLookupInput) =>
+  compactDuplicateText(input.dni || input.numero_documento).length >= 5 ||
+  compactDuplicateText(input.telefono).length >= 6 ||
+  compactDuplicateText(input.numero_ficha).length >= 2 ||
+  normalizeDuplicateText(input.apellido).length >= 3;
+
+const buildDuplicatePatientFilter = (input: PatientDuplicateLookupInput, excludePatientId?: string) => {
+  const clauses: string[] = [];
+  const document = (input.numero_documento || input.dni || "").trim();
+  const phone = (input.telefono || "").trim();
+  const fileNumber = (input.numero_ficha || "").trim();
+  const lastName = (input.apellido || "").trim();
+  const firstName = (input.nombre || "").trim();
+
+  if (compactDuplicateText(document).length >= 5) {
+    clauses.push(`numero_documento = "${escapePocketBaseFilter(document)}"`);
+  }
+  if (compactDuplicateText(phone).length >= 6) {
+    clauses.push(`telefono = "${escapePocketBaseFilter(phone)}"`);
+  }
+  if (compactDuplicateText(fileNumber).length >= 2) {
+    clauses.push(`numero_ficha = "${escapePocketBaseFilter(fileNumber.toUpperCase())}"`);
+  }
+  if (normalizeDuplicateText(lastName).length >= 3 && normalizeDuplicateText(firstName).length >= 2) {
+    clauses.push(`(apellido ~ "${escapePocketBaseFilter(lastName)}" && nombre ~ "${escapePocketBaseFilter(firstName)}")`);
+  } else if (normalizeDuplicateText(lastName).length >= 3) {
+    clauses.push(`apellido ~ "${escapePocketBaseFilter(lastName)}"`);
+  }
+
+  if (clauses.length === 0) return "";
+  const baseFilter = `(${ACTIVE_PATIENT_FILTER}) && (${clauses.map((clause) => `(${clause})`).join(" || ")})`;
+  return excludePatientId
+    ? `(${baseFilter}) && id != "${escapePocketBaseFilter(excludePatientId)}"`
+    : baseFilter;
+};
+
+const getDuplicateReasons = (patient: Paciente, input: PatientDuplicateLookupInput) => {
+  const reasons: string[] = [];
+  const document = input.numero_documento || input.dni || "";
+
+  if (isSameDuplicateValue(patientDocument(patient), document)) reasons.push("Mismo documento");
+  if (isSameDuplicateValue(patient.telefono, input.telefono)) reasons.push("Mismo telefono");
+  if (isSameDuplicateValue(patient.numero_ficha, input.numero_ficha)) reasons.push("Misma ficha");
+  if (hasSimilarText(patient.apellido, input.apellido) && (!input.nombre || hasSimilarText(patient.nombre, input.nombre, 2))) {
+    reasons.push(input.nombre ? "Nombre parecido" : "Apellido parecido");
+  }
+
+  return Array.from(new Set(reasons));
+};
+
+const findPatientDuplicateCandidates = async (
+  input: PatientDuplicateLookupInput,
+  excludePatientId?: string,
+): Promise<PatientDuplicateCandidate[]> => {
+  if (!hasDuplicateLookupSignal(input)) return [];
+
+  const filter = buildDuplicatePatientFilter(input, excludePatientId);
+  if (!filter) return [];
+
+  const response = await pb.collection("pacientes").getList<Paciente>(1, 8, {
+    filter,
+    sort: "apellido,nombre",
+    requestKey: null,
+  });
+
+  return response.items
+    .filter((patient) => patient.id !== excludePatientId)
+    .map((patient) => ({ ...patient, matchReasons: getDuplicateReasons(patient, input) }))
+    .filter((patient) => patient.matchReasons.length > 0);
+};
+
 export default function TurnosPage() {
   const router = useRouter();
   const [user, setUser] = useState<AppUser | null>(null);
@@ -477,7 +574,6 @@ export default function TurnosPage() {
     resetReschedule();
   };
 
-  const patientDocument = (patient?: Paciente | null) => patient?.dni || patient?.numero_documento || "";
   const patientLabel = (patient?: Paciente | null) => {
     if (!patient) return "Paciente";
     const document = patientDocument(patient);
@@ -500,100 +596,6 @@ export default function TurnosPage() {
       patient?.numero_ficha ? `Ficha ${patient.numero_ficha}` : "",
       patient?.obra_social || "",
     ].filter(Boolean);
-  };
-
-  const normalizeDuplicateText = (value?: string) =>
-    (value || "")
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .trim()
-      .toLowerCase();
-
-  const compactDuplicateText = (value?: string) => normalizeDuplicateText(value).replace(/[^a-z0-9]/g, "");
-
-  const isSameDuplicateValue = (left?: string, right?: string) => {
-    const normalizedLeft = compactDuplicateText(left);
-    const normalizedRight = compactDuplicateText(right);
-    return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
-  };
-
-  const hasSimilarText = (left?: string, right?: string, minLength = 3) => {
-    const normalizedLeft = normalizeDuplicateText(left);
-    const normalizedRight = normalizeDuplicateText(right);
-    if (normalizedLeft.length < minLength || normalizedRight.length < minLength) return false;
-    return normalizedLeft.includes(normalizedRight) || normalizedRight.includes(normalizedLeft);
-  };
-
-  const hasDuplicateLookupSignal = (input: PatientDuplicateLookupInput) =>
-    compactDuplicateText(input.dni || input.numero_documento).length >= 5 ||
-    compactDuplicateText(input.telefono).length >= 6 ||
-    compactDuplicateText(input.numero_ficha).length >= 2 ||
-    normalizeDuplicateText(input.apellido).length >= 3;
-
-  const buildDuplicatePatientFilter = (input: PatientDuplicateLookupInput, excludePatientId?: string) => {
-    const clauses: string[] = [];
-    const document = (input.numero_documento || input.dni || "").trim();
-    const phone = (input.telefono || "").trim();
-    const fileNumber = (input.numero_ficha || "").trim();
-    const lastName = (input.apellido || "").trim();
-    const firstName = (input.nombre || "").trim();
-
-    if (compactDuplicateText(document).length >= 5) {
-      const safeDocument = escapePocketBaseFilter(document);
-      clauses.push(`numero_documento = "${safeDocument}"`);
-    }
-    if (compactDuplicateText(phone).length >= 6) {
-      clauses.push(`telefono = "${escapePocketBaseFilter(phone)}"`);
-    }
-    if (compactDuplicateText(fileNumber).length >= 2) {
-      clauses.push(`numero_ficha = "${escapePocketBaseFilter(fileNumber.toUpperCase())}"`);
-    }
-    if (normalizeDuplicateText(lastName).length >= 3 && normalizeDuplicateText(firstName).length >= 2) {
-      clauses.push(`(apellido ~ "${escapePocketBaseFilter(lastName)}" && nombre ~ "${escapePocketBaseFilter(firstName)}")`);
-    } else if (normalizeDuplicateText(lastName).length >= 3) {
-      clauses.push(`apellido ~ "${escapePocketBaseFilter(lastName)}"`);
-    }
-
-    if (clauses.length === 0) return "";
-    const baseFilter = `(${ACTIVE_PATIENT_FILTER}) && (${clauses.map((clause) => `(${clause})`).join(" || ")})`;
-    return excludePatientId
-      ? `(${baseFilter}) && id != "${escapePocketBaseFilter(excludePatientId)}"`
-      : baseFilter;
-  };
-
-  const getDuplicateReasons = (patient: Paciente, input: PatientDuplicateLookupInput) => {
-    const reasons: string[] = [];
-    const document = input.numero_documento || input.dni || "";
-
-    if (isSameDuplicateValue(patientDocument(patient), document)) reasons.push("Mismo documento");
-    if (isSameDuplicateValue(patient.telefono, input.telefono)) reasons.push("Mismo telefono");
-    if (isSameDuplicateValue(patient.numero_ficha, input.numero_ficha)) reasons.push("Misma ficha");
-    if (hasSimilarText(patient.apellido, input.apellido) && (!input.nombre || hasSimilarText(patient.nombre, input.nombre, 2))) {
-      reasons.push(input.nombre ? "Nombre parecido" : "Apellido parecido");
-    }
-
-    return Array.from(new Set(reasons));
-  };
-
-  const findPatientDuplicateCandidates = async (
-    input: PatientDuplicateLookupInput,
-    excludePatientId?: string
-  ): Promise<PatientDuplicateCandidate[]> => {
-    if (!hasDuplicateLookupSignal(input)) return [];
-
-    const filter = buildDuplicatePatientFilter(input, excludePatientId);
-    if (!filter) return [];
-
-    const response = await pb.collection("pacientes").getList<Paciente>(1, 8, {
-      filter,
-      sort: "apellido,nombre",
-      requestKey: null,
-    });
-
-    return response.items
-      .filter((patient) => patient.id !== excludePatientId)
-      .map((patient) => ({ ...patient, matchReasons: getDuplicateReasons(patient, input) }))
-      .filter((patient) => patient.matchReasons.length > 0);
   };
 
   const renderDuplicateCandidates = (
@@ -689,8 +691,6 @@ export default function TurnosPage() {
   };
   const eventDateLabel = (value?: string) => value ? `${formatDate(new Date(value))} ${shortTime(new Date(value))}` : "";
   const isSensitiveStatus = (estado: string) => estado === "Ausente" || estado === "Cancelado";
-
-  const escapePocketBaseFilter = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
   const addMinutes = (date: Date, minutes: number) => {
     const copy = new Date(date);
