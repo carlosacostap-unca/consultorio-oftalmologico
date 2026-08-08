@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
@@ -59,24 +59,7 @@ export default function BloqueosAgendaPage() {
   const canManageAll = activeRole === "admin" || activeRole === "secretaria";
   const isDoctorRole = activeRole === "medico";
 
-  useEffect(() => {
-    setIsMounted(true);
-    const record = pb.authStore.record as AppUser | null;
-    setUser(record);
-
-    if (!pb.authStore.isValid) {
-      router.push("/");
-      return;
-    }
-
-    if (resolveActiveRole(record, ["secretaria"]) === "medico" && record?.id) {
-      setForm((prev) => ({ ...prev, alcance: "medico", medico_id: record.id || "" }));
-    }
-
-    loadData();
-  }, [router]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     setError("");
     try {
@@ -100,8 +83,8 @@ export default function BloqueosAgendaPage() {
       setBlocks(blocksResponse);
       setTurnos(turnosResponse);
 
-      if (!form.medico_id && medicosRecords[0]?.id) {
-        setForm((prev) => ({ ...prev, medico_id: prev.medico_id || medicosRecords[0].id }));
+      if (medicosRecords[0]?.id) {
+        setForm((prev) => prev.medico_id ? prev : { ...prev, medico_id: medicosRecords[0].id });
       }
     } catch (err) {
       console.error("Error al cargar bloqueos:", err);
@@ -109,9 +92,26 @@ export default function BloqueosAgendaPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const previewBlock: ScheduleBlock = {
+  useEffect(() => {
+    setIsMounted(true);
+    const record = pb.authStore.record as AppUser | null;
+    setUser(record);
+
+    if (!pb.authStore.isValid) {
+      router.push("/");
+      return;
+    }
+
+    if (resolveActiveRole(record, ["secretaria"]) === "medico" && record?.id) {
+      setForm((prev) => ({ ...prev, alcance: "medico", medico_id: record.id || "" }));
+    }
+
+    void loadData();
+  }, [loadData, router]);
+
+  const previewBlock = useMemo<ScheduleBlock>(() => ({
     id: editingId || "preview",
     alcance: form.alcance,
     medico_id: form.alcance === "medico" ? form.medico_id : "",
@@ -121,8 +121,8 @@ export default function BloqueosAgendaPage() {
     hora_fin: form.dia_completo ? "" : form.hora_fin,
     dia_completo: form.dia_completo,
     motivo: form.motivo,
-  };
-  const previewConflicts = useMemo(() => findConflictingAppointments(turnos, [previewBlock]), [turnos, form, editingId]);
+  }), [editingId, form]);
+  const previewConflicts = useMemo(() => findConflictingAppointments(turnos, [previewBlock]), [previewBlock, turnos]);
   const currentConflicts = useMemo(() => findConflictingAppointments(turnos, blocks), [turnos, blocks]);
 
   const doctorLabel = (doctor?: Medico | null) => doctor?.name || doctor?.email || "Medico";

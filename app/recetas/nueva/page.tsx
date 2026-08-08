@@ -8,7 +8,7 @@ import { formatDate } from "@/lib/utils";
 import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import type { UserRole } from "@/lib/permissions";
-import type { Consulta, Medico, Patient } from "@/lib/types";
+import type { AppUser, Consulta, Medico, Patient } from "@/lib/types";
 import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
 
 interface SavedPrescription {
@@ -16,6 +16,13 @@ interface SavedPrescription {
   pacienteId: string;
   consultaId: string;
 }
+
+const patientDocument = (patient?: Patient | null) => patient?.numero_documento || patient?.dni || "";
+
+const formatPatientOption = (patient: Patient) => {
+  const document = patientDocument(patient);
+  return `${patient.apellido}, ${patient.nombre}${document ? ` - DNI: ${document}` : ""}${patient.numero_ficha ? ` - Ficha: ${patient.numero_ficha}` : ""}`;
+};
 
 export default function NuevaRecetaPage() {
   return (
@@ -30,7 +37,7 @@ function NuevaRecetaForm() {
   const searchParams = useSearchParams();
   
   const [isMounted, setIsMounted] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [activeRole, setActiveRole] = useState<UserRole | null>(null);
   
   const [pacientes, setPacientes] = useState<Patient[]>([]);
@@ -59,7 +66,6 @@ function NuevaRecetaForm() {
   });
   const [isDoctorManuallySelected, setIsDoctorManuallySelected] = useState(Boolean(initialMedicoId));
 
-  const patientDocument = (patient?: Patient | null) => patient?.numero_documento || patient?.dni || "";
   const patientLabel = (patient?: Patient | null) => {
     if (!patient) return "Paciente seleccionado";
     const document = patientDocument(patient);
@@ -68,10 +74,6 @@ function NuevaRecetaForm() {
   const displayValue = (value?: string | null) => {
     const normalized = String(value ?? "").trim();
     return normalized || "-";
-  };
-  const formatPatientOption = (patient: Patient) => {
-    const document = patientDocument(patient);
-    return `${patient.apellido}, ${patient.nombre}${document ? ` - DNI: ${document}` : ""}${patient.numero_ficha ? ` - Ficha: ${patient.numero_ficha}` : ""}`;
   };
   const upsertPatient = (patient: Patient) => {
     setPacientes((prev) => [patient, ...prev.filter((item) => item.id !== patient.id)]);
@@ -91,7 +93,7 @@ function NuevaRecetaForm() {
     setIsMounted(true);
     const authUser = pb.authStore.record;
     const resolvedRole = resolveActiveRole(authUser, ["medico"]);
-    setUser(authUser);
+    setUser(authUser as AppUser | null);
     setActiveRole(resolvedRole);
 
     if (!pb.authStore.isValid) {
@@ -112,8 +114,8 @@ function NuevaRecetaForm() {
           setMedicos(Array.isArray(data.medicos) ? data.medicos : []);
         }
 
-        if (formData.paciente_id) {
-          const paciente = await pb.collection("pacientes").getOne<Patient>(formData.paciente_id);
+        if (initialPacienteId) {
+          const paciente = await pb.collection("pacientes").getOne<Patient>(initialPacienteId);
           setSelectedPacienteData(paciente);
           setPatientSearchQuery(formatPatientOption(paciente));
           upsertPatient(paciente);
@@ -124,7 +126,7 @@ function NuevaRecetaForm() {
     };
 
     loadInitialContext();
-  }, [router]);
+  }, [initialPacienteId, router]);
 
   useEffect(() => {
     if (!isMounted || !pb.authStore.isValid) {
