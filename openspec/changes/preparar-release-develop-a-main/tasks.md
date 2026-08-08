@@ -9,9 +9,12 @@
 ## 2. Reconciliación de ramas
 
 - [ ] 2.1 Fusionar `origin/main` en la rama de release nacida del `origin/develop` verificado, sin rebase ni force push.
-- [ ] 2.2 Resolver el conflicto de consultas conservando `Receta[]`, los tipos explícitos y el lint estricto.
-- [ ] 2.3 Revisar el resultado semántico de impresiones, atribución médica y antecedentes aunque Git no marque conflicto textual.
-- [ ] 2.4 Confirmar que el diff no incorpora actualizaciones de dependencias, migraciones, seeds ni importaciones fuera del alcance.
+- [x] 2.2 Resolver el conflicto de consultas conservando `Receta[]`, los tipos explícitos y el lint estricto.
+  - Evidencia: único conflicto textual resuelto con `useRef<Map<string, Receta[]>>`; no quedan marcadores de conflicto.
+- [x] 2.3 Revisar el resultado semántico de impresiones, atribución médica y antecedentes aunque Git no marque conflicto textual.
+  - Evidencia: se preservan `doctorLabelFromList`, `loadAuthenticatedDoctors`, sus pruebas y los tres documentos imprimibles; las correcciones de antecedentes eran equivalentes y no generan una reversión.
+- [x] 2.4 Confirmar que el diff no incorpora actualizaciones de dependencias, migraciones, seeds ni importaciones fuera del alcance.
+  - Evidencia: el merge agrega sólo las 12 rutas de la corrección exclusiva de atribución médica; no modifica `package.json`, lockfile, migraciones, seeds ni importadores.
 
 ## 3. Barrera para la versión de escritorio incompleta
 

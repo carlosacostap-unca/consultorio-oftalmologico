@@ -5,7 +5,8 @@ import { use } from "react";
 import type { ReactNode } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList, loadAuthenticatedDoctors } from "@/lib/doctor-attribution";
+import type { Medico } from "@/lib/types";
 import { emptyIfOptionalClinicalZero } from "@/lib/clinical-empty-values";
 
 interface PrintablePatient {
@@ -20,6 +21,7 @@ interface PrintablePatient {
 }
 
 interface PrintableDoctor {
+  id: string;
   name?: string;
   email?: string;
 }
@@ -79,12 +81,13 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
   const resolvedParams = use(params);
   const [consulta, setConsulta] = useState<PrintableConsulta | null>(null);
   const [recetas, setRecetas] = useState<PrintableReceta[]>([]);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [consultaRecord, recetasRecords] = await Promise.all([
+        const [consultaRecord, recetasRecords, medicosRecords] = await Promise.all([
           pb.collection("consultas").getOne<PrintableConsulta>(resolvedParams.id, {
             expand: "paciente_id,medico_id",
           }),
@@ -92,9 +95,14 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
             filter: `consulta_id = "${resolvedParams.id}"`,
             sort: "-fecha,-created",
           }),
+          loadAuthenticatedDoctors(pb.authStore.token).catch((error) => {
+            console.error("Error al cargar medicos para el informe clinico", error);
+            return [];
+          }),
         ]);
         setConsulta(consultaRecord);
         setRecetas(recetasRecords);
+        setMedicos(medicosRecords);
       } catch (error) {
         console.error("Error al cargar el informe clinico", error);
       } finally {
@@ -124,7 +132,7 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
         <section className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Info label="Paciente" value={pacienteNombre} />
           <Info label="Fecha" value={consulta.fecha ? formatDate(consulta.fecha) : "-"} />
-          <Info label="Medico" value={doctorLabel(consulta.expand?.medico_id)} />
+          <Info label="Medico" value={doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos)} />
           <Info label="Documento" value={documento || "-"} />
           <Info label="Ficha" value={paciente?.numero_ficha || "-"} />
           <Info label="Obra social" value={paciente?.obra_social || "-"} />

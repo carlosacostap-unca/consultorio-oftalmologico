@@ -1257,6 +1257,52 @@ test.describe("roles y otorgamiento de turnos", () => {
     }
   });
 
+  test("medico ve al otro medico responsable en consulta e impresiones", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const medicoDosId = await getUserIdByEmail(request, env, adminToken, "medico.dos.demo@consultorio.local");
+    const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
+    expect(patient).toBeTruthy();
+    const motivo = `Playwright consulta otro medico ${Date.now()}`;
+    let consultaId = "";
+
+    try {
+      const consulta = await createDemoConsultation(
+        request,
+        env,
+        adminToken,
+        patient!.id as string,
+        motivo,
+        undefined,
+        "finalizada",
+        medicoDosId,
+      );
+      consultaId = consulta.id as string;
+
+      await login(page, "medico.demo@consultorio.local");
+
+      await page.goto(`/consultas/${consultaId}?mode=view`);
+      await expect(page.getByText(/Medico responsable:/).getByText("Medico Dos Demo")).toBeVisible();
+
+      await page.goto(`/consultas/${consultaId}/imprimir`);
+      await expect(page.getByText("Medico Dos Demo")).toBeVisible();
+
+      await page.goto(`/consultas/${consultaId}/imprimir-anteojos`);
+      await expect(page.getByText("Medico Dos Demo")).toBeVisible();
+
+      await page.goto(`/pacientes/${patient!.id}/imprimir`);
+      await expect(page.getByText("Medico Dos Demo").first()).toBeVisible();
+    } finally {
+      if (consultaId) {
+        await cleanupConsultationEvents(request, env, adminToken, consultaId);
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${consultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+    }
+  });
+
   test("api crea consulta manual atribuyendo el medico activo", async ({ request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
