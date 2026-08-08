@@ -1,9 +1,9 @@
 import {
   desktopSyncErrorResponse,
-  escapeFilterValue,
   requireDesktopSyncContext,
   touchDevice,
 } from "@/lib/desktop-sync/server-auth";
+import { desktopConflictOwnershipFilters } from "@/lib/desktop-sync/server-auth-policy";
 import { pbAdmin } from "@/lib/pocketbase-admin";
 
 export const dynamic = "force-dynamic";
@@ -17,14 +17,14 @@ export async function GET(request: Request) {
       ? url.searchParams.get("status")!
       : "open";
     const page = Math.max(1, Number(url.searchParams.get("page") || 1));
-    const filter = [`status = "${status}"`];
-    if (!context.roles.includes("admin")) {
-      filter.push(`device_id = "${escapeFilterValue(context.device!.deviceId)}"`);
-    }
+    const filter = [
+      `status = "${status}"`,
+      ...desktopConflictOwnershipFilters(context.roles, context.device!.deviceId, context.user.id),
+    ];
     const params = new URLSearchParams({
       page: String(page),
       perPage: "50",
-      sort: "-detected_at,-created",
+      sort: "-detected_at",
       filter: filter.join(" && "),
     });
     const result = await pbAdmin(`/api/collections/sync_conflicts/records?${params}`);

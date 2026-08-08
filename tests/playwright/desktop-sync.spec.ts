@@ -9,8 +9,10 @@ test.describe("API de sincronización de escritorio", () => {
     const pbUrl = pocketBaseUrl(env);
     const adminToken = await authenticateSuperuser(request, pbUrl, env);
     const userAuth = await authenticateUser(request, pbUrl, "admin.demo@consultorio.local");
+    const doctorAuth = await authenticateUser(request, pbUrl, "medico.demo@consultorio.local");
     const suffix = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`.toLowerCase();
     const deviceId = `playwright-device-${suffix}`;
+    const deniedDeviceId = `denied-device-${suffix}`;
     const code = `PC-PW-${suffix.slice(-8)}`.toUpperCase();
     const normalizedCode = code.replace(/[^A-Z0-9]/g, "").slice(0, 8);
     const recordId = pocketBaseId(`p${suffix}`);
@@ -27,6 +29,13 @@ test.describe("API de sincronización de escritorio", () => {
     expect(unauthenticated.status()).toBe(401);
 
     try {
+      const deniedActivation = await request.post("/api/desktop-sync/v1/activate", {
+        headers: { Authorization: `Bearer ${doctorAuth.token}` },
+        data: { deviceId: deniedDeviceId, code: `${code}-NO`, name: "No autorizado", appVersion: "0.1.0-test" },
+      });
+      expect(deniedActivation.status()).toBe(403);
+      await expect(deniedActivation.json()).resolves.toMatchObject({ code: "device_enrollment_forbidden" });
+
       const activation = await request.post("/api/desktop-sync/v1/activate", {
         headers: { Authorization: `Bearer ${userAuth.token}` },
         data: { deviceId, code, name: "Playwright Desktop", appVersion: "0.1.0-test" },
@@ -99,6 +108,16 @@ test.describe("API de sincronización de escritorio", () => {
       expect(duplicateBody.confirmations[0]).toMatchObject({ status: "conflict", entity: "pacientes", recordId: duplicateId });
       conflictId = duplicateBody.confirmations[0].conflictId;
       expect(conflictId).toBeTruthy();
+
+      const doctorConflicts = await request.get("/api/desktop-sync/v1/conflicts", {
+        headers: {
+          Authorization: `Bearer ${doctorAuth.token}`,
+          "x-consultorio-device-id": deviceId,
+        },
+      });
+      expect(doctorConflicts.status()).toBe(200);
+      const doctorConflictBody = await doctorConflicts.json();
+      expect((doctorConflictBody.items || []).some((item: { id?: string }) => item.id === conflictId)).toBe(false);
 
       const firstPull = await request.post("/api/desktop-sync/v1/pull", {
         headers,
