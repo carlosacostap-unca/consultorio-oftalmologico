@@ -5,26 +5,40 @@ El proceso de release MUST impedir la publicación cuando las dependencias inclu
 
 #### Scenario: Auditoría bloqueante antes del release
 - **WHEN** se prepara un build web o instalador de escritorio para producción
-- **THEN** se ejecuta una auditoría que excluye dependencias exclusivas de desarrollo
-- **AND** el release continúa únicamente si no existen vulnerabilidades altas o críticas en ese conjunto
+- **THEN** se ejecuta `npm audit --omit=dev`
+- **AND** el release continúa únicamente si no existen vulnerabilidades altas o críticas
 
 #### Scenario: Vulnerabilidad con versión corregida disponible
-- **WHEN** la auditoría identifica una vulnerabilidad alta o crítica con una versión de parche corregida
+- **WHEN** la auditoría identifica una vulnerabilidad alta o crítica con una versión corregida compatible
 - **THEN** la dependencia afectada y su lockfile se actualizan antes de generar el artefacto final
+
+### Requirement: Auditoría separada de herramientas de desarrollo
+El proyecto MUST auditar también el árbol completo y resolver los hallazgos altos o críticos cuando exista una actualización compatible sin ruptura.
+
+#### Scenario: Hallazgo exclusivo de desarrollo con corrección compatible
+- **WHEN** `npm audit` identifica una vulnerabilidad alta o crítica fuera del runtime
+- **THEN** se actualiza la dependencia directa o transitiva dentro de un rango compatible
+- **AND** se repiten las verificaciones de build, pruebas y empaquetado afectadas
+
+#### Scenario: Hallazgo sin corrección compatible
+- **WHEN** la auditoría completa conserva un hallazgo que sólo puede corregirse mediante una versión mayor incompatible o `--force`
+- **THEN** no se fuerza la actualización
+- **AND** se documentan el paquete, el camino transitivo, la exposición y la decisión de release
 
 ### Requirement: Resolución reproducible del runtime seguro
 El sistema SHALL fijar versiones compatibles y conservar un lockfile que permita reconstruir el mismo árbol de dependencias mediante `npm ci`.
 
 #### Scenario: Actualización del framework a la última versión estable
-- **WHEN** se verifica la versión estable más reciente de Next.js
-- **THEN** `next` y `eslint-config-next` quedan alineados en `16.2.12`
+- **WHEN** se implementa este cambio de seguridad
+- **THEN** `next` y `eslint-config-next` quedan alineados en `16.3.0`
 - **AND** React permanece en una versión admitida por sus peer dependencies
 
-#### Scenario: Actualización segura y compatible de Next.js
-- **WHEN** se corrigen las vulnerabilidades detectadas en `next@16.2.6`
-- **THEN** las alertas directas del framework se corrigen mediante la última versión estable
-- **AND** PostCSS y Sharp se resuelven dentro de rangos declarados compatibles sin usar versiones canary ni overrides incompatibles
-- **AND** el instalador permanece bloqueado mientras las dependencias transitivas incumplan el umbral de producción
+#### Scenario: Resolución corregida de transitivas
+- **WHEN** npm regenera el árbol desde las dependencias declaradas
+- **THEN** PostCSS se resuelve en `8.5.23` o posterior
+- **AND** Sharp se resuelve en `0.35.3` o posterior
+- **AND** NanoID se resuelve en una versión posterior a `3.3.16`
+- **AND** no se usan versiones canary ni overrides incompatibles
 
 #### Scenario: Instalación desde cero
 - **WHEN** el release se instala desde el lockfile en un worktree limpio
@@ -32,12 +46,12 @@ El sistema SHALL fijar versiones compatibles y conservar un lockfile que permita
 - **AND** el árbol instalado supera la auditoría de producción
 
 ### Requirement: Compatibilidad funcional del release
-La actualización de seguridad MUST conservar el comportamiento clínico, las APIs, la autorización y la persistencia existentes.
+La actualización de dependencias MUST conservar el comportamiento clínico, las APIs, la autorización y la persistencia existentes.
 
 #### Scenario: Verificación previa al empaquetado
 - **WHEN** finaliza la actualización de dependencias
-- **THEN** las pruebas focalizadas, TypeScript, ESLint sobre los archivos afectados y el build de producción terminan correctamente
-- **AND** los errores preexistentes del lint completo se documentan por separado sin atribuirlos a la actualización
+- **THEN** las pruebas focalizadas, TypeScript y el build de producción terminan correctamente
+- **AND** el lint completo no agrega hallazgos respecto del baseline documentado
 - **AND** no se requieren cambios de esquema ni migraciones de datos
 
 #### Scenario: Instalador de escritorio regenerado

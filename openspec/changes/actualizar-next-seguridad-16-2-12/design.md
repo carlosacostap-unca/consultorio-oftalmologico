@@ -1,62 +1,71 @@
 ## Context
 
-El release de escritorio `0.1.0` se construye con Next.js standalone y empaqueta ese runtime dentro de Electron. `npm audit --omit=dev` detecta vulnerabilidades altas en `next@16.2.6` y sus dependencias transitivas PostCSS y Sharp. Next.js `16.2.12` corrige las alertas directas del framework, pero mantiene Sharp `^0.34.5`; npm exige Sharp `0.35.x` para corregir las alertas heredadas de libvips.
+El release de escritorio `0.1.0` se construye con Next.js standalone y empaqueta ese runtime dentro de Electron. El árbol actual de `develop` usa `next@16.2.12`, PostCSS `8.5.14`, NanoID `3.3.11` y Sharp `0.34.5`. La auditoría de producción registra 4 vulnerabilidades altas; la auditoría completa registra 12 hallazgos, 10 altos y 2 moderados, incluyendo herramientas de build y escritorio.
 
-El proyecto ya utiliza Next.js 16, React 19.2, TypeScript 5 y Turbopack. La guía local de actualización de Next.js permite una actualización manual de dependencias; no se requiere codemod porque el cambio permanece dentro de la misma versión menor y no modifica APIs de la aplicación.
+El registro oficial de npm publica Next.js `16.3.0` como estable. Esa versión declara PostCSS `8.5.23` y Sharp `^0.35.3`, que superan los rangos vulnerables detectados. El proyecto ya cumple Node.js `>=20.9`, usa React 19.2, TypeScript 5, ESLint Flat Config y Turbopack, de acuerdo con la guía local de Next.js 16.
 
 ## Goals / Non-Goals
 
 **Goals:**
 
-- Actualizar `next` y `eslint-config-next` a la última versión estable publicada, `16.2.12`, y eliminar las alertas directas del framework.
-- Mantener bloqueado el instalador mientras las dependencias incluidas en producción conserven vulnerabilidades altas o críticas.
-- Conservar un lockfile reproducible y compatible con `npm ci`.
+- Actualizar `next` y `eslint-config-next` a `16.3.0` y resolver sus transitivas vulnerables.
+- Eliminar el override de PostCSS y conservar un lockfile reproducible mediante `npm ci`.
+- Lograr cero vulnerabilidades altas o críticas en producción.
+- Resolver hallazgos altos o críticos de desarrollo cuando exista una actualización compatible sin ruptura.
 - Demostrar compatibilidad mediante pruebas, TypeScript, ESLint, build standalone y empaquetado NSIS.
 
 **Non-Goals:**
 
-- Actualizar React, Electron u otras dependencias sin relación con las alertas detectadas.
-- Corregir en este cambio vulnerabilidades exclusivas de herramientas de desarrollo que no se empaquetan en el runtime.
-- Modificar rutas, componentes, reglas de autorización, esquema de PocketBase o datos clínicos.
-- Incorporar firma de código al instalador.
+- Ejecutar `npm audit fix --force`, instalar versiones canary o imponer overrides fuera de los rangos oficiales.
+- Actualizar todas las dependencias sólo porque exista una versión más reciente.
+- Saltar a ESLint 10, TypeScript 7, tipos de Node 26 o PocketBase 0.27 dentro de este cambio.
+- Sanear los 40 hallazgos preexistentes de lint; ese trabajo se especifica en `sanear-baseline-lint`.
+- Modificar rutas, componentes clínicos, autorización, esquema de PocketBase o datos.
 
 ## Decisions
 
-### Actualización inmediata del framework y bloqueo independiente del release
+### Next.js 16.3.0 como actualización mínima segura
 
-Se fijarán `next` y `eslint-config-next` en la última versión estable actual, `16.2.12`, porque corrige las alertas directas del framework y es compatible con React `19.2.5`. Esta actualización no habilita por sí sola el instalador: se descartan tanto una versión canary como un override de Sharp fuera del rango de Next.js, y el release seguirá bloqueado hasta contar con compatibilidad oficial.
+Se fijarán `next` y `eslint-config-next` en `16.3.0`. A diferencia de `16.2.12`, la versión estable nueva admite oficialmente Sharp `0.35.x` y un PostCSS corregido. Se descartan canaries y overrides manuales porque debilitarían la compatibilidad y reproducibilidad del runtime.
 
-### Lockfile regenerado por npm
+### Eliminación del override de PostCSS
 
-La actualización se realizará con npm y versiones exactas para que `package.json` y `package-lock.json` describan el mismo árbol. Se descarta editar manualmente el lockfile porque impediría garantizar integridad y reproducibilidad.
+El override raíz `postcss: 8.5.14` impide que npm seleccione el rango corregido declarado por Next.js. Se eliminará y se regenerará el lockfile con npm. El árbol efectivo deberá contener PostCSS `8.5.23` o posterior, Sharp `0.35.3` o posterior y NanoID posterior a `3.3.16`.
 
-### Umbral separado para runtime y herramientas
+### Umbrales separados para runtime y herramientas
 
-El criterio bloqueante será `npm audit --omit=dev`: no podrá reportar vulnerabilidades altas o críticas. La auditoría completa también se documentará, pero los hallazgos exclusivos de desarrollo se evaluarán por separado para no confundir herramientas de build con código distribuido.
+`npm audit --omit=dev` será bloqueante y deberá quedar sin hallazgos altos o críticos. La auditoría completa se tratará por separado: todo hallazgo alto o crítico con una corrección compatible deberá resolverse; cualquier remanente sin solución compatible se documentará con paquete, camino transitivo y exposición antes de decidir el release.
+
+### Actualizaciones de tooling acotadas por riesgo
+
+Se permitirán parches o menores compatibles necesarios para cerrar la auditoría, por ejemplo Tailwind/PostCSS `4.3.3`, Concurrently `10.0.4` y transitivas renovadas por npm. Los saltos mayores o dependencias de dominio no relacionadas quedan fuera para reducir superficie de regresión.
+
+### Validación independiente de la deuda de lint
+
+La actualización de `eslint-config-next` puede variar el conjunto de reglas. En este cambio se comparará el resultado completo contra el baseline de 11 errores y 29 advertencias y no se aceptarán regresiones. El baseline cero se alcanzará en el cambio separado de lint.
 
 ### Build desde dependencias locales al worktree
 
-Turbopack exige que `node_modules` permanezca dentro de la raíz del proyecto. El worktree de release utilizará `npm ci` local y no un junction hacia otro worktree. No se cambiará `next.config.ts` ni se desactivará Turbopack para ocultar ese problema de aislamiento.
+El worktree utilizará su propio `node_modules` instalado mediante `npm ci`. No se usarán junctions ni se alterará `next.config.ts` para ocultar problemas de raíz de Turbopack.
 
 ## Risks / Trade-offs
 
-- [La publicación estable compatible puede demorarse] → Mantener bloqueado el release y conservar la aplicación vigente hasta que exista una combinación soportada.
-- [Una versión estable posterior puede cambiar el resultado del build] → Ejecutar pruebas focalizadas, TypeScript, ESLint y build completo antes de empaquetar.
-- [El árbol transitivo puede conservar alertas de desarrollo] → Separar y documentar auditorías completa y `--omit=dev`; impedir el release sólo cuando el runtime incumpla el umbral.
-- [El instalador puede incorporar una salida standalone incompleta] → Inspeccionar `resources/app`, PocketBase y los archivos de política de Electron dentro del paquete generado.
-- [Windows puede advertir sobre un editor desconocido] → Entregar el instalador como no firmado y dejar la firma de código como trabajo posterior explícito.
+- [Next.js 16.3.0 cambia comportamiento interno de Turbopack o standalone] → Ejecutar pruebas, build completo e inspección del paquete antes de publicar.
+- [Eliminar el override produce más de una versión de PostCSS] → Inspeccionar `npm ls` y auditar el árbol efectivo, no sólo `package.json`.
+- [Una actualización transitiva de tooling altera el instalador] → Limitar cambios a versiones compatibles y probar el ejecutable empaquetado.
+- [La auditoría completa conserva hallazgos sin parche compatible] → Documentar alcance y separar el criterio de runtime; no usar `--force` para ocultarlos.
+- [El instalador incorpora una salida standalone incompleta] → Inspeccionar `resources/app`, PocketBase y los archivos de política de Electron.
 
 ## Migration Plan
 
-1. Confirmar la última versión estable publicada de Next.js y actualizar `next` y `eslint-config-next` a `16.2.12`.
-2. Validar la actualización del framework mediante instalación reproducible, pruebas, TypeScript, ESLint y build.
-3. Regenerar `package-lock.json` e instalar mediante `npm ci`.
-4. Ejecutar las auditorías y conservar bloqueado el release mientras Sharp incumpla el umbral.
-5. Cuando exista compatibilidad oficial, generar el instalador NSIS `0.1.0`, inspeccionarlo y probar su arranque.
-6. Publicar cada actualización revisada mediante pull request hacia `develop`; después de habilitar el release, regenerar el artefacto final desde el commit integrado.
-7. Ante una regresión, no publicar el instalador y volver al commit anterior de `develop`; no hay migraciones de datos que revertir.
+1. Actualizar Next.js, su configuración ESLint y las dependencias compatibles necesarias; eliminar el override de PostCSS.
+2. Regenerar `package-lock.json`, instalar desde cero con `npm ci` e inspeccionar versiones efectivas.
+3. Ejecutar auditorías de producción y completa; corregir cualquier incumplimiento compatible.
+4. Ejecutar pruebas focalizadas, TypeScript, comparación de lint y build standalone.
+5. Generar e inspeccionar el instalador NSIS y probar sus servicios locales.
+6. Integrar mediante pull request hacia `develop` y regenerar el artefacto final desde el commit fusionado.
+7. Ante una regresión, no publicar el instalador y revertir el commit; no existen migraciones de datos que deshacer.
 
 ## Open Questions
 
-- ¿Qué versión estable de Next.js será la primera en declarar compatibilidad con Sharp `0.35.x` o posterior corregido?
-- La firma de código se tratará en un cambio independiente.
+Ninguna para iniciar la implementación.

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { use } from "react";
+import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
 import { doctorLabel } from "@/lib/doctor-attribution";
@@ -45,6 +46,7 @@ interface Consulta {
 }
 
 export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const [consulta, setConsulta] = useState<Consulta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -140,9 +142,7 @@ export default function ImprimirAnteojosPage({ params }: { params: Promise<{ id:
             Imprimir
           </button>
           <button
-            onClick={() => {
-              window.location.href = `/consultas/${consulta.id}?mode=view`;
-            }}
+            onClick={() => router.push(`/consultas/${consulta.id}?mode=view`)}
             className="rounded-lg bg-gray-900 px-6 py-2 font-bold text-white hover:bg-gray-800"
           >
             Volver a consulta

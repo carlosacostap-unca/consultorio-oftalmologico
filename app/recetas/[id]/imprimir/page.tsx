@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { use } from "react";
+import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
 import { doctorLabel } from "@/lib/doctor-attribution";
@@ -45,6 +46,7 @@ interface PrintableReceta {
 }
 
 export default function ImprimirRecetaPage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const resolvedParams = use(params);
   const [receta, setReceta] = useState<PrintableReceta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -142,18 +144,14 @@ export default function ImprimirRecetaPage({ params }: { params: Promise<{ id: s
             Imprimir
           </button>
           <button
-            onClick={() => {
-              window.location.href = `/recetas/${receta.id}?mode=view`;
-            }}
+            onClick={() => router.push(`/recetas/${receta.id}?mode=view`)}
             className="rounded-lg bg-gray-900 px-6 py-2 font-bold text-white hover:bg-gray-800"
           >
             Volver a receta
           </button>
           {consulta && (
             <button
-              onClick={() => {
-                window.location.href = `/consultas/${consulta.id}`;
-              }}
+              onClick={() => router.push(`/consultas/${consulta.id}`)}
               className="rounded-lg border border-gray-400 bg-white px-6 py-2 font-bold text-black hover:bg-gray-100"
             >
               Volver a consulta
