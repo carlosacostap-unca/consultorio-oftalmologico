@@ -2,7 +2,7 @@
 
 Al iniciar este cambio, `origin/main` apunta a `9d30848` y `origin/develop` a `38f3627`, con ancestro común `65c942c`. `main` tiene cinco commits propios y `develop` veintiocho; dos correcciones de antecedentes son equivalentes entre ramas, mientras `fbd817b` aporta a `main` la resolución del médico responsable en impresiones. La simulación de merge detecta un conflicto textual en `app/consultas/[id]/page.tsx`, donde la versión de `develop` reemplaza un `any[]` por `Receta[]`.
 
-El estado final también difiere en dependencias y controles: `main` usa Next.js 16.2.6 y `eslint`, mientras `develop` usa Next.js 16.3.0 y `eslint --max-warnings=0`. La auditoría vigente informa cero vulnerabilidades y Next.js 16.3.0 es la versión estable actual. GitHub no registra deployments para el repositorio, por lo que el proveedor, proyecto y rama que alimentan producción deben comprobarse antes de integrar en `main`.
+El estado final también difiere en dependencias y controles: `main` usa Next.js 16.2.6 y `eslint`, mientras `develop` usa Next.js 16.3.0 y `eslint --max-warnings=0`. La auditoría vigente informa cero vulnerabilidades y Next.js 16.3.0 es la versión estable actual. El despliegue usa Dokploy en un VPS y un log histórico identifica la aplicación `consultorio-oftalmologico-mhrzkr`, pero GitHub no registra deployments para el repositorio; las ramas, los entornos y los SHA efectivos deben comprobarse en Dokploy antes de integrar en `main`.
 
 `develop` contiene además el runtime y las APIs de escritorio offline. Su OpenSpec conserva nueve tareas pendientes relacionadas con pruebas de interrupción, sincronización, conflictos, impresiones, instalador y piloto. La reconciliación debe distinguir entre código de servidor necesario y una capacidad incompleta expuesta a usuarios web.
 
@@ -77,6 +77,6 @@ Se registra el SHA previo de `main`, el SHA del PR y el SHA observado en el prov
 
 ## Open Questions
 
-- ¿Qué proveedor y proyecto despliegan actualmente producción y staging, y qué ramas observan?
+- ¿Qué aplicaciones o entornos de Dokploy corresponden a producción y staging, y qué ramas y SHA efectivos observan?
 - ¿Las APIs de sincronización de escritorio deben quedar disponibles en producción web para un piloto actual o deben permanecer deshabilitadas hasta completar las nueve tareas pendientes?
 - ¿El proveedor permite promover exactamente un deployment de staging ya verificado a producción o siempre reconstruye desde `main`?
