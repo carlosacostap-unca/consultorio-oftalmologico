@@ -28,4 +28,8 @@
 ## 5. Integración del release
 
 - [x] 5.1 Publicar la actualización revisada mediante un pull request hacia `develop`.
-- [ ] 5.2 Tras la integración, regenerar el instalador final desde el commit fusionado y registrar su hash SHA-256.
+- [x] 5.2 Tras la integración, regenerar el instalador final desde el commit fusionado y registrar su hash SHA-256.
+  - Commit fusionado en `develop`: `4f8763ab27e5f06978668ad7f213be0e51854460`.
+  - Instalador: `Consultorio-Oftalmologico-0.1.0-x64.exe`.
+  - SHA-256: `D9720E08463A2962AAA3B6A64D1F86F2B4DF4C9C0D4110C08CB33EF17E69B924`.
+  - Smoke test empaquetado: código de salida `0`; PocketBase y Next.js `16.3.0` iniciaron y cerraron correctamente.
