@@ -3,7 +3,7 @@
 - [x] 1.1 Actualizar `origin/main` y `origin/develop` y registrar SHA, ancestro común, commits exclusivos y simulación de conflictos.
   - Evidencia: `main=9d30848`, `develop=38f3627`, ancestro `65c942c`, divergencia `5/28`; conflicto simulado en `app/consultas/[id]/page.tsx` entre `any[]` y `Receta[]`.
 - [ ] 1.2 Identificar proveedor, proyecto, rama y SHA efectivos de producción y staging sin asumir que GitHub registra los deployments.
-  - Evidencia parcial: el proveedor confirmado es Dokploy en un VPS; `ERROR.md` identifica el repositorio y la aplicación histórica `consultorio-oftalmologico-mhrzkr`. Falta acceder al panel para confirmar aplicaciones o entornos, ramas, SHA efectivos y `DESKTOP_SYNC_ENABLED` de producción y staging.
+  - Evidencia parcial: el proveedor confirmado es Dokploy en un VPS; `ERROR.md` identifica el repositorio y la aplicación histórica `consultorio-oftalmologico-mhrzkr`, y el propietario confirma que la aplicación de producción sigue `main`. La administración de Dokploy será manual; faltan el SHA efectivo de producción, confirmar si existe una aplicación de staging con su rama/SHA y registrar `DESKTOP_SYNC_ENABLED` en ambos entornos.
 - [x] 1.3 Inventariar los cambios exclusivos de ambas ramas y documentar qué comportamiento debe preservar el resultado, incluido el médico responsable en impresiones.
   - Evidencia: `main` modifica 20 rutas y `develop` 135 desde el ancestro; 12 rutas cambian en ambos lados. Se debe preservar `fbd817b` (médico responsable), las correcciones equivalentes de antecedentes y los controles Next.js/lint de `develop`.
 

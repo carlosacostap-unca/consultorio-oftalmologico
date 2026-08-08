@@ -49,7 +49,7 @@ El release conserva Next.js 16.3.0 y el lockfile ya verificado. Las actualizacio
 
 ### 5. Identificar el despliegue efectivo antes de tocar `main`
 
-Antes de marcar el PR como listo se debe confirmar el proveedor, proyecto, rama de producción, rama de staging y commit actualmente desplegado. La ausencia de deployments en GitHub impide inferir esos datos. La publicación requiere aprobación explícita una vez mostrados el diff, las verificaciones y el destino.
+Antes de marcar el PR como listo se debe confirmar el proveedor, proyecto, rama de producción, rama de staging y commit actualmente desplegado. La ausencia de deployments en GitHub impide inferir esos datos. El propietario administrará Dokploy manualmente y reportará la evidencia necesaria; Codex no accederá ni modificará el VPS. La publicación requiere aprobación explícita una vez mostrados el diff, las verificaciones y el destino.
 
 ### 6. Rollback mediante revert del merge
 
@@ -77,6 +77,6 @@ Se registra el SHA previo de `main`, el SHA del PR y el SHA observado en el prov
 
 ## Open Questions
 
-- ¿Qué aplicaciones o entornos de Dokploy corresponden a producción y staging, y qué ramas y SHA efectivos observan?
+- ¿Existe una aplicación de staging separada en Dokploy y cuáles son los SHA efectivos actualmente desplegados en producción y staging?
 - ¿Las APIs de sincronización de escritorio deben quedar disponibles en producción web para un piloto actual o deben permanecer deshabilitadas hasta completar las nueve tareas pendientes?
 - ¿El proveedor permite promover exactamente un deployment de staging ya verificado a producción o siempre reconstruye desde `main`?
