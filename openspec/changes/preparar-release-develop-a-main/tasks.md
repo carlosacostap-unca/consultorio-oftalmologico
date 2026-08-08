@@ -2,8 +2,8 @@
 
 - [x] 1.1 Actualizar `origin/main` y `origin/develop` y registrar SHA, ancestro común, commits exclusivos y simulación de conflictos.
   - Evidencia: `main=9d30848`, `develop=38f3627`, ancestro `65c942c`, divergencia `5/28`; conflicto simulado en `app/consultas/[id]/page.tsx` entre `any[]` y `Receta[]`.
-- [ ] 1.2 Identificar proveedor, proyecto, rama y SHA efectivos de producción y staging sin asumir que GitHub registra los deployments.
-  - Evidencia parcial: el proveedor confirmado es Dokploy en un VPS; `ERROR.md` identifica el repositorio y la aplicación histórica `consultorio-oftalmologico-mhrzkr`, y el propietario confirma que la aplicación de producción sigue `main`. La administración de Dokploy será manual; faltan el SHA efectivo de producción, confirmar si existe una aplicación de staging con su rama/SHA y registrar `DESKTOP_SYNC_ENABLED` en ambos entornos.
+- [x] 1.2 Identificar proveedor, proyecto, rama y SHA efectivos de producción y staging sin asumir que GitHub registra los deployments.
+  - Evidencia: Dokploy en VPS administrado manualmente; producción `main@9d308481124f3e35656cd0eaaf1f67eb6c1bf5ff`, staging `develop@38f36275774f59f7352d28e4c45c0dcfaee6374f`; `DESKTOP_SYNC_ENABLED` no está definida en ninguno de los dos entornos.
 - [x] 1.3 Inventariar los cambios exclusivos de ambas ramas y documentar qué comportamiento debe preservar el resultado, incluido el médico responsable en impresiones.
   - Evidencia: `main` modifica 20 rutas y `develop` 135 desde el ancestro; 12 rutas cambian en ambos lados. Se debe preservar `fbd817b` (médico responsable), las correcciones equivalentes de antecedentes y los controles Next.js/lint de `develop`.
 
@@ -54,6 +54,6 @@
 ## 6. Cierre documental
 
 - [ ] 6.1 Registrar en estas tareas los comandos, resultados, SHA y evidencias finales del release o de cualquier bloqueo.
-  - Evidencia parcial: se registraron baseline, merge, auditoría de seguridad, verificaciones locales, E2E, PR y el bloqueo de acceso autenticado al proveedor; falta completar despliegue o rollback.
+  - Evidencia parcial: se registraron baseline, merge, auditoría de seguridad, verificaciones locales, E2E, PR y destinos efectivos de Dokploy; falta completar despliegue o rollback.
 - [ ] 6.2 Ejecutar `openspec validate --all --strict` y dejar el cambio listo para sincronizar y archivar después del release exitoso.
   - Evidencia parcial: `openspec validate --all --strict` aprobó 48/48 elementos; la sincronización y el archivado esperan el release exitoso.
