@@ -44,7 +44,8 @@
 
 ## 5. Pull request y publicación
 
-- [ ] 5.1 Publicar la rama, crear un PR hacia `main` y verificar base, cabeza, mergeabilidad, diff y checks remotos.
+- [x] 5.1 Publicar la rama, crear un PR hacia `main` y verificar base, cabeza, mergeabilidad, diff y checks remotos.
+  - Evidencia: PR draft `#14`, base `main@9d30848`, cabeza `codex/preparar-release-develop-a-main@1b3ddc4`, 133 archivos, estado `MERGEABLE/CLEAN`; GitHub no reporta checks configurados para la rama.
 - [ ] 5.2 Presentar el destino, los SHA, las verificaciones y el plan de rollback, y obtener aprobación explícita antes de fusionar.
 - [ ] 5.3 Fusionar el PR aprobado, esperar el despliegue y comprobar que el SHA efectivo coincide con el release esperado.
 - [ ] 5.4 Ejecutar smoke tests no destructivos en producción sobre acceso, turnos, consultas, recetas, antecedentes, DNI e impresiones.
@@ -53,5 +54,6 @@
 ## 6. Cierre documental
 
 - [ ] 6.1 Registrar en estas tareas los comandos, resultados, SHA y evidencias finales del release o de cualquier bloqueo.
+  - Evidencia parcial: se registraron baseline, merge, auditoría de seguridad, verificaciones locales, E2E, PR y el bloqueo de acceso autenticado al proveedor; falta completar despliegue o rollback.
 - [ ] 6.2 Ejecutar `openspec validate --all --strict` y dejar el cambio listo para sincronizar y archivar después del release exitoso.
   - Evidencia parcial: `openspec validate --all --strict` aprobó 48/48 elementos; la sincronización y el archivado esperan el release exitoso.
