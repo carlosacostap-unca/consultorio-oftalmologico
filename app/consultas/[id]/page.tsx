@@ -16,6 +16,7 @@ import type { Medico } from "@/lib/types";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
 import { emptyIfOptionalClinicalZero, normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
+import { mergeClinicalAntecedents } from "@/lib/clinical-antecedents";
 import { clinicalDateKey, clinicalDateToStoredDateTime, isClinicalDateWithinLimit, todayClinicalDateKey } from "@/lib/clinical-date";
 import { patientBirthAge } from "@/lib/patient-birth-date";
 import { ClinicalDateInput } from "@/components/clinical-date-input";
@@ -33,6 +34,15 @@ interface Paciente {
   ocupacion?: string;
   domicilio?: string;
   numero_ficha?: string;
+  ant_diabetes?: boolean;
+  ant_glaucoma?: boolean;
+  ant_maculopatia?: boolean;
+  ant_asmatico?: boolean;
+  ant_hipertension?: boolean;
+  ant_alergico?: boolean;
+  ant_reuma?: boolean;
+  ant_herpes?: boolean;
+  ant_otra?: string;
   estado_registro?: string;
   fusionado_en_paciente_id?: string;
   expand?: {
@@ -75,6 +85,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const consultasPacienteCacheRef = useRef<Map<string, ConsultaNavigationItem[]>>(new Map());
   const pacienteCacheRef = useRef<Map<string, Paciente>>(new Map());
   const recetasCacheRef = useRef<Map<string, any[]>>(new Map());
+  const consultaLoadSequenceRef = useRef(0);
   const hasLoadedConfigRef = useRef(false);
   const hasLoadedMedicosRef = useRef(false);
   const hasLoadedPacientesRef = useRef(false);
@@ -87,6 +98,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [activeConsultaId, setActiveConsultaId] = useState(initialActiveConsultaId);
+  const [isHydratingConsulta, setIsHydratingConsulta] = useState(true);
   const [pacientes, setPacientes] = useState<Paciente[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   
@@ -295,6 +307,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    setIsHydratingConsulta(true);
     setActiveConsultaId(params.get("consulta_actual") || consultaId);
   }, [consultaId]);
 
@@ -307,6 +320,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       if (nextConsultaId) {
         rememberConsultaScroll();
         setIsLoadingConsultaPosition(true);
+        setIsHydratingConsulta(true);
         setActiveConsultaId(nextConsultaId);
       }
     };
@@ -316,6 +330,8 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   }, []);
 
   useEffect(() => {
+    const loadSequence = ++consultaLoadSequenceRef.current;
+    setIsHydratingConsulta(true);
     setIsMounted(true);
     const authUser = pb.authStore.record;
     setUser(authUser);
@@ -376,9 +392,33 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           }
 
           const normalizedConsulta = normalizeOptionalClinicalZeros(consultaRecord);
+          currentPacienteId = normalizedConsulta.paciente_id;
+          let currentPaciente: Paciente | null = null;
+
+          if (currentPacienteId) {
+            try {
+              const cachedPaciente = pacienteCacheRef.current.get(currentPacienteId);
+              currentPaciente = cachedPaciente || await pb.collection("pacientes").getOne<Paciente>(currentPacienteId, {
+                expand: "mutual_id",
+                requestKey: null,
+              });
+              if (!cachedPaciente) {
+                pacienteCacheRef.current.set(currentPacienteId, currentPaciente);
+              }
+            } catch (error) {
+              console.error("Error cargando paciente de la consulta", error);
+            }
+          }
+
+          if (consultaLoadSequenceRef.current !== loadSequence) {
+            return;
+          }
+
+          const antecedentes = mergeClinicalAntecedents(normalizedConsulta, currentPaciente);
           setFormData(prev => ({
             ...prev,
             ...normalizedConsulta,
+            ...antecedentes,
             ant_gota: false,
             estado: normalizeConsultaEstado(String(normalizedConsulta.estado || "")),
             fecha: fechaFormateada,
@@ -386,8 +426,14 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           }));
           setOriginalMedicoId(normalizedConsulta.medico_id || "");
           setExpandedConsultaDoctor(consultaRecord.expand?.medico_id || null);
-          
-          currentPacienteId = normalizedConsulta.paciente_id;
+          setIsHydratingConsulta(false);
+
+          if (currentPaciente) {
+            setSelectedPacienteData(currentPaciente);
+            if (!hasLoadedPacientesRef.current) {
+              setPacientes([currentPaciente]);
+            }
+          }
 
           try {
             setIsLoadingConsultaEventos(true);
@@ -469,25 +515,6 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             console.log("Error al cargar recetas o no existen aún");
           }
           
-          // Cargar el paciente específico de esta consulta rápido
-          if (currentPacienteId) {
-             try {
-               const cachedPaciente = pacienteCacheRef.current.get(currentPacienteId);
-               const p = cachedPaciente || await pb.collection("pacientes").getOne<Paciente>(currentPacienteId, {
-                   expand: "mutual_id",
-                   requestKey: null,
-                 });
-               if (!cachedPaciente) {
-                 pacienteCacheRef.current.set(currentPacienteId, p);
-               }
-               setSelectedPacienteData(p);
-               if (!hasLoadedPacientesRef.current) {
-                 setPacientes([p]); // Temporalmente ponemos solo este paciente para que el select no se rompa
-               }
-             } catch(e) {
-               console.error("Error cargando paciente de la consulta", e);
-             }
-          }
           restoreConsultaScroll();
           scheduleMedicalSectionFocus();
         }
@@ -512,6 +539,9 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         console.error("Error al cargar datos:", error);
         hasLoadedPacientesRef.current = false;
         setIsLoadingConsultaPosition(false);
+        if (consultaLoadSequenceRef.current === loadSequence) {
+          setIsHydratingConsulta(false);
+        }
         restoreConsultaScroll();
         scheduleMedicalSectionFocus();
         alert("Error al cargar los datos de la consulta. Verifica la consola.");
@@ -785,6 +815,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     forceMedicalSectionFocusRef.current = Boolean(options?.focusMedicalSection);
     rememberConsultaScroll();
     setIsLoadingConsultaPosition(true);
+    setIsHydratingConsulta(true);
     scheduleConsultaScrollRestore();
     scheduleMedicalSectionFocus();
     setActiveConsultaId(id);
@@ -821,6 +852,13 @@ function continuityToneClass(tone: string) {
 
   if (!isMounted) return null;
   if (!user) return null;
+  if (isHydratingConsulta) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50 p-4 text-sm text-zinc-500 dark:bg-zinc-950 dark:text-zinc-400">
+        Cargando consulta...
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-4 sm:p-8">
