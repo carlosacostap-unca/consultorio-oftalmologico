@@ -46,7 +46,8 @@
 
 - [x] 5.1 Publicar la rama, crear un PR hacia `main` y verificar base, cabeza, mergeabilidad, diff y checks remotos.
   - Evidencia: PR draft `#14`, base `main@9d30848`, cabeza `codex/preparar-release-develop-a-main@1b3ddc4`, 133 archivos, estado `MERGEABLE/CLEAN`; GitHub no reporta checks configurados para la rama.
-- [ ] 5.2 Presentar el destino, los SHA, las verificaciones y el plan de rollback, y obtener aprobación explícita antes de fusionar.
+- [x] 5.2 Presentar el destino, los SHA, las verificaciones y el plan de rollback, y obtener aprobación explícita antes de fusionar.
+  - Evidencia: se presentaron Dokploy, ramas y SHA efectivos, candidato, controles aprobados y rollback a `main@9d308481124f3e35656cd0eaaf1f67eb6c1bf5ff`; el propietario confirmó explícitamente el merge el 2026-08-08.
 - [ ] 5.3 Fusionar el PR aprobado, esperar el despliegue y comprobar que el SHA efectivo coincide con el release esperado.
 - [ ] 5.4 Ejecutar smoke tests no destructivos en producción sobre acceso, turnos, consultas, recetas, antecedentes, DNI e impresiones.
 - [ ] 5.5 Si falla una verificación bloqueante, revertir el merge con un commit trazable y confirmar el retorno al SHA estable previo.
