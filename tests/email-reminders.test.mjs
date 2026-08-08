@@ -19,23 +19,23 @@ function loadTsModule(path) {
       esModuleInterop: true,
     },
   }).outputText;
-  const module = { exports: {} };
-  moduleCache.set(path, module.exports);
+  const loadedModule = { exports: {} };
+  moduleCache.set(path, loadedModule.exports);
   const localRequire = (specifier) => {
     if (specifier === "@/lib/system-settings") return loadTsModule("lib/system-settings.ts");
     return require(specifier);
   };
   const context = {
-    module,
-    exports: module.exports,
+    module: loadedModule,
+    exports: loadedModule.exports,
     require: localRequire,
     process,
     Buffer,
     console,
   };
   vm.runInNewContext(output, context, { filename: path });
-  moduleCache.set(path, module.exports);
-  return module.exports;
+  moduleCache.set(path, loadedModule.exports);
+  return loadedModule.exports;
 }
 
 const core = loadTsModule("lib/appointment-reminder-core.ts");

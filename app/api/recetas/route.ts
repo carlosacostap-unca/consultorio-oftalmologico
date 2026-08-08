@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
 import { authenticatedUser, pbAdmin } from "@/lib/pocketbase-admin";
+import { desktopLocalMutationHeaders } from "@/lib/desktop-local-server";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export async function POST(request: NextRequest) {
 
     const created = await pbAdmin("/api/collections/recetas/records", {
       method: "POST",
+      headers: desktopLocalMutationHeaders(user),
       body: JSON.stringify(body),
     });
 

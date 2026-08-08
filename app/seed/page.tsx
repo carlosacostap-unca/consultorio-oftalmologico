@@ -111,9 +111,9 @@ export default function SeedPage() {
       }
 
       addLog("¡Generación de datos completada con éxito!");
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
-      addLog(`ERROR: ${error.message}`);
+      addLog(`ERROR: ${error instanceof Error ? error.message : "Error desconocido"}`);
     } finally {
       setIsLoading(false);
     }

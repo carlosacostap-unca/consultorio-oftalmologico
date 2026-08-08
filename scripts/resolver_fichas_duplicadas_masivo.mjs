@@ -446,12 +446,6 @@ function numericFichaValue(value) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function normalizeUserRoles(user) {
-  const roles = Array.isArray(user.roles) ? user.roles : typeof user.roles === "string" ? [user.roles] : [];
-  if (roles.length > 0) return roles.filter((role) => ["admin", "medico", "secretaria"].includes(role));
-  return ["admin", "medico", "secretaria"].includes(user.role) ? [user.role] : [];
-}
-
 function patientLabel(patient) {
   return [patient.apellido, patient.nombre].filter(Boolean).join(", ") || patient.email || patient.id;
 }

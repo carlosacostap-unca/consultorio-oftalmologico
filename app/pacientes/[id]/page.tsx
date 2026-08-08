@@ -13,6 +13,7 @@ import type { UserRole } from "@/lib/permissions";
 import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, normalizePatientDocumentInput } from "@/lib/patient-document-client";
 import { isClinicalDateWithinLimit } from "@/lib/clinical-date";
 import { patientBirthAgeLabel, patientBirthDateKey, patientBirthDateToStoredDateTime } from "@/lib/patient-birth-date";
+import { deleteClinicalRecord } from "@/lib/desktop-clinical";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
@@ -239,7 +240,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
 
       const selectedMutual = mutuales.find((mutual) => mutual.id === formData.mutual_id);
       const numeroDocumento = normalizePatientDocumentInput(formData.numero_documento || formData.dni || "");
-      const { dni: _dni, ...patientData } = formData;
+      const patientData = Object.fromEntries(
+        Object.entries(formData).filter(([key]) => key !== "dni"),
+      );
       const dataToSave = {
         ...patientData,
         numero_documento: numeroDocumento,
@@ -265,7 +268,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
     }
 
     try {
-      await pb.collection("pacientes").delete(pacienteId);
+      await deleteClinicalRecord("pacientes", pacienteId);
       router.push("/pacientes");
     } catch (error) {
       console.error("Error al eliminar paciente:", error);

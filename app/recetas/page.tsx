@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/utils";
 import type { Receta } from "@/lib/types";
 import { doctorLabel } from "@/lib/doctor-attribution";
 import { patientDocument } from "@/lib/patient-merge";
+import { deleteClinicalRecord } from "@/lib/desktop-clinical";
 
 type RelationFilter = "all" | "linked" | "free";
 
@@ -34,6 +35,7 @@ export default function RecetasPage() {
         const recetasRecords = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
           expand: "paciente_id,consulta_id,medico_id",
+          filter: "sync_deleted != true",
         });
         setRecetas(recetasRecords);
       } catch (error) {
@@ -51,6 +53,7 @@ export default function RecetasPage() {
         const records = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
           expand: "paciente_id,consulta_id,medico_id",
+          filter: "sync_deleted != true",
         });
         setRecetas(records);
       })
@@ -65,7 +68,7 @@ export default function RecetasPage() {
   const handleDelete = async (id: string) => {
     if (window.confirm("Estas seguro de que deseas eliminar esta receta?")) {
       try {
-        await pb.collection("recetas").delete(id);
+        await deleteClinicalRecord("recetas", id);
       } catch (error) {
         console.error("Error al eliminar receta:", error);
       }

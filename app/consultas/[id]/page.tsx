@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { pb } from "@/lib/pocketbase";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -12,7 +12,7 @@ import type { ConsultaEstado } from "@/lib/consulta-estado";
 import { consultaEstadoBadgeClass, consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-estado";
 import { activeRoleJsonHeaders, resolveActiveRole } from "@/lib/active-role";
 import type { UserRole } from "@/lib/permissions";
-import type { Medico } from "@/lib/types";
+import type { AppUser, Consulta, Medico, Receta } from "@/lib/types";
 import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import { refractionHasValues } from "@/lib/refraction";
 import { emptyIfOptionalClinicalZero, normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
@@ -61,6 +61,25 @@ interface ConsultaNavigationItem {
   };
 }
 
+const getPacienteDocumento = (paciente: Paciente) => paciente.numero_documento || paciente.dni || "";
+
+const formatPacienteLabel = (paciente: Paciente) => {
+  const documento = getPacienteDocumento(paciente);
+  return `${paciente.apellido}, ${paciente.nombre}${documento ? ` - DNI: ${documento}` : ""}${paciente.numero_ficha ? ` - Ficha: ${paciente.numero_ficha}` : ""}`;
+};
+
+interface ConsultaClinicalRecord extends Consulta {
+  ant_diabetes?: boolean;
+  ant_glaucoma?: boolean;
+  ant_maculopatia?: boolean;
+  ant_asmatico?: boolean;
+  ant_hipertension?: boolean;
+  ant_alergico?: boolean;
+  ant_reuma?: boolean;
+  ant_herpes?: boolean;
+  ant_otra?: string;
+}
+
 import { use } from "react";
 
 export default function EditarConsultaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -80,11 +99,11 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const pendingConsultaAnchorRef = useRef(false);
   const forceMedicalSectionFocusRef = useRef(false);
   const medicalFormRef = useRef<HTMLDivElement | null>(null);
-  const consultaCacheRef = useRef<Map<string, any>>(new Map());
+  const consultaCacheRef = useRef<Map<string, ConsultaClinicalRecord>>(new Map());
   const consultaEventosCacheRef = useRef<Map<string, ConsultaEvento[]>>(new Map());
-  const consultasPacienteCacheRef = useRef<Map<string, ConsultaNavigationItem[]>>(new Map());
+  const consultasPacienteCacheRef = useRef<Map<string, ConsultaClinicalRecord[]>>(new Map());
   const pacienteCacheRef = useRef<Map<string, Paciente>>(new Map());
-  const recetasCacheRef = useRef<Map<string, any[]>>(new Map());
+  const recetasCacheRef = useRef<Map<string, Receta[]>>(new Map());
   const consultaLoadSequenceRef = useRef(0);
   const hasLoadedConfigRef = useRef(false);
   const hasLoadedMedicosRef = useRef(false);
@@ -95,7 +114,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   
   console.log("Consulta ID recibido:", consultaId);
   
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [activeConsultaId, setActiveConsultaId] = useState(initialActiveConsultaId);
   const [isHydratingConsulta, setIsHydratingConsulta] = useState(true);
@@ -142,7 +161,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   };
 
   const [formData, setFormData] = useState(initialFormState);
-  const [recetasAsociadas, setRecetasAsociadas] = useState<any[]>([]);
+  const [recetasAsociadas, setRecetasAsociadas] = useState<Receta[]>([]);
   const [primeraConsulta, setPrimeraConsulta] = useState<ConsultaNavigationItem | null>(null);
   const [consultaAnterior, setConsultaAnterior] = useState<ConsultaNavigationItem | null>(null);
   const [consultaPosterior, setConsultaPosterior] = useState<ConsultaNavigationItem | null>(null);
@@ -162,16 +181,10 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const [patientSearchQuery, setPatientSearchQuery] = useState("");
   const [showPatientDropdown, setShowPatientDropdown] = useState(false);
 
-  const getPacienteDocumento = (paciente: Paciente) => paciente.numero_documento || paciente.dni || "";
-  const formatPacienteLabel = (paciente: Paciente) => {
-    const documento = getPacienteDocumento(paciente);
-    return `${paciente.apellido}, ${paciente.nombre}${documento ? ` - DNI: ${documento}` : ""}${paciente.numero_ficha ? ` - Ficha: ${paciente.numero_ficha}` : ""}`;
-  };
   const getPacienteObraSocial = (paciente?: Paciente | null) => paciente?.expand?.mutual_id?.nombre || paciente?.obra_social || "";
   const canEditConsulta = isConsultaEditable(formData.fecha, consultaEditLimitDays);
   const isReadOnly = isViewMode || !canEditConsulta;
   const canChooseDoctor = canAssignAnyDoctor(activeRole);
-  const assignableDoctors = canChooseDoctor ? medicos : medicos.filter((medico) => medico.id === user?.id);
   const selectedDoctor = medicos.find((medico) => medico.id === formData.medico_id) || expandedConsultaDoctor;
   const selectedDoctorLabel = selectedDoctor
     ? doctorLabel(selectedDoctor)
@@ -184,21 +197,21 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const doctorAttributionChanged = formData.medico_id !== originalMedicoId;
   const showDoctorEditAction = isViewMode && activeRole === "medico" && canEditConsulta;
   const showSaveActions = !isReadOnly || (canEditDoctorAttribution && doctorAttributionChanged);
-  const shouldAnchorConsultaNavigation = () => {
+  const shouldAnchorConsultaNavigation = useCallback(() => {
     const formTop = medicalFormRef.current
       ? medicalFormRef.current.getBoundingClientRect().top + window.scrollY
       : 0;
 
     return Boolean(medicalFormRef.current) && window.scrollY + 80 >= formTop;
-  };
-  const rememberConsultaScroll = () => {
+  }, []);
+  const rememberConsultaScroll = useCallback(() => {
     const shouldAnchor = shouldAnchorConsultaNavigation();
     pendingConsultaAnchorRef.current = shouldAnchor;
     pendingConsultaScrollYRef.current = window.scrollY;
     window.sessionStorage.setItem("consulta-detail-scroll-y", String(window.scrollY));
     window.sessionStorage.setItem("consulta-detail-anchor", shouldAnchor ? "1" : "0");
-  };
-  const getRememberedConsultaScroll = () => {
+  }, [shouldAnchorConsultaNavigation]);
+  const getRememberedConsultaScroll = useCallback(() => {
     const shouldAnchor = pendingConsultaAnchorRef.current || window.sessionStorage.getItem("consulta-detail-anchor") === "1";
     if (shouldAnchor && medicalFormRef.current) {
       return Math.max(0, medicalFormRef.current.getBoundingClientRect().top + window.scrollY - 12);
@@ -209,8 +222,8 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
     const top = Number(savedScrollY);
     return Number.isFinite(top) ? top : null;
-  };
-  const scheduleConsultaScrollRestore = () => {
+  }, []);
+  const scheduleConsultaScrollRestore = useCallback(() => {
     const top = getRememberedConsultaScroll();
     if (top === null) return;
 
@@ -220,8 +233,8 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     window.setTimeout(restoreScroll, 50);
     window.setTimeout(restoreScroll, 180);
     window.setTimeout(restoreScroll, 320);
-  };
-  const restoreConsultaScroll = () => {
+  }, [getRememberedConsultaScroll]);
+  const restoreConsultaScroll = useCallback(() => {
     if (getRememberedConsultaScroll() === null) return;
 
     scheduleConsultaScrollRestore();
@@ -229,15 +242,15 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     pendingConsultaAnchorRef.current = false;
     window.sessionStorage.removeItem("consulta-detail-scroll-y");
     window.sessionStorage.removeItem("consulta-detail-anchor");
-  };
-  const focusMedicalSection = () => {
+  }, [getRememberedConsultaScroll, scheduleConsultaScrollRestore]);
+  const focusMedicalSection = useCallback(() => {
     const element = medicalFormRef.current;
     if (!element) return;
 
     const top = Math.max(0, element.getBoundingClientRect().top + window.scrollY - 12);
     window.scrollTo({ top, left: 0, behavior: "auto" });
-  };
-  const scheduleMedicalSectionFocus = () => {
+  }, []);
+  const scheduleMedicalSectionFocus = useCallback(() => {
     if (!forceMedicalSectionFocusRef.current) return;
 
     focusMedicalSection();
@@ -250,7 +263,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       focusMedicalSection();
       forceMedicalSectionFocusRef.current = false;
     }, 700);
-  };
+  }, [focusMedicalSection]);
   useLayoutEffect(() => {
     if (forceMedicalSectionFocusRef.current) {
       focusMedicalSection();
@@ -264,27 +277,27 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     const restoreScroll = () => window.scrollTo({ top, left: 0, behavior: "auto" });
     restoreScroll();
     window.requestAnimationFrame(restoreScroll);
-  }, [activeConsultaId, consultaId]);
-  const cacheConsulta = (consulta: any) => {
+  }, [activeConsultaId, consultaId, focusMedicalSection, getRememberedConsultaScroll]);
+  const cacheConsulta = useCallback((consulta: ConsultaClinicalRecord) => {
     if (consulta?.id) {
       consultaCacheRef.current.set(consulta.id, consulta);
     }
     return consulta;
-  };
-  const prefetchConsulta = (id?: string) => {
+  }, []);
+  const prefetchConsulta = useCallback((id?: string) => {
     if (!id || consultaCacheRef.current.has(id)) return;
 
     pb.collection("consultas")
-      .getOne(id, { expand: "medico_id", requestKey: null })
+      .getOne<ConsultaClinicalRecord>(id, { expand: "medico_id", requestKey: null })
       .then(cacheConsulta)
       .catch((error) => console.error("Error al precargar consulta:", error));
-  };
-  const prefetchConsultaSideData = (id?: string) => {
+  }, [cacheConsulta]);
+  const prefetchConsultaSideData = useCallback((id?: string) => {
     if (!id) return;
 
     if (!recetasCacheRef.current.has(id)) {
       pb.collection("recetas")
-        .getFullList({
+        .getFullList<Receta>({
           filter: `consulta_id = "${id}"`,
           sort: "-created",
           requestKey: null,
@@ -303,7 +316,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         .then((records) => consultaEventosCacheRef.current.set(id, records))
         .catch((error) => console.error("Error al precargar auditoria:", error));
     }
-  };
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -327,14 +340,14 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  }, [rememberConsultaScroll]);
 
   useEffect(() => {
     const loadSequence = ++consultaLoadSequenceRef.current;
     setIsHydratingConsulta(true);
     setIsMounted(true);
     const authUser = pb.authStore.record;
-    setUser(authUser);
+    setUser(authUser as AppUser | null);
     setActiveRole(resolveActiveRole(authUser, ["medico"]));
 
     if (!pb.authStore.isValid) {
@@ -379,7 +392,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
         if (activeConsultaId) {
           const cachedConsulta = consultaCacheRef.current.get(activeConsultaId);
           const consultaRecord = cachedConsulta || cacheConsulta(
-            await pb.collection("consultas").getOne(activeConsultaId, { expand: "medico_id", requestKey: null })
+            await pb.collection("consultas").getOne<ConsultaClinicalRecord>(activeConsultaId, { expand: "medico_id", requestKey: null })
           );
           
           let fechaFormateada = todayClinicalDateKey();
@@ -458,7 +471,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
           if (currentPacienteId) {
             const cachedConsultasPaciente = consultasPacienteCacheRef.current.get(currentPacienteId);
-            const consultasPaciente = cachedConsultasPaciente || await pb.collection("consultas").getFullList<ConsultaNavigationItem>({
+            const consultasPaciente = cachedConsultasPaciente || await pb.collection("consultas").getFullList<ConsultaClinicalRecord>({
                 filter: `paciente_id = "${currentPacienteId}"`,
                 sort: "fecha,created",
                 expand: "medico_id",
@@ -502,7 +515,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
           // Cargar recetas asociadas
           try {
             const cachedRecetas = recetasCacheRef.current.get(activeConsultaId);
-            const recetasRecords = cachedRecetas || await pb.collection("recetas").getFullList({
+            const recetasRecords = cachedRecetas || await pb.collection("recetas").getFullList<Receta>({
                 filter: `consulta_id = "${activeConsultaId}"`,
                 sort: "-created",
                 requestKey: null,
@@ -511,7 +524,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
               recetasCacheRef.current.set(activeConsultaId, recetasRecords);
             }
             setRecetasAsociadas(recetasRecords);
-          } catch (e) {
+          } catch {
             console.log("Error al cargar recetas o no existen aún");
           }
           
@@ -549,7 +562,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
     };
 
     loadData();
-  }, [router, activeConsultaId]);
+  }, [activeConsultaId, cacheConsulta, prefetchConsulta, prefetchConsultaSideData, restoreConsultaScroll, router, scheduleMedicalSectionFocus]);
 
   // Actualizar cabecera de paciente cuando se selecciona uno
   useEffect(() => {
@@ -568,7 +581,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
       setSelectedPacienteData(null);
       setPatientSearchQuery("");
     }
-  }, [formData.paciente_id, pacientes]);
+  }, [formData.numero_ficha, formData.paciente_id, pacientes]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
@@ -651,9 +664,10 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
             consulta_id: activeConsultaId,
             estado: targetEstado === "finalizada" ? "Atendido" : "En consulta"
           });
-        } catch (turnoError: any) {
+        } catch (turnoError: unknown) {
           console.error("Error al actualizar el turno:", turnoError);
-          alert(`La consulta se guardó, pero hubo un error al enlazarla con el turno. Detalle: ${turnoError?.message || 'Error desconocido'}. Verifica que el campo 'consulta_id' exista y sea de tipo relación simple.`);
+          const detalle = turnoError instanceof Error ? turnoError.message : "Error desconocido";
+          alert(`La consulta se guardó, pero hubo un error al enlazarla con el turno. Detalle: ${detalle}. Verifica que el campo 'consulta_id' exista y sea de tipo relación simple.`);
         }
       }
 

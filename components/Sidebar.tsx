@@ -13,6 +13,7 @@ import {
   setActiveRole,
 } from "@/lib/active-role";
 import { ROLE_LABELS, normalizeUserRoles, type UserRole } from "@/lib/permissions";
+import { DesktopSyncIndicator } from "@/components/DesktopSyncIndicator";
 
 type MenuItem = { name: string; href: string };
 type MenuSectionDefinition = { title: string; items: MenuItem[] };
@@ -148,7 +149,8 @@ export function Sidebar() {
     return null;
   }
 
-  const menuSections = getMenuSections(activeRole);
+  const isDesktop = Boolean(window.consultorioDesktop);
+  const menuSections = getMenuSections(activeRole, isDesktop);
 
   const toggleCollapsed = () => {
     setIsRoleMenuOpen(false);
@@ -279,10 +281,16 @@ export function Sidebar() {
         </div>
       </div>
       <nav className={`${isCollapsed ? "space-y-3 p-3" : "space-y-6 p-4"} flex-1 overflow-y-auto overflow-x-hidden`}>
+        {isDesktop && !isCollapsed && (
+          <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+            Modo offline: pacientes, consultas y recetas.
+          </div>
+        )}
         {menuSections.map((section) => (
           <MenuSection key={section.title} title={section.title} items={section.items} pathname={pathname} currentHash={currentHash} isCollapsed={isCollapsed} />
         ))}
       </nav>
+      <DesktopSyncIndicator collapsed={isCollapsed} />
       {user && (
         <div className={`${isCollapsed ? "p-3" : "p-4"} border-t border-zinc-200 dark:border-zinc-800`}>
           <div ref={profileMenuRef} className="relative">
@@ -509,7 +517,24 @@ export function Sidebar() {
   );
 }
 
-function getMenuSections(activeRole: UserRole | null): MenuSectionDefinition[] {
+function getMenuSections(activeRole: UserRole | null, isDesktop = false): MenuSectionDefinition[] {
+  if (isDesktop) {
+    return [
+      {
+        title: "Atención offline",
+        items: [
+          { name: "Pacientes", href: "/pacientes" },
+          { name: "Consultas", href: "/consultas" },
+          { name: "Recetas", href: "/recetas" },
+        ],
+      },
+      {
+        title: "Sistema",
+        items: [{ name: "Sincronización", href: "/sincronizacion" }],
+      },
+    ];
+  }
+
   if (activeRole === "admin") {
     return [
       {

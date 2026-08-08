@@ -6,6 +6,7 @@ import { consultaEstadoLabel, normalizeConsultaEstado } from "@/lib/consulta-est
 import { normalizeOptionalClinicalZeros } from "@/lib/clinical-empty-values";
 import { clinicalDateToStoredDateTime, isClinicalDateWithinLimit } from "@/lib/clinical-date";
 import { activeRoleFromRequest, validateDoctorAssignment } from "@/lib/doctor-attribution-server";
+import { desktopLocalMutationHeaders } from "@/lib/desktop-local-server";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export async function PATCH(
 
     const updated = await pbAdmin(`/api/collections/consultas/records/${encodeURIComponent(id)}`, {
       method: "PATCH",
+      headers: desktopLocalMutationHeaders(user),
       body: JSON.stringify(body),
     });
     const changed = changedFields(current, body);

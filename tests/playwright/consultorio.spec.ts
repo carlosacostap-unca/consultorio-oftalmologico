@@ -12,7 +12,7 @@ const ADMIN_SECRETARY_EMAIL = "admin.secretaria.demo@consultorio.local";
 const PASSWORD_SETUP_EMAIL = "password.setup.demo@consultorio.local";
 const PATIENT_SEARCH_PLACEHOLDER = /Buscar por apellido, nombre/;
 const ACTIVE_ROLE_HEADER = "x-active-role";
-const TEST_PB_MARKERS = ["test", "testing", "localhost", "127.0.0.1"];
+const TEST_PB_MARKERS = ["test", "testing", "staging", "localhost", "127.0.0.1"];
 
 test.describe("alta de pacientes", () => {
   test("valida documentos existentes y disponibles mediante la ruta operativa", async ({ request }) => {
@@ -286,7 +286,6 @@ test.describe("roles y otorgamiento de turnos", () => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
     const adminToken = await getAdminToken(request, env);
-    const medicoId = await getUserIdByEmail(request, env, adminToken, "medico.demo@consultorio.local");
     const medicoDosId = await getUserIdByEmail(request, env, adminToken, "medico.dos.demo@consultorio.local");
     const patient = await findDemoPatient(request, env, adminToken, DEMO_PATIENT_DOCUMENT);
     expect(patient).toBeTruthy();
@@ -440,7 +439,7 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page).toHaveURL(/\/consultas\/nueva/);
       await page.getByLabel("Motivo").fill(motivo);
       await page.getByLabel("BMC").fill("Biomicroscopia del circuito critico sin particularidades.");
-      await page.getByLabel("FO").fill("Fondo de ojo del circuito critico conservado.");
+      await page.getByLabel("FO", { exact: true }).fill("Fondo de ojo del circuito critico conservado.");
       await page.getByLabel("DX").fill("Diagnostico del circuito critico automatizado.");
       await page.getByLabel("TTO").fill("Tratamiento del circuito critico con control posterior.");
       await page.getByRole("button", { name: "FINALIZAR CONSULTA" }).click();
@@ -1467,13 +1466,13 @@ test.describe("roles y otorgamiento de turnos", () => {
       await expect(page.getByLabel("Motivo")).toBeVisible();
       await page.getByLabel("Motivo").fill(motivo);
       await expect(page.getByLabel("BMC")).toBeVisible();
-      await expect(page.getByLabel("FO")).toBeVisible();
+      await expect(page.getByLabel("FO", { exact: true })).toBeVisible();
       await expect(page.getByLabel("DX")).toBeVisible();
       await expect(page.getByLabel("TTO")).toBeVisible();
       await expect(page.getByText("Refraccion de lejos")).toBeVisible();
       await expect(page.getByText("Refraccion de cerca")).toBeVisible();
       await page.getByLabel("BMC").fill("Biomicroscopia Playwright sin particularidades.");
-      await page.getByLabel("FO").fill("Fondo de ojo Playwright conservado.");
+      await page.getByLabel("FO", { exact: true }).fill("Fondo de ojo Playwright conservado.");
       await page.getByLabel("DX").fill("Diagnostico Playwright desde nueva consulta.");
       await page.getByLabel("TTO").fill("Tratamiento Playwright con controles.");
       await expect

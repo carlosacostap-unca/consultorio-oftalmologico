@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, use } from "react";
+import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
 import type { Consulta, Medico, Patient, Receta } from "@/lib/types";
 import { patientDisplayName, patientDocument } from "@/lib/patient-merge";
@@ -11,6 +12,7 @@ type PrintableConsulta = Consulta & {
 };
 
 export default function ImprimirFichaPacientePage({ params }: { params: Promise<{ id: string }> }) {
+  const router = useRouter();
   const { id: pacienteId } = use(params);
   const [paciente, setPaciente] = useState<Patient | null>(null);
   const [consultas, setConsultas] = useState<PrintableConsulta[]>([]);
@@ -172,9 +174,7 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
           </button>
           <button
             type="button"
-            onClick={() => {
-              window.location.href = `/pacientes/${pacienteId}?mode=view`;
-            }}
+            onClick={() => router.push(`/pacientes/${pacienteId}?mode=view`)}
             className="rounded-lg bg-gray-900 px-6 py-2 font-bold text-white hover:bg-gray-800"
           >
             Volver a ficha

@@ -66,20 +66,29 @@ export function assertTestingPocketBaseUrl(url, { requireTest = false } = {}) {
   if (!requireTest) return;
   if (!url) throw new Error("POCKETBASE_URL o NEXT_PUBLIC_POCKETBASE_URL es requerido para testing.");
 
-  const normalized = url.toLowerCase();
   const allowProduction = process.env.ALLOW_PRODUCTION_PB_FOR_TESTS === "true";
   if (allowProduction) return;
 
-  const looksProduction = PRODUCTION_HOST_MARKERS.some((marker) => normalized.includes(marker));
+  const hostname = pocketBaseHostname(url);
+  const looksProduction = PRODUCTION_HOST_MARKERS.some((marker) => hostname.includes(marker));
   const looksTesting =
-    normalized.includes("test") ||
-    normalized.includes("testing") ||
-    normalized.includes("localhost") ||
-    normalized.includes("127.0.0.1");
+    hostname.includes("test") ||
+    hostname.includes("testing") ||
+    hostname.includes("staging") ||
+    hostname === "localhost" ||
+    hostname === "127.0.0.1";
 
   if (looksProduction || !looksTesting) {
     throw new Error(
-      `PocketBase de testing invalido: ${url}. Usa una URL de testing o define ALLOW_PRODUCTION_PB_FOR_TESTS=true bajo tu responsabilidad.`
+      `PocketBase de testing o staging invalido: ${url}. Usa una URL no productiva reconocible o define ALLOW_PRODUCTION_PB_FOR_TESTS=true bajo tu responsabilidad.`
     );
+  }
+}
+
+function pocketBaseHostname(url) {
+  try {
+    return new URL(normalizePocketBaseUrl(url)).hostname.toLowerCase();
+  } catch {
+    return "";
   }
 }

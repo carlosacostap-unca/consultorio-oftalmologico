@@ -117,16 +117,6 @@ export default function MutualesPage() {
     });
   }, [isLoading, isMounted]);
 
-  const handleDelete = async (id: string) => {
-    if (window.confirm("¿Estás seguro de que deseas eliminar esta mutual?")) {
-      try {
-        await pb.collection("mutuales").delete(id);
-      } catch (error) {
-        console.error("Error al eliminar:", error);
-      }
-    }
-  };
-
   const filteredMutuales = mutuales.filter(
     (m) =>
       m.nombre?.toLowerCase().includes(searchQuery.toLowerCase()) ||

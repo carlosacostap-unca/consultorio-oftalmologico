@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
@@ -51,20 +51,7 @@ export default function HorariosMedicosPage() {
   const activeRole = resolveActiveRole(user, ["secretaria"]);
   const canManage = activeRole === "admin" || activeRole === "secretaria";
 
-  useEffect(() => {
-    setIsMounted(true);
-    const record = pb.authStore.record as AppUser | null;
-    setUser(record);
-
-    if (!pb.authStore.isValid) {
-      router.push("/");
-      return;
-    }
-
-    loadData();
-  }, [router]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true);
     setError("");
     let nextError = "";
@@ -77,8 +64,8 @@ export default function HorariosMedicosPage() {
       const medicosRecords = Array.isArray(medicosData.medicos) ? medicosData.medicos : [];
       setMedicos(medicosRecords);
 
-      if (!form.medico_id && medicosRecords[0]?.id) {
-        setForm((prev) => ({ ...prev, medico_id: medicosRecords[0].id }));
+      if (medicosRecords[0]?.id) {
+        setForm((prev) => prev.medico_id ? prev : { ...prev, medico_id: medicosRecords[0].id });
       }
     } catch (err) {
       console.error("Error al cargar medicos:", err);
@@ -102,7 +89,20 @@ export default function HorariosMedicosPage() {
       setError(nextError);
       setIsLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    setIsMounted(true);
+    const record = pb.authStore.record as AppUser | null;
+    setUser(record);
+
+    if (!pb.authStore.isValid) {
+      router.push("/");
+      return;
+    }
+
+    void loadData();
+  }, [loadData, router]);
 
   const doctorLabel = (doctor?: Medico | null) => doctor?.name || doctor?.email || "Medico";
   const dayLabel = (value: number) => DAY_OPTIONS.find((day) => day.value === Number(value))?.label || "-";

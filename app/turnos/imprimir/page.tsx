@@ -37,6 +37,15 @@ interface Turno {
   };
 }
 
+const doctorLabel = (doctor?: Medico | null) => {
+  if (!doctor) return "Sin medico asignado";
+  return doctor.name || doctor.email || "Medico";
+};
+
+const doctorById = (doctors: Medico[], id?: string) => doctors.find((doctor) => doctor.id === id) || null;
+
+const patientDocument = (patient?: Paciente | null) => patient?.dni || patient?.numero_documento || "-";
+
 const DEFAULT_FIELDS = ["hora", "paciente", "dni", "telefono", "obra_social", "tipo", "motivo", "estado", "observaciones"];
 
 function ImprimirTurnosInner() {
@@ -56,19 +65,11 @@ function ImprimirTurnosInner() {
   const hasField = (field: string) => fields.includes(field);
   const isAllDoctors = medicoParam === "all" || !medicoParam;
 
-  const doctorLabel = (doctor?: Medico | null) => {
-    if (!doctor) return "Sin medico asignado";
-    return doctor.name || doctor.email || "Medico";
-  };
-
-  const doctorById = (id?: string) => medicos.find((medico) => medico.id === id) || null;
-  const patientDocument = (patient?: Paciente | null) => patient?.dni || patient?.numero_documento || "-";
-
   const groups = useMemo(() => {
     if (!isAllDoctors) {
       return [{
         key: medicoParam,
-        title: doctorLabel(turnos[0]?.expand?.medico_id || doctorById(medicoParam)),
+        title: doctorLabel(turnos[0]?.expand?.medico_id || doctorById(medicos, medicoParam)),
         items: turnos,
       }];
     }
@@ -76,7 +77,7 @@ function ImprimirTurnosInner() {
     const map = new Map<string, { title: string; items: Turno[] }>();
     for (const turno of turnos) {
       const key = turno.medico_id || "sin-medico";
-      const current = map.get(key) || { title: doctorLabel(turno.expand?.medico_id || doctorById(turno.medico_id)), items: [] };
+      const current = map.get(key) || { title: doctorLabel(turno.expand?.medico_id || doctorById(medicos, turno.medico_id)), items: [] };
       current.items.push(turno);
       map.set(key, current);
     }
@@ -139,7 +140,7 @@ function ImprimirTurnosInner() {
   if (!dateParam) return <div className="p-8">No se especifico una fecha.</div>;
 
   const dateLabel = formatDate(new Date(`${dateParam}T12:00:00`).toISOString()).split(",")[0];
-  const scopeLabel = isAllDoctors ? "Todos los medicos" : doctorLabel(turnos[0]?.expand?.medico_id || doctorById(medicoParam));
+  const scopeLabel = isAllDoctors ? "Todos los medicos" : doctorLabel(turnos[0]?.expand?.medico_id || doctorById(medicos, medicoParam));
 
   return (
     <div className="min-h-screen bg-white p-8 text-black print:p-0">
