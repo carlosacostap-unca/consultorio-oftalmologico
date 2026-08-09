@@ -17,5 +17,6 @@
   - Evidencia: Next.js 16.3.0 compiló 27 páginas estáticas y la regresión focalizada pasó 1/1 contra el PocketBase de staging aceptado por `REQUIRE_TEST_POCKETBASE=true`.
 - [x] 3.3 Realizar un smoke test de sólo lectura del informe legacy y registrar que no hubo migraciones ni escrituras de datos.
   - Evidencia: el flujo imprimible cargó consulta, paciente expandido, recetas y médicos mediante lecturas; sólo la fixture aislada de staging tuvo preparación y limpieza explícitas, sin migraciones, seeds ni cambios de esquema.
+  - Evidencia productiva: Dokploy desplegó `main@57f89d38c92e4a4805fb2d66ad25de79f0119272`; el informe de una consulta legacy conocida mostró Diabetes activa y dejó de mostrar “Sin antecedentes activos” mediante navegación de sólo lectura.
 - [x] 3.4 Ejecutar `openspec validate --all --strict` y dejar el cambio listo para revisión y aplicación.
   - Evidencia: la validación estricta aprobó 49/49 elementos y `git diff --check` no detectó errores.
