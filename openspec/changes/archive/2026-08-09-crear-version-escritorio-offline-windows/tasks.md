@@ -50,9 +50,9 @@
 - [x] 6.1 Adaptar pacientes para listar/buscar/crear/editar localmente, generar ficha provisoria y usar bajas lógicas
 - [x] 6.2 Adaptar consultas para lectura/alta/edición offline con médico, límites de edición, auditoría y bajas lógicas
 - [x] 6.3 Adaptar recetas para lectura/alta/edición offline con relaciones, médico y bajas lógicas
-- [ ] 6.4 Marcar fichas provisorias y estados pendiente/error/conflicto en listados, detalles e impresiones
-- [ ] 6.5 Verificar que paciente-consulta-receta creados offline conservan IDs y relaciones tras sincronizar
-- [ ] 6.6 Verificar impresiones locales de ficha, consulta, anteojos y receta sin Internet
+- [x] 6.4 Marcar fichas provisorias y estados pendiente/error/conflicto en listados, detalles e impresiones
+- [x] 6.5 Verificar que paciente-consulta-receta creados offline conservan IDs y relaciones tras sincronizar
+- [x] 6.6 Verificar impresiones locales de ficha, consulta, anteojos y receta sin Internet
 
 ## 7. Estado, conflictos y diagnóstico
 
@@ -60,13 +60,13 @@
 - [x] 7.2 Crear `/sincronizacion` con resumen, última ejecución, pendientes, errores, conflictos y acción manual
 - [x] 7.3 Implementar comparación de versiones y acciones autorizadas para conservar central, aplicar local o vincular paciente duplicado
 - [x] 7.4 Implementar exportación de diagnóstico sanitizado sin contenido clínico narrativo ni secretos
-- [ ] 7.5 Probar conflictos de mismo campo, campos disjuntos, consulta/receta concurrente y paciente duplicado entre equipos
+- [x] 7.5 Probar conflictos de mismo campo, campos disjuntos, consulta/receta concurrente y paciente duplicado entre equipos
 
 ## 8. Instalador, seguridad y entrega
 
 - [x] 8.1 Configurar instalador NSIS, acceso directo, icono, nombre de producto y exclusión del directorio de datos al actualizar/desinstalar
 - [x] 8.2 Documentar configuración central, activación de equipos, copias de seguridad, BitLocker, recuperación y firma opcional
-- [ ] 8.3 Ejecutar lint, TypeScript, build Next.js y pruebas unitarias/integración/Playwright
-- [ ] 8.4 Generar el instalador y realizar smoke test en Windows 11: instalar, activar, trabajar offline, reconectar y actualizar preservando datos
-- [ ] 8.5 Ejecutar piloto controlado contra PocketBase de test y registrar conteos/ejemplos antes y después de sincronizar
+- [x] 8.3 Ejecutar lint, TypeScript, build Next.js y pruebas unitarias/integración/Playwright
+- [x] 8.4 Generar el instalador y realizar smoke test en Windows 11: instalar, activar, trabajar offline, reconectar y actualizar preservando datos
+- [x] 8.5 Ejecutar piloto controlado contra PocketBase de test y registrar conteos/ejemplos antes y después de sincronizar
 - [x] 8.6 Verificar `openspec validate --all` y completar la lista sólo con evidencia reproducible

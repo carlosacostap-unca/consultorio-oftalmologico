@@ -20,6 +20,10 @@ import { mergeClinicalAntecedents } from "@/lib/clinical-antecedents";
 import { clinicalDateKey, clinicalDateToStoredDateTime, isClinicalDateWithinLimit, todayClinicalDateKey } from "@/lib/clinical-date";
 import { patientBirthAge } from "@/lib/patient-birth-date";
 import { ClinicalDateInput } from "@/components/clinical-date-input";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { fichaDisplayLabel } from "@/lib/temporary-ficha";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { RecordSyncStatusBadge } from "@/components/desktop-record-status";
 
 interface Paciente {
   id: string;
@@ -95,6 +99,7 @@ export default function EditarConsultaPage({ params }: { params: Promise<{ id: s
 function EditarConsultaForm({ consultaId }: { consultaId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const syncStatuses = useDesktopRecordStatuses();
   const pendingConsultaScrollYRef = useRef<number | null>(null);
   const pendingConsultaAnchorRef = useRef(false);
   const forceMedicalSectionFocusRef = useRef(false);
@@ -724,7 +729,7 @@ function EditarConsultaForm({ consultaId }: { consultaId: string }) {
 
   const patientSummaryItems = selectedPacienteData
     ? [
-        selectedPacienteData.numero_ficha ? `Ficha ${selectedPacienteData.numero_ficha}` : "",
+        selectedPacienteData.numero_ficha ? fichaDisplayLabel(selectedPacienteData.numero_ficha) : "",
         getPacienteDocumento(selectedPacienteData) ? `DNI ${getPacienteDocumento(selectedPacienteData)}` : "",
         selectedPacienteData.fecha_nacimiento ? `${calcularEdad(selectedPacienteData.fecha_nacimiento)} anos` : "",
         getPacienteObraSocial(selectedPacienteData),
@@ -890,6 +895,9 @@ function continuityToneClass(tone: string) {
               <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Continuidad clinica</p>
               <h2 className="mt-1 text-xl font-bold text-zinc-900 dark:text-zinc-100">Estado de la atencion</h2>
               <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Resumen para continuar el flujo clinico sin perder el contexto de la consulta.</p>
+              <div className="mt-2">
+                <RecordSyncStatusBadge status={getSyncRecordStatus(syncStatuses, "consultas", activeConsultaId)} />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
               {showDoctorEditAction && (

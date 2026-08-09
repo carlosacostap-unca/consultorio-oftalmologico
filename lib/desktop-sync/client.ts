@@ -4,6 +4,7 @@ import type { RecordAuthResponse, RecordModel } from "pocketbase";
 import { getDesktopRuntime } from "@/lib/desktop-runtime";
 import { pb } from "@/lib/pocketbase";
 import { localUserCreationError } from "@/lib/desktop-sync/client-error";
+import { forEachWithConcurrency } from "@/lib/desktop-sync/bootstrap-concurrency";
 import { deriveLocalPassword, generateTemporaryLocalPassword } from "@/lib/desktop-sync/local-password";
 import { additionalLocalUserNeedsCreation } from "@/lib/desktop-sync/local-user-bootstrap";
 import { upsertLocalBootstrapRecord } from "@/lib/desktop-sync/local-settings-bootstrap";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/desktop-scope";
 
 const ACTIVATION_SECRET = "desktop-activation";
+const BOOTSTRAP_WRITE_CONCURRENCY = 12;
 const BOOTSTRAP_ENTITIES = ["users", "mutuales", "settings", "pacientes", "consultas", "recetas"] as const;
 type BootstrapEntity = (typeof BOOTSTRAP_ENTITIES)[number];
 
@@ -105,12 +107,12 @@ export async function activateDesktop(
       const items = await downloadBootstrapEntity(centralAppUrl, entity, onProgress);
       const localCollection = entity === "settings" ? "system_settings" : entity;
       onProgress?.(`Guardando ${labelForEntity(entity)} en la base local...`);
-      for (const item of items) {
+      await forEachWithConcurrency(items, BOOTSTRAP_WRITE_CONCURRENCY, async (item) => {
         await upsertLocalBootstrapRecord(localCollection, item, {
           upsertSystemSetting: (setting) => bridge.local.upsertSystemSetting(setting),
           upsertRecord: upsertLocalRecord,
         });
-      }
+      });
     }
   });
   onProgress?.("Activación y copia inicial completadas.");

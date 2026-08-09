@@ -3,6 +3,10 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { fichaDisplayLabel } from "@/lib/temporary-ficha";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { PrintableSyncNotice } from "@/components/desktop-record-status";
 import type { Consulta, Medico, Patient, Receta } from "@/lib/types";
 import { patientDisplayName, patientDocument } from "@/lib/patient-merge";
 import { doctorLabelFromList, loadAuthenticatedDoctors } from "@/lib/doctor-attribution";
@@ -14,6 +18,7 @@ type PrintableConsulta = Consulta & {
 export default function ImprimirFichaPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id: pacienteId } = use(params);
+  const syncStatuses = useDesktopRecordStatuses();
   const [paciente, setPaciente] = useState<Patient | null>(null);
   const [consultas, setConsultas] = useState<PrintableConsulta[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
@@ -83,12 +88,17 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
           </div>
         </header>
 
+        <PrintableSyncNotice
+          status={getSyncRecordStatus(syncStatuses, "pacientes", pacienteId)}
+          ficha={paciente.numero_ficha}
+        />
+
         <section className="mt-6">
           <h2 className="mb-3 text-lg font-bold uppercase">Paciente</h2>
           <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <Info label="Nombre" value={patientDisplayName(paciente)} />
             <Info label="Documento" value={documento ? `${paciente.tipo_documento || "DNI"} ${documento}` : "-"} />
-            <Info label="Ficha" value={paciente.numero_ficha || "-"} />
+            <Info label="Ficha" value={fichaDisplayLabel(paciente.numero_ficha)} />
             <Info label="Fecha de nacimiento" value={formatDate(paciente.fecha_nacimiento)} />
             <Info label="Telefono" value={paciente.telefono || "-"} />
             <Info label="Email" value={paciente.email || "-"} />

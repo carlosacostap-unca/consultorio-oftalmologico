@@ -9,6 +9,9 @@ import type { AppUser, Consulta, Patient } from "@/lib/types";
 import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patient-merge";
 import { buildActiveRecordFilter } from "@/lib/desktop-record-filter";
 import { isDesktopRuntime } from "@/lib/desktop-runtime";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { FichaDisplay, RecordSyncStatusBadge } from "@/components/desktop-record-status";
 
 export default function PacientesPage() {
   const router = useRouter();
@@ -22,6 +25,7 @@ export default function PacientesPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [openingPatientId, setOpeningPatientId] = useState<string | null>(null);
+  const syncStatuses = useDesktopRecordStatuses();
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
   // Debounce para la búsqueda
@@ -240,11 +244,14 @@ export default function PacientesPage() {
                         <div className="text-xs text-zinc-500 dark:text-zinc-400">
                           {isOpening ? "Abriendo ultima consulta..." : `Nac: ${paciente.fecha_nacimiento ? formatDate(paciente.fecha_nacimiento) : '-'}`}
                         </div>
+                        <div className="mt-2">
+                          <RecordSyncStatusBadge status={getSyncRecordStatus(syncStatuses, "pacientes", paciente.id)} />
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
                         <div>{paciente.tipo_documento || 'DNI'} {paciente.numero_documento || paciente.dni}</div>
                         {paciente.numero_ficha && (
-                          <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">Ficha: {paciente.numero_ficha}</div>
+                          <div className="mt-1 text-xs text-zinc-500 dark:text-zinc-400"><FichaDisplay value={paciente.numero_ficha} /></div>
                         )}
                       </td>
                       <td className="px-6 py-4">

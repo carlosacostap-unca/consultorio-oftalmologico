@@ -316,7 +316,9 @@ async function pb(path, options = {}) {
     throw new Error(`PocketBase ${response.status}: ${await response.text()}`);
   }
 
-  return response.json();
+  if (response.status === 204) return null;
+  const text = await response.text();
+  return text ? JSON.parse(text) : null;
 }
 
 async function adminToken() {
