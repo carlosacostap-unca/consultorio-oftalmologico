@@ -22,7 +22,7 @@ El sistema SHALL listar pacientes autenticados con paginacion, orden alfabetico 
 - **AND** reinicia la paginacion a la primera pagina
 
 ### Requirement: Alta de paciente
-El sistema SHALL permitir crear pacientes con datos personales, documento, ficha, contacto y cobertura.
+El sistema SHALL permitir crear pacientes con datos personales, documento, ficha, contacto y cobertura, y SHALL ejecutar las validaciones previas sin requerir permisos administrativos de lectura del esquema de PocketBase.
 
 #### Scenario: Crear paciente con mutual existente
 - **WHEN** el usuario completa apellido, nombre, numero de documento y selecciona una mutual
@@ -39,6 +39,22 @@ El sistema SHALL permitir crear pacientes con datos personales, documento, ficha
 - **WHEN** el usuario intenta guardar un numero de ficha ya asignado a otro paciente
 - **THEN** el sistema informa el paciente duplicado
 - **AND** no crea el registro
+
+#### Scenario: DNI duplicado
+- **WHEN** el usuario intenta guardar un DNI asignado a otro paciente activo del mismo tipo de documento
+- **THEN** el sistema informa el paciente duplicado
+- **AND** no crea el registro
+
+#### Scenario: Validacion de DNI con permisos operativos
+- **WHEN** el usuario intenta guardar un paciente y las credenciales del servidor pueden consultar registros pero no leer el esquema de PocketBase
+- **THEN** el sistema valida el DNI mediante `numero_documento`
+- **AND** no requiere acceso a `/api/collections/pacientes` para completar la validacion
+
+#### Scenario: Falla tecnica al validar el DNI
+- **WHEN** `/api/pacientes/documento` no puede completar la consulta
+- **THEN** el sistema informa que no pudo validar el documento
+- **AND** no afirma que la coleccion `pacientes` sea inexistente
+- **AND** no intenta crear el registro sin validar el DNI
 
 ### Requirement: Creacion rapida de mutual desde paciente
 El sistema SHALL permitir crear una mutual durante el alta de paciente si no existe una coincidencia exacta.
@@ -163,4 +179,22 @@ El sistema SHALL identificar pacientes fusionados y evitar que aparezcan como pa
 - **WHEN** un usuario crea o edita un paciente activo
 - **THEN** el sistema conserva las validaciones actuales de documento y numero de ficha
 - **AND** no considera disponibles los numeros de ficha de pacientes activos
+
+### Requirement: Compatibilidad del filtro web de pacientes activos
+El sistema SHALL listar, buscar y validar pacientes en la aplicación web sin depender de campos pertenecientes al esquema opcional de sincronización de escritorio.
+
+#### Scenario: Operar la web sin esquema de escritorio
+- **WHEN** PocketBase dispone de los campos del esquema web base y no dispone de `sync_deleted`
+- **THEN** los filtros web de pacientes no incluyen `sync_deleted`
+- **AND** la validación de documento y el cálculo de siguiente ficha responden sin error de esquema
+
+#### Scenario: Excluir pacientes fusionados
+- **WHEN** un flujo web consulta pacientes activos
+- **THEN** el sistema excluye los registros cuyo `estado_registro` es `fusionado`
+- **AND** no requiere metadatos de sincronización para aplicar ese criterio
+
+#### Scenario: Criterio de escritorio explícito
+- **WHEN** un consumidor opera contra un PocketBase con el esquema de sincronización instalado
+- **THEN** el criterio que excluye bajas lógicas de escritorio se define separadamente del filtro web base
+- **AND** no se aplica implícitamente a entornos que no soportan ese campo
 

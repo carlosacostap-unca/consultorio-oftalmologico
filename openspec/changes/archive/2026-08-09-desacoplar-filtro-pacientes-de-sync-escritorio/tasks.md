@@ -11,5 +11,5 @@
 
 ## 3. Publicación y recuperación productiva
 
-- [ ] 3.1 Publicar el hotfix mediante PR aprobado y verificar el SHA desplegado en Dokploy.
-- [ ] 3.2 Confirmar mediante GET de sólo lectura que `/api/pacientes/documento` y `/api/pacientes/ficha` responden correctamente, y completar la verificación pendiente de `corregir-validacion-dni-alta-paciente`.
+- [x] 3.1 Publicar el hotfix mediante PR aprobado y verificar el SHA desplegado en Dokploy.
+- [x] 3.2 Confirmar mediante GET de sólo lectura que `/api/pacientes/documento` y `/api/pacientes/ficha` responden correctamente, y completar la verificación pendiente de `corregir-validacion-dni-alta-paciente`.
