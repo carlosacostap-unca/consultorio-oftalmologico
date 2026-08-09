@@ -14,11 +14,15 @@ import { duplicatePatientDocumentMessage, findDuplicatePatientDocumentClient, no
 import { isClinicalDateWithinLimit } from "@/lib/clinical-date";
 import { patientBirthAgeLabel, patientBirthDateKey, patientBirthDateToStoredDateTime } from "@/lib/patient-birth-date";
 import { deleteClinicalRecord } from "@/lib/desktop-clinical";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { FichaDisplay, RecordSyncStatusBadge } from "@/components/desktop-record-status";
 
 export default function EditarPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { id: pacienteId } = React.use(params);
+  const syncStatuses = useDesktopRecordStatuses();
   
   const isViewMode = searchParams.get("mode") === "view";
 
@@ -352,6 +356,9 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
               <p className="text-zinc-500 dark:text-zinc-400 text-sm">
                 {isViewMode ? "Detalles del paciente" : "Modifica los datos del paciente"}
               </p>
+              <div className="mt-2">
+                <RecordSyncStatusBadge status={getSyncRecordStatus(syncStatuses, "pacientes", pacienteId)} />
+              </div>
             </div>
           </div>
           {!isFetching && (
@@ -405,7 +412,7 @@ export default function EditarPacientePage({ params }: { params: Promise<{ id: s
                   <h2 className="mt-2 text-2xl font-bold text-zinc-900 dark:text-zinc-100">{pacienteNombre}</h2>
                   <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
                     <span className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
-                      {formData.numero_ficha ? `Ficha ${formData.numero_ficha}` : "Sin ficha"}
+                      <FichaDisplay value={formData.numero_ficha} />
                     </span>
                     <span className="rounded-full bg-zinc-100 px-3 py-1 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">
                       {documentoPaciente ? `${formData.tipo_documento || "DNI"} ${documentoPaciente}` : "Sin documento"}

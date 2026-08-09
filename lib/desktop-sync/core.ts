@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { SyncOperation, SyncRecord } from "./types";
+export { isTemporaryFicha } from "../temporary-ficha.ts";
 
 const POCKETBASE_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 const DEFAULT_IGNORED_FIELDS = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand"]);
@@ -34,10 +35,6 @@ export function createTemporaryFicha(deviceCode: string, sequence: number): stri
   }
 
   return `TEMP-${normalizeDeviceCode(deviceCode)}-${String(sequence).padStart(5, "0")}`;
-}
-
-export function isTemporaryFicha(value: unknown): value is string {
-  return typeof value === "string" && /^TEMP-[A-Z0-9]{1,8}-\d{5,}$/.test(value.trim().toUpperCase());
 }
 
 export function changedFields(
