@@ -4,15 +4,24 @@ import type { RecordAuthResponse, RecordModel } from "pocketbase";
 import { getDesktopRuntime } from "@/lib/desktop-runtime";
 import { pb } from "@/lib/pocketbase";
 import { localUserCreationError } from "@/lib/desktop-sync/client-error";
+import { forEachWithConcurrency } from "@/lib/desktop-sync/bootstrap-concurrency";
 import { deriveLocalPassword, generateTemporaryLocalPassword } from "@/lib/desktop-sync/local-password";
 import { additionalLocalUserNeedsCreation } from "@/lib/desktop-sync/local-user-bootstrap";
 import { upsertLocalBootstrapRecord } from "@/lib/desktop-sync/local-settings-bootstrap";
+import {
+  completeActivationBootstrap,
+  isCentralAuthenticationRejected,
+  requireActivatedDesktopLogin,
+  requireCentralAuthentication,
+  requirePasswordConfigured,
+} from "@/lib/desktop-sync/activation-policy";
 import {
   DESKTOP_CENTRAL_SYNC_ORIGIN,
   DESKTOP_SYNC_ORIGIN_HEADER,
 } from "@/lib/desktop-scope";
 
 const ACTIVATION_SECRET = "desktop-activation";
+const BOOTSTRAP_WRITE_CONCURRENCY = 12;
 const BOOTSTRAP_ENTITIES = ["users", "mutuales", "settings", "pacientes", "consultas", "recetas"] as const;
 type BootstrapEntity = (typeof BOOTSTRAP_ENTITIES)[number];
 
@@ -58,11 +67,12 @@ export async function activateDesktop(
   const centralAppUrl = normalizeHttpsUrl(input.centralAppUrl);
   const centralPocketBaseUrl = normalizeHttpsUrl(input.centralPocketBaseUrl);
   onProgress?.("Validando usuario con el servidor central...");
-  const auth = await bridge.central.authenticate({
+  const auth = requireCentralAuthentication(await bridge.central.authenticate({
     pocketBaseUrl: centralPocketBaseUrl,
     email: input.email.trim(),
     password: input.password,
-  });
+  }));
+  requirePasswordConfigured(auth.user);
 
   onProgress?.("Registrando este equipo...");
   const activation = await desktopCentralRequest(centralAppUrl, "/api/desktop-sync/v1/activate", {
@@ -76,7 +86,7 @@ export async function activateDesktop(
     throw new Error("El servidor central devolvió un usuario de activación inesperado.");
   }
 
-  let state: DesktopActivationState = {
+  const state: DesktopActivationState = {
     version: 1,
     centralAppUrl,
     centralPocketBaseUrl,
@@ -86,30 +96,27 @@ export async function activateDesktop(
     lastValidatedAt: auth.validatedAt,
     bootstrapCompleted: false,
   };
-  await saveDesktopActivation(state);
+  const completedState = await completeActivationBootstrap(state, saveDesktopActivation, async () => {
+    onProgress?.("Preparando el usuario local...");
+    const users = await downloadBootstrapEntity(centralAppUrl, "users", onProgress);
+    onProgress?.("Guardando el usuario local...");
+    const localPassword = await deriveLocalPassword(input.password, runtime.deviceId);
+    await prepareLocalUsers(users, auth.user.id, localPassword, input.password);
 
-  onProgress?.("Preparando el usuario local...");
-  const users = await downloadBootstrapEntity(centralAppUrl, "users", onProgress);
-  onProgress?.("Guardando el usuario local...");
-  const localPassword = await deriveLocalPassword(input.password, runtime.deviceId);
-  await prepareLocalUsers(users, auth.user.id, localPassword, input.password);
-
-  for (const entity of BOOTSTRAP_ENTITIES.filter((value) => value !== "users")) {
-    const items = await downloadBootstrapEntity(centralAppUrl, entity, onProgress);
-    const localCollection = entity === "settings" ? "system_settings" : entity;
-    onProgress?.(`Guardando ${labelForEntity(entity)} en la base local...`);
-    for (const item of items) {
-      await upsertLocalBootstrapRecord(localCollection, item, {
-        upsertSystemSetting: (setting) => bridge.local.upsertSystemSetting(setting),
-        upsertRecord: upsertLocalRecord,
+    for (const entity of BOOTSTRAP_ENTITIES.filter((value) => value !== "users")) {
+      const items = await downloadBootstrapEntity(centralAppUrl, entity, onProgress);
+      const localCollection = entity === "settings" ? "system_settings" : entity;
+      onProgress?.(`Guardando ${labelForEntity(entity)} en la base local...`);
+      await forEachWithConcurrency(items, BOOTSTRAP_WRITE_CONCURRENCY, async (item) => {
+        await upsertLocalBootstrapRecord(localCollection, item, {
+          upsertSystemSetting: (setting) => bridge.local.upsertSystemSetting(setting),
+          upsertRecord: upsertLocalRecord,
+        });
       });
     }
-  }
-
-  state = { ...state, bootstrapCompleted: true };
-  await saveDesktopActivation(state);
+  });
   onProgress?.("Activación y copia inicial completadas.");
-  return state;
+  return completedState;
 }
 
 export async function desktopLoginWithPassword(
@@ -118,19 +125,24 @@ export async function desktopLoginWithPassword(
 ): Promise<{ authData: RecordAuthResponse<RecordModel>; offline: boolean }> {
   const state = await loadDesktopActivation();
   const runtime = getDesktopRuntime();
-  const localPassword = state && runtime ? await deriveLocalPassword(password, runtime.deviceId) : password;
+  requireActivatedDesktopLogin(state);
+  if (!runtime) throw new Error("El runtime de escritorio no está disponible.");
+  const localPassword = await deriveLocalPassword(password, runtime.deviceId);
   const authData = await authenticateLocalUser(email.trim(), localPassword, password);
-  if (!state) return { authData, offline: false };
 
   try {
-    const result = await window.consultorioDesktop!.central.authenticate({
+    const result = requireCentralAuthentication(await window.consultorioDesktop!.central.authenticate({
       pocketBaseUrl: state.centralPocketBaseUrl,
       email: email.trim(),
       password,
-    });
+    }));
     await saveDesktopActivation({ ...state, lastValidatedAt: result.validatedAt });
     return { authData, offline: false };
-  } catch {
+  } catch (error) {
+    if (isCentralAuthenticationRejected(error)) {
+      pb.authStore.clear();
+      throw error;
+    }
     return { authData, offline: true };
   }
 }

@@ -1,9 +1,11 @@
 import { normalizeDeviceCode } from "@/lib/desktop-sync/core";
 import {
+  DesktopSyncHttpError,
   desktopSyncErrorResponse,
   escapeFilterValue,
   requireDesktopSyncContext,
 } from "@/lib/desktop-sync/server-auth";
+import { canActivateDesktopDevice } from "@/lib/desktop-sync/server-auth-policy";
 import { pbAdmin } from "@/lib/pocketbase-admin";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +27,14 @@ export async function POST(request: Request) {
     const filter = encodeURIComponent(`device_id = "${escapeFilterValue(deviceId)}"`);
     const existingResult = await pbAdmin(`/api/collections/sync_devices/records?page=1&perPage=1&filter=${filter}`);
     const existing = existingResult.items?.[0];
+
+    if (!canActivateDesktopDevice(context.roles, Boolean(existing))) {
+      throw new DesktopSyncHttpError(
+        "Sólo un administrador puede registrar un equipo nuevo",
+        403,
+        "device_enrollment_forbidden",
+      );
+    }
 
     if (existing && existing.enabled !== true) {
       return Response.json({ error: "El equipo está deshabilitado", code: "disabled_device" }, { status: 403 });

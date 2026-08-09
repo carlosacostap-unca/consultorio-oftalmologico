@@ -60,6 +60,19 @@ test("ordena paciente, consulta y receta respetando dependencias explícitas", (
   assert.deepEqual(sortOperationsByDependencies([prescription, consultation, patient]).map((item) => item.operationId), ["p", "c", "r"]);
 });
 
+test("reconstruye la cola pendiente y su orden después de un reinicio", () => {
+  const persisted = JSON.stringify([
+    operation("r-restart", "recetas", ["c-restart"]),
+    operation("p-restart", "pacientes", []),
+    operation("c-restart", "consultas", ["p-restart"]),
+  ]);
+  const restored = JSON.parse(persisted) as SyncOperation[];
+  assert.deepEqual(
+    sortOperationsByDependencies(restored).map((item) => item.operationId),
+    ["p-restart", "c-restart", "r-restart"],
+  );
+});
+
 test("rechaza ciclos de dependencias", () => {
   assert.throws(() => sortOperationsByDependencies([operation("a", "pacientes", ["b"]), operation("b", "consultas", ["a"])]));
 });

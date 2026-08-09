@@ -5,8 +5,14 @@ import { use } from "react";
 import type { ReactNode } from "react";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList, loadAuthenticatedDoctors } from "@/lib/doctor-attribution";
+import type { Medico } from "@/lib/types";
 import { emptyIfOptionalClinicalZero } from "@/lib/clinical-empty-values";
+import { mergeClinicalAntecedents } from "@/lib/clinical-antecedents";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { fichaDisplayLabel } from "@/lib/temporary-ficha";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { PrintableSyncNotice } from "@/components/desktop-record-status";
 
 interface PrintablePatient {
   nombre?: string;
@@ -17,9 +23,19 @@ interface PrintablePatient {
   obra_social?: string;
   numero_afiliado?: string;
   fecha_nacimiento?: string;
+  ant_alergico?: boolean;
+  ant_asmatico?: boolean;
+  ant_reuma?: boolean;
+  ant_herpes?: boolean;
+  ant_diabetes?: boolean;
+  ant_glaucoma?: boolean;
+  ant_maculopatia?: boolean;
+  ant_hipertension?: boolean;
+  ant_otra?: string;
 }
 
 interface PrintableDoctor {
+  id: string;
   name?: string;
   email?: string;
 }
@@ -77,14 +93,16 @@ interface PrintableReceta {
 
 export default function ImprimirConsultaPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
+  const syncStatuses = useDesktopRecordStatuses();
   const [consulta, setConsulta] = useState<PrintableConsulta | null>(null);
   const [recetas, setRecetas] = useState<PrintableReceta[]>([]);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [consultaRecord, recetasRecords] = await Promise.all([
+        const [consultaRecord, recetasRecords, medicosRecords] = await Promise.all([
           pb.collection("consultas").getOne<PrintableConsulta>(resolvedParams.id, {
             expand: "paciente_id,medico_id",
           }),
@@ -92,9 +110,14 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
             filter: `consulta_id = "${resolvedParams.id}"`,
             sort: "-fecha,-created",
           }),
+          loadAuthenticatedDoctors(pb.authStore.token).catch((error) => {
+            console.error("Error al cargar medicos para el informe clinico", error);
+            return [];
+          }),
         ]);
         setConsulta(consultaRecord);
         setRecetas(recetasRecords);
+        setMedicos(medicosRecords);
       } catch (error) {
         console.error("Error al cargar el informe clinico", error);
       } finally {
@@ -111,7 +134,7 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
   const paciente = consulta.expand?.paciente_id;
   const pacienteNombre = paciente ? `${paciente.apellido || ""}, ${paciente.nombre || ""}`.replace(/^,\s*/, "").trim() : "Paciente";
   const documento = paciente?.numero_documento || paciente?.dni || "";
-  const antecedentes = activeAntecedentes(consulta);
+  const antecedentes = activeAntecedentes(mergeClinicalAntecedents(consulta, paciente));
 
   return (
     <div className="min-h-screen bg-white p-8 text-black print:p-0">
@@ -121,12 +144,17 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
           <p className="mt-2 text-sm text-gray-600">Consultorio oftalmologico</p>
         </header>
 
+        <PrintableSyncNotice
+          status={getSyncRecordStatus(syncStatuses, "consultas", resolvedParams.id)}
+          ficha={paciente?.numero_ficha}
+        />
+
         <section className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Info label="Paciente" value={pacienteNombre} />
           <Info label="Fecha" value={consulta.fecha ? formatDate(consulta.fecha) : "-"} />
-          <Info label="Medico" value={doctorLabel(consulta.expand?.medico_id)} />
+          <Info label="Medico" value={doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos)} />
           <Info label="Documento" value={documento || "-"} />
-          <Info label="Ficha" value={paciente?.numero_ficha || "-"} />
+          <Info label="Ficha" value={fichaDisplayLabel(paciente?.numero_ficha)} />
           <Info label="Obra social" value={paciente?.obra_social || "-"} />
           <Info label="Afiliado" value={paciente?.numero_afiliado || "-"} />
         </section>
@@ -300,16 +328,16 @@ function displayOptional(field: string, value?: string) {
   return String(emptyIfOptionalClinicalZero(field, value) || "").trim() || "-";
 }
 
-function activeAntecedentes(consulta: PrintableConsulta) {
+function activeAntecedentes(antecedentes: ReturnType<typeof mergeClinicalAntecedents>) {
   return [
-    consulta.ant_diabetes ? "Diabetes" : "",
-    consulta.ant_glaucoma ? "Glaucoma" : "",
-    consulta.ant_maculopatia ? "Maculopatia" : "",
-    consulta.ant_asmatico ? "Asma" : "",
-    consulta.ant_hipertension ? "Hipertension" : "",
-    consulta.ant_alergico ? "Alergia" : "",
-    consulta.ant_reuma ? "Reuma" : "",
-    consulta.ant_herpes ? "Herpes" : "",
-    consulta.ant_otra?.trim() || "",
+    antecedentes.ant_diabetes ? "Diabetes" : "",
+    antecedentes.ant_glaucoma ? "Glaucoma" : "",
+    antecedentes.ant_maculopatia ? "Maculopatia" : "",
+    antecedentes.ant_asmatico ? "Asma" : "",
+    antecedentes.ant_hipertension ? "Hipertension" : "",
+    antecedentes.ant_alergico ? "Alergia" : "",
+    antecedentes.ant_reuma ? "Reuma" : "",
+    antecedentes.ant_herpes ? "Herpes" : "",
+    antecedentes.ant_otra.trim() || "",
   ].filter(Boolean);
 }

@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
 import { formatDate } from "@/lib/utils";
 import { doctorLabel } from "@/lib/doctor-attribution";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { fichaDisplayLabel } from "@/lib/temporary-ficha";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { PrintableSyncNotice } from "@/components/desktop-record-status";
 
 interface PrintablePatient {
   nombre?: string;
@@ -48,6 +52,7 @@ interface PrintableReceta {
 export default function ImprimirRecetaPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const resolvedParams = use(params);
+  const syncStatuses = useDesktopRecordStatuses();
   const [receta, setReceta] = useState<PrintableReceta | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -85,12 +90,17 @@ export default function ImprimirRecetaPage({ params }: { params: Promise<{ id: s
           <p className="mt-2 text-sm text-gray-600">Consultorio oftalmologico</p>
         </header>
 
+        <PrintableSyncNotice
+          status={getSyncRecordStatus(syncStatuses, "recetas", resolvedParams.id)}
+          ficha={paciente?.numero_ficha}
+        />
+
         <section className="mt-6 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
           <Info label="Paciente" value={pacienteNombre} />
           <Info label="Fecha" value={receta.fecha ? formatDate(receta.fecha) : "-"} />
           <Info label="Medico" value={doctorLabel(receta.expand?.medico_id)} />
           <Info label="Documento" value={documento || "-"} />
-          <Info label="Ficha" value={paciente?.numero_ficha || "-"} />
+          <Info label="Ficha" value={fichaDisplayLabel(paciente?.numero_ficha)} />
           <Info label="Obra social" value={paciente?.obra_social || "-"} />
           <Info label="Afiliado" value={paciente?.numero_afiliado || "-"} />
         </section>

@@ -3,9 +3,13 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { pb } from "@/lib/pocketbase";
-import type { Consulta, Patient, Receta } from "@/lib/types";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { fichaDisplayLabel } from "@/lib/temporary-ficha";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { PrintableSyncNotice } from "@/components/desktop-record-status";
+import type { Consulta, Medico, Patient, Receta } from "@/lib/types";
 import { patientDisplayName, patientDocument } from "@/lib/patient-merge";
-import { doctorLabel } from "@/lib/doctor-attribution";
+import { doctorLabelFromList, loadAuthenticatedDoctors } from "@/lib/doctor-attribution";
 
 type PrintableConsulta = Consulta & {
   tratamiento?: string;
@@ -14,15 +18,17 @@ type PrintableConsulta = Consulta & {
 export default function ImprimirFichaPacientePage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
   const { id: pacienteId } = use(params);
+  const syncStatuses = useDesktopRecordStatuses();
   const [paciente, setPaciente] = useState<Patient | null>(null);
   const [consultas, setConsultas] = useState<PrintableConsulta[]>([]);
   const [recetas, setRecetas] = useState<Receta[]>([]);
+  const [medicos, setMedicos] = useState<Medico[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [pacienteRecord, consultasRecords, recetasRecords] = await Promise.all([
+        const [pacienteRecord, consultasRecords, recetasRecords, medicosRecords] = await Promise.all([
           pb.collection("pacientes").getOne<Patient>(pacienteId, {
             expand: "mutual_id",
           }),
@@ -36,11 +42,16 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
             sort: "-fecha,-created",
             expand: "consulta_id,medico_id",
           }),
+          loadAuthenticatedDoctors(pb.authStore.token).catch((error) => {
+            console.error("Error al cargar medicos para la ficha clinica imprimible", error);
+            return [];
+          }),
         ]);
 
         setPaciente(pacienteRecord);
         setConsultas(consultasRecords);
         setRecetas(recetasRecords);
+        setMedicos(medicosRecords);
       } catch (error) {
         console.error("Error al cargar ficha clinica imprimible:", error);
       } finally {
@@ -77,12 +88,17 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
           </div>
         </header>
 
+        <PrintableSyncNotice
+          status={getSyncRecordStatus(syncStatuses, "pacientes", pacienteId)}
+          ficha={paciente.numero_ficha}
+        />
+
         <section className="mt-6">
           <h2 className="mb-3 text-lg font-bold uppercase">Paciente</h2>
           <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <Info label="Nombre" value={patientDisplayName(paciente)} />
             <Info label="Documento" value={documento ? `${paciente.tipo_documento || "DNI"} ${documento}` : "-"} />
-            <Info label="Ficha" value={paciente.numero_ficha || "-"} />
+            <Info label="Ficha" value={fichaDisplayLabel(paciente.numero_ficha)} />
             <Info label="Fecha de nacimiento" value={formatDate(paciente.fecha_nacimiento)} />
             <Info label="Telefono" value={paciente.telefono || "-"} />
             <Info label="Email" value={paciente.email || "-"} />
@@ -117,7 +133,7 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
                 <article key={consulta.id} className="rounded-lg border border-gray-300 p-4 text-sm break-inside-avoid">
                   <div className="mb-2 font-bold">{formatDate(consulta.fecha)}</div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    <Info label="Medico" value={doctorLabel(consulta.expand?.medico_id)} />
+                    <Info label="Medico" value={doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos)} />
                     <Info label="Motivo" value={consulta.motivo_consulta || "-"} />
                     <Info label="Diagnostico" value={consulta.diagnostico || "-"} />
                     <Info label="Tratamiento" value={consulta.tratamiento || "-"} />
@@ -141,7 +157,7 @@ export default function ImprimirFichaPacientePage({ params }: { params: Promise<
                     <span>{receta.consulta_id ? "Vinculada a consulta" : "Receta libre"}</span>
                   </div>
                   <div className="grid grid-cols-1 gap-2">
-                    <Info label="Medico" value={doctorLabel(receta.expand?.medico_id)} />
+                    <Info label="Medico" value={doctorLabelFromList(receta.medico_id, receta.expand?.medico_id, medicos)} />
                     <Info label="Medicamentos" value={receta.medicamentos || "-"} />
                     <Info label="Indicaciones" value={receta.indicaciones || "-"} />
                     {receta.expand?.consulta_id?.fecha && (

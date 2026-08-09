@@ -9,11 +9,17 @@ import type { Receta } from "@/lib/types";
 import { doctorLabel } from "@/lib/doctor-attribution";
 import { patientDocument } from "@/lib/patient-merge";
 import { deleteClinicalRecord } from "@/lib/desktop-clinical";
+import { buildActiveRecordFilter } from "@/lib/desktop-record-filter";
+import { isDesktopRuntime } from "@/lib/desktop-runtime";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { FichaDisplay, RecordSyncStatusBadge } from "@/components/desktop-record-status";
 
 type RelationFilter = "all" | "linked" | "free";
 
 export default function RecetasPage() {
   const router = useRouter();
+  const syncStatuses = useDesktopRecordStatuses();
   const [isMounted, setIsMounted] = useState(false);
   const [recetas, setRecetas] = useState<Receta[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -32,10 +38,11 @@ export default function RecetasPage() {
 
     const loadData = async () => {
       try {
+        const activeFilter = buildActiveRecordFilter("", isDesktopRuntime());
         const recetasRecords = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
           expand: "paciente_id,consulta_id,medico_id",
-          filter: "sync_deleted != true",
+          ...(activeFilter ? { filter: activeFilter } : {}),
         });
         setRecetas(recetasRecords);
       } catch (error) {
@@ -50,10 +57,11 @@ export default function RecetasPage() {
     let unsubscribe: () => void;
     pb.collection("recetas")
       .subscribe<Receta>("*", async () => {
+        const activeFilter = buildActiveRecordFilter("", isDesktopRuntime());
         const records = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
           expand: "paciente_id,consulta_id,medico_id",
-          filter: "sync_deleted != true",
+          ...(activeFilter ? { filter: activeFilter } : {}),
         });
         setRecetas(records);
       })
@@ -246,15 +254,18 @@ export default function RecetasPage() {
                     <tr key={receta.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-zinc-900 dark:text-zinc-100">
                         {receta.fecha ? formatDate(receta.fecha) : "Sin fecha"}
+                        <div className="mt-2">
+                          <RecordSyncStatusBadge status={getSyncRecordStatus(syncStatuses, "recetas", receta.id)} />
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
                           {patientName(receta)}
                         </div>
-                        <div className="text-xs text-zinc-500">
-                          DNI: {patientDocument(receta.expand?.paciente_id) || "-"}
-                          {receta.expand?.paciente_id?.numero_ficha ? ` - Ficha ${receta.expand.paciente_id.numero_ficha}` : ""}
-                        </div>
+                        <div className="text-xs text-zinc-500">DNI: {patientDocument(receta.expand?.paciente_id) || "-"}</div>
+                        {receta.expand?.paciente_id?.numero_ficha && (
+                          <div className="mt-1 text-xs text-zinc-500"><FichaDisplay value={receta.expand.paciente_id.numero_ficha} /></div>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-sm text-zinc-700 dark:text-zinc-200">
                         {doctorLabel(receta.expand?.medico_id)}

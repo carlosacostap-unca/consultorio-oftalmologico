@@ -58,9 +58,9 @@ export function sanitizeRecordPayload(payload: SyncRecord): SyncRecord {
 async function applyOperation(context: DesktopSyncContext, operation: SyncOperation): Promise<SyncOperationConfirmation> {
   const collection = operation.entity;
   const local = sanitizeRecordPayload(operation.payload);
-  assertOperationAllowed(context, operation.entity, operation.action, local);
 
   if (operation.action === "create") {
+    assertOperationAllowed(context, operation.entity, operation.action, local);
     const existing = await findRecord(collection, operation.recordId);
     if (existing) {
       if (String(existing.sync_operation_id || "") === operation.operationId) {
@@ -99,6 +99,7 @@ async function applyOperation(context: DesktopSyncContext, operation: SyncOperat
 
   const central = await findRecord(collection, operation.recordId);
   if (!central) throw new DesktopSyncHttpError("El registro central ya no existe", 409, "missing_central_record");
+  assertOperationAllowed(context, operation.entity, operation.action, local, central);
 
   if (operation.action === "delete") {
     if (!sameVersion(operation.baseUpdated, central.updated)) {

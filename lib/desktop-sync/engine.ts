@@ -4,6 +4,7 @@ import type { RecordModel } from "pocketbase";
 import { pb } from "@/lib/pocketbase";
 import { retryDelayMs, sanitizeSyncError, sortOperationsByDependencies } from "./core";
 import { desktopCentralRequest, loadDesktopActivation } from "./client";
+import { createSingleFlightRunner, processInBatches } from "./sync-runner";
 import type {
   SyncCursor,
   SyncEntity,
@@ -17,14 +18,18 @@ import type {
 } from "./types";
 
 export const DESKTOP_SYNC_STATUS_EVENT = "consultorio:desktop-sync-status";
-let runningPromise: Promise<SyncStatusSnapshot> | null = null;
+let syncRunning = false;
+const executeSingleFlight = createSingleFlightRunner(async () => {
+  syncRunning = true;
+  try {
+    return await executeSync();
+  } finally {
+    syncRunning = false;
+  }
+});
 
 export function runDesktopSync(): Promise<SyncStatusSnapshot> {
-  if (runningPromise) return runningPromise;
-  runningPromise = executeSync().finally(() => {
-    runningPromise = null;
-  });
-  return runningPromise;
+  return executeSingleFlight();
 }
 
 export async function getDesktopSyncStatus(): Promise<SyncStatusSnapshot> {
@@ -40,7 +45,7 @@ export async function getDesktopSyncStatus(): Promise<SyncStatusSnapshot> {
     pending: operations.filter((item) => item.status === "pending" || item.status === "sending").length,
     errors: operations.filter((item) => item.status === "error").length,
     conflicts: conflicts.length,
-    running: Boolean(runningPromise),
+    running: syncRunning,
   };
 }
 
@@ -114,17 +119,23 @@ async function pushPendingOperations(centralAppUrl: string, deviceId: string) {
   const eligible = records.filter((item) => !item.next_attempt_at || new Date(item.next_attempt_at).getTime() <= now);
   const operations = sortOperationsByDependencies(eligible.map(mapLocalOperation)) as LocalSyncOperation[];
 
-  for (let offset = 0; offset < operations.length; offset += 25) {
-    const batch = operations.slice(offset, offset + 25);
-    for (const operation of batch) {
-      await pb.collection("sync_operations").update(operation.localQueueId!, { status: "sending", last_error: "" }, { requestKey: null });
-    }
-    const body = (await desktopCentralRequest(centralAppUrl, "/api/desktop-sync/v1/push", {
-      deviceId,
-      operations: batch.map(toSyncOperation),
-    })) as unknown as SyncPushResponse;
-    for (const confirmation of body.confirmations || []) await applyConfirmation(confirmation, batch);
-  }
+  await processInBatches(
+    operations,
+    25,
+    async (batch) => {
+      for (const operation of batch) {
+        await pb.collection("sync_operations").update(operation.localQueueId, { status: "sending", last_error: "" }, { requestKey: null });
+      }
+      return (await desktopCentralRequest(centralAppUrl, "/api/desktop-sync/v1/push", {
+        deviceId,
+        operations: batch.map(toSyncOperation),
+      })) as unknown as SyncPushResponse;
+    },
+    async (body, batch) => {
+      for (const confirmation of body.confirmations || []) await applyConfirmation(confirmation, batch);
+    },
+    async (error) => { await resetSendingOperations(error); },
+  );
 }
 
 async function applyConfirmation(confirmation: SyncOperationConfirmation, batch: LocalSyncOperation[]) {

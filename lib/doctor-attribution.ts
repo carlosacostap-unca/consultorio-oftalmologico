@@ -13,6 +13,19 @@ export function doctorLabelFromList(
   return doctorLabel(expandedDoctor || medicos.find((medico) => medico.id === medicoId) || null);
 }
 
+export async function loadAuthenticatedDoctors(token: string): Promise<Medico[]> {
+  const response = await fetch("/api/medicos", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`No se pudieron cargar los medicos (${response.status})`);
+  }
+
+  const data = (await response.json()) as { medicos?: Medico[] };
+  return Array.isArray(data.medicos) ? data.medicos : [];
+}
+
 export function canAssignAnyDoctor(role?: UserRole | null) {
   return role === "admin" || role === "secretaria";
 }

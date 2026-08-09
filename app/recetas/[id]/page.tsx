@@ -11,6 +11,9 @@ import { canAssignAnyDoctor, doctorLabel } from "@/lib/doctor-attribution";
 import type { UserRole } from "@/lib/permissions";
 import type { AppUser, Consulta, Medico, Patient, Receta } from "@/lib/types";
 import { buildActivePatientSearchFilter } from "@/lib/patient-merge";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { FichaDisplay, RecordSyncStatusBadge } from "@/components/desktop-record-status";
 
 const patientDocument = (patient?: Patient | null) => patient?.numero_documento || patient?.dni || "";
 
@@ -32,6 +35,7 @@ export default function EditarRecetaPage({ params }: { params: Promise<{ id: str
 function EditarRecetaForm({ recetaId }: { recetaId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const syncStatuses = useDesktopRecordStatuses();
   
   const isViewMode = searchParams.get("mode") === "view";
   
@@ -275,6 +279,10 @@ function EditarRecetaForm({ recetaId }: { recetaId: string }) {
             <p className="text-zinc-500 dark:text-zinc-400 mt-1">
               {isViewMode ? "Detalles de la receta medica" : "Modifica los datos de la receta"}
             </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <RecordSyncStatusBadge status={getSyncRecordStatus(syncStatuses, "recetas", recetaId)} />
+              {selectedPacienteData?.numero_ficha && <FichaDisplay value={selectedPacienteData.numero_ficha} />}
+            </div>
           </div>
         </div>
 

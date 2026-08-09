@@ -42,7 +42,7 @@ export function DesktopActivation({ onActivated }: { onActivated: () => void }) 
             <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Primera configuración</p>
             <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Activar versión de escritorio</h1>
             <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-              La primera activación necesita Internet. Después podrá ingresar y trabajar con pacientes, consultas y recetas sin conexión.
+              La primera activación necesita Internet y una cuenta administradora. Después los usuarios habilitados podrán ingresar y trabajar con pacientes, consultas y recetas sin conexión.
             </p>
           </div>
         </div>

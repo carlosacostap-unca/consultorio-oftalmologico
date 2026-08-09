@@ -11,6 +11,11 @@ import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-es
 import { doctorLabelFromList } from "@/lib/doctor-attribution";
 import { todayClinicalDateKey } from "@/lib/clinical-date";
 import { deleteClinicalRecord } from "@/lib/desktop-clinical";
+import { buildActiveRecordFilter } from "@/lib/desktop-record-filter";
+import { isDesktopRuntime } from "@/lib/desktop-runtime";
+import { getSyncRecordStatus } from "@/lib/desktop-record-status";
+import { useDesktopRecordStatuses } from "@/lib/use-desktop-record-statuses";
+import { FichaDisplay, RecordSyncStatusBadge } from "@/components/desktop-record-status";
 
 interface Consulta {
   id: string;
@@ -29,6 +34,7 @@ interface Consulta {
 
 export default function ConsultasPage() {
   const router = useRouter();
+  const syncStatuses = useDesktopRecordStatuses();
   const [user, setUser] = useState<AppUser | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [consultas, setConsultas] = useState<Consulta[]>([]);
@@ -98,9 +104,7 @@ export default function ConsultasPage() {
       } else {
         filterParts.push(`fecha <= "${todayClinicalDateKey()} 23:59:59"`);
       }
-      filterParts.push("sync_deleted != true");
-      
-      const filterString = filterParts.join(" && ");
+      const filterString = buildActiveRecordFilter(filterParts.join(" && "), isDesktopRuntime());
 
       const result = await pb.collection("consultas").getList<Consulta>(page, 20, {
         sort: "-fecha,-created",
@@ -286,6 +290,9 @@ export default function ConsultasPage() {
                         <div className="font-medium text-zinc-900 dark:text-zinc-100">
                           {formatDate(consulta.fecha)}
                         </div>
+                        <div className="mt-2">
+                          <RecordSyncStatusBadge status={getSyncRecordStatus(syncStatuses, "consultas", consulta.id)} />
+                        </div>
                       </td>
                         <td className="px-6 py-4">
                           <div className="font-medium text-zinc-900 dark:text-zinc-100">
@@ -296,7 +303,7 @@ export default function ConsultasPage() {
                           {doctorLabelFromList(consulta.medico_id, consulta.expand?.medico_id, medicos)}
                         </td>
                         <td className="px-6 py-4 text-zinc-600 dark:text-zinc-300">
-                          {consulta.numero_ficha || consulta.expand?.paciente_id?.numero_ficha || '-'}
+                          <FichaDisplay value={consulta.numero_ficha || consulta.expand?.paciente_id?.numero_ficha} compact />
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${consultaEstadoBadgeClass(consulta.estado)}`}>
