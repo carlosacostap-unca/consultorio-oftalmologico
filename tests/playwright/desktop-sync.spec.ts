@@ -88,6 +88,7 @@ test.describe("API de sincronización de escritorio", () => {
       expect(firstBody.confirmations[0].definitiveFicha).toBeTruthy();
       expect(firstBody.confirmations[0].definitiveFicha).not.toBe(temporaryFicha);
 
+      // Simula que la PC perdió la primera respuesta y reenvió el mismo operation_id.
       const repeatedPush = await request.post("/api/desktop-sync/v1/push", {
         headers,
         data: { deviceId, operations: [operation] },
