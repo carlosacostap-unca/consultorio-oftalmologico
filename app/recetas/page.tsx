@@ -9,6 +9,8 @@ import type { Receta } from "@/lib/types";
 import { doctorLabel } from "@/lib/doctor-attribution";
 import { patientDocument } from "@/lib/patient-merge";
 import { deleteClinicalRecord } from "@/lib/desktop-clinical";
+import { buildActiveRecordFilter } from "@/lib/desktop-record-filter";
+import { isDesktopRuntime } from "@/lib/desktop-runtime";
 
 type RelationFilter = "all" | "linked" | "free";
 
@@ -32,10 +34,11 @@ export default function RecetasPage() {
 
     const loadData = async () => {
       try {
+        const activeFilter = buildActiveRecordFilter("", isDesktopRuntime());
         const recetasRecords = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
           expand: "paciente_id,consulta_id,medico_id",
-          filter: "sync_deleted != true",
+          ...(activeFilter ? { filter: activeFilter } : {}),
         });
         setRecetas(recetasRecords);
       } catch (error) {
@@ -50,10 +53,11 @@ export default function RecetasPage() {
     let unsubscribe: () => void;
     pb.collection("recetas")
       .subscribe<Receta>("*", async () => {
+        const activeFilter = buildActiveRecordFilter("", isDesktopRuntime());
         const records = await pb.collection("recetas").getFullList<Receta>({
           sort: "-fecha",
           expand: "paciente_id,consulta_id,medico_id",
-          filter: "sync_deleted != true",
+          ...(activeFilter ? { filter: activeFilter } : {}),
         });
         setRecetas(records);
       })

@@ -11,6 +11,8 @@ import { consultaEstadoBadgeClass, consultaEstadoLabel } from "@/lib/consulta-es
 import { doctorLabelFromList } from "@/lib/doctor-attribution";
 import { todayClinicalDateKey } from "@/lib/clinical-date";
 import { deleteClinicalRecord } from "@/lib/desktop-clinical";
+import { buildActiveRecordFilter } from "@/lib/desktop-record-filter";
+import { isDesktopRuntime } from "@/lib/desktop-runtime";
 
 interface Consulta {
   id: string;
@@ -98,9 +100,7 @@ export default function ConsultasPage() {
       } else {
         filterParts.push(`fecha <= "${todayClinicalDateKey()} 23:59:59"`);
       }
-      filterParts.push("sync_deleted != true");
-      
-      const filterString = filterParts.join(" && ");
+      const filterString = buildActiveRecordFilter(filterParts.join(" && "), isDesktopRuntime());
 
       const result = await pb.collection("consultas").getList<Consulta>(page, 20, {
         sort: "-fecha,-created",
