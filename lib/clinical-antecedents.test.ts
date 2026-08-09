@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mergeClinicalAntecedents } from "./clinical-antecedents.ts";
 
-test("mantiene diabetes activa cuando esta registrada en el paciente", () => {
+test("recupera diabetes del paciente cuando la consulta legacy no la registra", () => {
   const antecedentes = mergeClinicalAntecedents(
-    { ant_diabetes: false },
+    {},
     { ant_diabetes: true },
   );
 

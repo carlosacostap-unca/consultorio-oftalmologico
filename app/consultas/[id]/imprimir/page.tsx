@@ -8,6 +8,7 @@ import { formatDate } from "@/lib/utils";
 import { doctorLabelFromList, loadAuthenticatedDoctors } from "@/lib/doctor-attribution";
 import type { Medico } from "@/lib/types";
 import { emptyIfOptionalClinicalZero } from "@/lib/clinical-empty-values";
+import { mergeClinicalAntecedents } from "@/lib/clinical-antecedents";
 
 interface PrintablePatient {
   nombre?: string;
@@ -18,6 +19,15 @@ interface PrintablePatient {
   obra_social?: string;
   numero_afiliado?: string;
   fecha_nacimiento?: string;
+  ant_alergico?: boolean;
+  ant_asmatico?: boolean;
+  ant_reuma?: boolean;
+  ant_herpes?: boolean;
+  ant_diabetes?: boolean;
+  ant_glaucoma?: boolean;
+  ant_maculopatia?: boolean;
+  ant_hipertension?: boolean;
+  ant_otra?: string;
 }
 
 interface PrintableDoctor {
@@ -119,7 +129,7 @@ export default function ImprimirConsultaPage({ params }: { params: Promise<{ id:
   const paciente = consulta.expand?.paciente_id;
   const pacienteNombre = paciente ? `${paciente.apellido || ""}, ${paciente.nombre || ""}`.replace(/^,\s*/, "").trim() : "Paciente";
   const documento = paciente?.numero_documento || paciente?.dni || "";
-  const antecedentes = activeAntecedentes(consulta);
+  const antecedentes = activeAntecedentes(mergeClinicalAntecedents(consulta, paciente));
 
   return (
     <div className="min-h-screen bg-white p-8 text-black print:p-0">
@@ -308,16 +318,16 @@ function displayOptional(field: string, value?: string) {
   return String(emptyIfOptionalClinicalZero(field, value) || "").trim() || "-";
 }
 
-function activeAntecedentes(consulta: PrintableConsulta) {
+function activeAntecedentes(antecedentes: ReturnType<typeof mergeClinicalAntecedents>) {
   return [
-    consulta.ant_diabetes ? "Diabetes" : "",
-    consulta.ant_glaucoma ? "Glaucoma" : "",
-    consulta.ant_maculopatia ? "Maculopatia" : "",
-    consulta.ant_asmatico ? "Asma" : "",
-    consulta.ant_hipertension ? "Hipertension" : "",
-    consulta.ant_alergico ? "Alergia" : "",
-    consulta.ant_reuma ? "Reuma" : "",
-    consulta.ant_herpes ? "Herpes" : "",
-    consulta.ant_otra?.trim() || "",
+    antecedentes.ant_diabetes ? "Diabetes" : "",
+    antecedentes.ant_glaucoma ? "Glaucoma" : "",
+    antecedentes.ant_maculopatia ? "Maculopatia" : "",
+    antecedentes.ant_asmatico ? "Asma" : "",
+    antecedentes.ant_hipertension ? "Hipertension" : "",
+    antecedentes.ant_alergico ? "Alergia" : "",
+    antecedentes.ant_reuma ? "Reuma" : "",
+    antecedentes.ant_herpes ? "Herpes" : "",
+    antecedentes.ant_otra.trim() || "",
   ].filter(Boolean);
 }

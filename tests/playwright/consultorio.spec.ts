@@ -1303,6 +1303,70 @@ test.describe("roles y otorgamiento de turnos", () => {
     }
   });
 
+  test("informe clinico combina antecedentes de consulta legacy y paciente", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const suffix = Date.now().toString().slice(-7);
+    const document = `96${suffix}`;
+    let patientId = "";
+    let consultaId = "";
+
+    try {
+      const patient = await createDemoPatient(request, env, adminToken, {
+        nombre: "ANTECEDENTES",
+        apellido: "LEGACY PLAYWRIGHT",
+        tipo_documento: "DNI",
+        numero_documento: document,
+        ant_diabetes: true,
+      });
+      patientId = String(patient.id || "");
+
+      const consulta = await createDemoConsultation(
+        request,
+        env,
+        adminToken,
+        patientId,
+        `Playwright antecedentes legacy ${suffix}`,
+      );
+      consultaId = String(consulta.id || "");
+
+      const updateResponse = await request.patch(
+        `${pocketBaseUrl(env)}/api/collections/consultas/records/${consultaId}`,
+        {
+          headers: { Authorization: `Bearer ${adminToken}` },
+          data: {
+            ant_diabetes: false,
+            ant_glaucoma: true,
+          },
+        },
+      );
+      expect(updateResponse.ok()).toBeTruthy();
+
+      await login(page, "medico.demo@consultorio.local");
+      await page.goto(`/consultas/${consultaId}/imprimir`);
+
+      const antecedentes = page
+        .getByRole("heading", { name: "Antecedentes activos" })
+        .locator("xpath=ancestor::section[1]");
+      await expect(antecedentes.getByText("Diabetes", { exact: true })).toBeVisible();
+      await expect(antecedentes.getByText("Glaucoma", { exact: true })).toBeVisible();
+      await expect(antecedentes.getByText("Sin antecedentes activos", { exact: true })).toHaveCount(0);
+    } finally {
+      if (consultaId) {
+        await cleanupConsultationEvents(request, env, adminToken, consultaId);
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${consultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      if (patientId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${patientId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+    }
+  });
+
   test("api crea consulta manual atribuyendo el medico activo", async ({ request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
@@ -1766,14 +1830,14 @@ async function createDemoPatient(
   request: APIRequestContext,
   env: Record<string, string>,
   token: string,
-  data: Record<string, string>
+  data: Record<string, string | boolean>
 ) {
   const response = await request.post(`${pocketBaseUrl(env)}/api/collections/pacientes/records`, {
     headers: { Authorization: `Bearer ${token}` },
     data,
   });
   expect(response.ok()).toBeTruthy();
-  return response.json() as Promise<Record<string, string>>;
+  return response.json() as Promise<Record<string, string | boolean> & { id: string }>;
 }
 
 async function createDemoAppointment(
