@@ -43,6 +43,8 @@ Se inventariarán componentes, navegación y rutas `/api/desktop-sync/v1/*`. La 
 
 La alternativa de eliminar todo el código de escritorio del release se descarta inicialmente porque sus APIs pueden ser necesarias para clientes activados. La alternativa de publicarlo sin auditoría se descarta por ampliar la superficie de ataque y por el estado incompleto del cambio.
 
+En este release `DESKTOP_SYNC_ENABLED` permanece sin definir tanto en producción como en staging. La habilitación de un piloto se evaluará en un cambio separado después de completar las tareas pendientes de escritorio.
+
 ### 4. Separar la reconciliación de nuevas actualizaciones de dependencias
 
 El release conserva Next.js 16.3.0 y el lockfile ya verificado. Las actualizaciones disponibles de React y PocketBase se atienden en otro cambio para mantener acotada la causa de cualquier regresión. Antes de publicar se ejecutan `npm ci`, auditoría, lint estricto, TypeScript, pruebas locales, circuitos E2E críticos y build standalone.
@@ -74,7 +76,3 @@ Se registra el SHA previo de `main`, el SHA del PR y el SHA observado en el prov
 7. Confirmar proveedor, ramas y SHA desplegados; obtener aprobación antes del merge.
 8. Fusionar, esperar el despliegue, comprobar el SHA efectivo y ejecutar smoke tests no destructivos.
 9. Si falla una verificación, revertir el merge y confirmar que el proveedor vuelve al SHA estable anterior.
-
-## Open Questions
-
-- ¿Las APIs de sincronización de escritorio deben quedar disponibles en producción web para un piloto actual o deben permanecer deshabilitadas hasta completar las nueve tareas pendientes?
