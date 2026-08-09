@@ -23,4 +23,4 @@
 
 - [x] 3.1 Validar OpenSpec del cambio.
 - [x] 3.2 Ejecutar build de Next.js.
-- [ ] 3.3 Verificar visualmente la accion disponible en la pantalla.
+- [x] 3.3 Verificar visualmente la accion disponible en la pantalla.
