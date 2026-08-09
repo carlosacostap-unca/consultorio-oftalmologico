@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Consulta, Patient } from "@/lib/types";
 import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patient-merge";
+import { buildActiveRecordFilter } from "@/lib/desktop-record-filter";
+import { isDesktopRuntime } from "@/lib/desktop-runtime";
 
 export default function PacientesPage() {
   const router = useRouter();
@@ -89,7 +91,7 @@ export default function PacientesPage() {
     setOpeningPatientId(id);
     try {
       const latestConsulta = await pb.collection("consultas").getList<Consulta>(1, 1, {
-        filter: `paciente_id = "${id}" && sync_deleted != true`,
+        filter: buildActiveRecordFilter(`paciente_id = "${id}"`, isDesktopRuntime()),
         sort: "-fecha,-created",
         requestKey: null,
       });

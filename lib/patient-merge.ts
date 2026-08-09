@@ -1,8 +1,9 @@
 import type { Patient } from "./types";
+import { DESKTOP_ACTIVE_RECORD_FILTER } from "./desktop-record-filter.ts";
 
 export const MERGED_PATIENT_STATUS = "fusionado";
 export const ACTIVE_PATIENT_FILTER = `estado_registro != "${MERGED_PATIENT_STATUS}"`;
-export const DESKTOP_ACTIVE_PATIENT_FILTER = `${ACTIVE_PATIENT_FILTER} && sync_deleted != true`;
+export const DESKTOP_ACTIVE_PATIENT_FILTER = `${ACTIVE_PATIENT_FILTER} && ${DESKTOP_ACTIVE_RECORD_FILTER}`;
 
 export function isMergedPatient(patient: Pick<Patient, "estado_registro" | "fusionado_en_paciente_id"> | null | undefined) {
   return Boolean(patient?.fusionado_en_paciente_id || patient?.estado_registro === MERGED_PATIENT_STATUS);
