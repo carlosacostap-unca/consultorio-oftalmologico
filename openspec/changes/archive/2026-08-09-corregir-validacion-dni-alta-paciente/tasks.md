@@ -12,4 +12,4 @@
 
 - [x] 3.1 Agregar o actualizar pruebas enfocadas en duplicados y fallas de validacion.
 - [x] 3.2 Ejecutar OpenSpec validate, pruebas relevantes y build de produccion.
-- [ ] 3.3 Publicar el cambio y verificar que la ruta publica responda correctamente.
+- [x] 3.3 Publicar el cambio y verificar que la ruta publica responda correctamente.
