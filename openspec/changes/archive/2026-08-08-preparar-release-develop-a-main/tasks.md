@@ -48,13 +48,17 @@
   - Evidencia: PR draft `#14`, base `main@9d30848`, cabeza `codex/preparar-release-develop-a-main@1b3ddc4`, 133 archivos, estado `MERGEABLE/CLEAN`; GitHub no reporta checks configurados para la rama.
 - [x] 5.2 Presentar el destino, los SHA, las verificaciones y el plan de rollback, y obtener aprobación explícita antes de fusionar.
   - Evidencia: se presentaron Dokploy, ramas y SHA efectivos, candidato, controles aprobados y rollback a `main@9d308481124f3e35656cd0eaaf1f67eb6c1bf5ff`; el propietario confirmó explícitamente el merge el 2026-08-08.
-- [ ] 5.3 Fusionar el PR aprobado, esperar el despliegue y comprobar que el SHA efectivo coincide con el release esperado.
-- [ ] 5.4 Ejecutar smoke tests no destructivos en producción sobre acceso, turnos, consultas, recetas, antecedentes, DNI e impresiones.
-- [ ] 5.5 Si falla una verificación bloqueante, revertir el merge con un commit trazable y confirmar el retorno al SHA estable previo.
+- [x] 5.3 Fusionar el PR aprobado, esperar el despliegue y comprobar que el SHA efectivo coincide con el release esperado.
+  - Evidencia: PR `#14` fusionado mediante merge commit `400cbc8dc14e0c83451c931367ad4db85de05962`; Dokploy informó `Done` y el mismo SHA para `consultorio-oftalmologico`.
+- [x] 5.4 Ejecutar smoke tests no destructivos en producción sobre acceso, turnos, consultas, recetas, antecedentes, DNI e impresiones.
+  - Evidencia: sesión autenticada y navegación de sólo lectura correctas en dashboard, jornada, pacientes, alta con documento, consultas y recetas; una consulta legacy mostró `DIABETES` presionado y la ficha mostró Diabetes activa; las dos vistas imprimibles cargaron y una consulta reciente mostró el médico responsable correcto.
+  - Seguimiento no bloqueante: el informe imprimible de la consulta legacy no hereda el antecedente del paciente. El blob `01245cf79b42054215a018414f435987441cbb00` de esa pantalla es idéntico en `main@9d30848` y en el release, por lo que no es una regresión de esta publicación y requiere un cambio separado.
+- [x] 5.5 Si falla una verificación bloqueante, revertir el merge con un commit trazable y confirmar el retorno al SHA estable previo.
+  - Evidencia: no se detectó una regresión bloqueante y no se ejecutó rollback; se conserva `9d308481124f3e35656cd0eaaf1f67eb6c1bf5ff` como referencia estable anterior.
 
 ## 6. Cierre documental
 
-- [ ] 6.1 Registrar en estas tareas los comandos, resultados, SHA y evidencias finales del release o de cualquier bloqueo.
-  - Evidencia parcial: se registraron baseline, merge, auditoría de seguridad, verificaciones locales, E2E, PR y destinos efectivos de Dokploy; falta completar despliegue o rollback.
-- [ ] 6.2 Ejecutar `openspec validate --all --strict` y dejar el cambio listo para sincronizar y archivar después del release exitoso.
-  - Evidencia parcial: `openspec validate --all --strict` aprobó 48/48 elementos; la sincronización y el archivado esperan el release exitoso.
+- [x] 6.1 Registrar en estas tareas los comandos, resultados, SHA y evidencias finales del release o de cualquier bloqueo.
+  - Evidencia: se registraron baseline, merge, auditoría de seguridad, verificaciones locales, E2E, PR, destinos efectivos, `main@400cbc8dc14e0c83451c931367ad4db85de05962`, despliegue `Done` en Dokploy y smoke test productivo.
+- [x] 6.2 Ejecutar `openspec validate --all --strict` y dejar el cambio listo para sincronizar y archivar después del release exitoso.
+  - Evidencia: `openspec validate --all --strict` aprobó 48/48 elementos después del despliegue y el smoke test; el cambio queda listo para sincronización y archivado.
