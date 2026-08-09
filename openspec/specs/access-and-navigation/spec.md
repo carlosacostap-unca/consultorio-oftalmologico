@@ -50,6 +50,11 @@ El sistema SHALL mostrar una barra lateral acorde al rol activo del usuario aute
 - **THEN** la barra lateral mantiene acceso a Turnos
 - **AND** la pantalla de turnos prioriza la agenda propia del medico autenticado
 
+#### Scenario: Menu de calidad de datos para admin
+- **WHEN** un usuario con rol activo `admin` navega por la aplicacion
+- **THEN** la barra lateral muestra la seccion "Calidad de datos"
+- **AND** la seccion incluye accesos a "Duplicados" y "Fichas duplicadas"
+
 ### Requirement: Cambio de rol durante turnos
 El sistema SHALL aplicar inmediatamente el rol activo cuando el usuario lo cambia desde la navegacion lateral mientras esta en el modulo de turnos.
 
