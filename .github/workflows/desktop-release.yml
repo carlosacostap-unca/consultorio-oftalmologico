@@ -1,0 +1,109 @@
+name: Publicar release de escritorio
+
+on:
+  push:
+    tags:
+      - "desktop-v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-sign-publish-pilot:
+    runs-on: windows-latest
+    environment: desktop-pilot
+    timeout-minutes: 45
+    env:
+      DESKTOP_UPDATE_PRIVATE_KEY: ${{ secrets.DESKTOP_UPDATE_PRIVATE_KEY }}
+      DESKTOP_UPDATE_KEY_ID: ${{ vars.DESKTOP_UPDATE_KEY_ID }}
+      DESKTOP_UPDATE_PUBLIC_KEYS: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEYS }}
+      DESKTOP_UPDATE_MINIMUM_VERSION: ${{ vars.DESKTOP_UPDATE_MINIMUM_VERSION }}
+      DESKTOP_UPDATE_FEED_URL: ${{ vars.DESKTOP_UPDATE_FEED_URL }}
+      IDRIVE_E2_ENDPOINT: ${{ vars.IDRIVE_E2_ENDPOINT }}
+      IDRIVE_E2_REGION: ${{ vars.IDRIVE_E2_REGION }}
+      IDRIVE_E2_BUCKET: ${{ vars.IDRIVE_E2_BUCKET }}
+      IDRIVE_E2_ACCESS_KEY_ID: ${{ secrets.IDRIVE_E2_ACCESS_KEY_ID }}
+      IDRIVE_E2_SECRET_ACCESS_KEY: ${{ secrets.IDRIVE_E2_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Obtener el código y el historial completo
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.19.1
+          cache: npm
+
+      - name: Validar etiqueta, versión y pertenencia a main
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_NAME -notmatch '^desktop-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z.-]+)?$') { throw 'Etiqueta de escritorio inválida.' }
+          $releaseVersion = $env:GITHUB_REF_NAME.Substring(9)
+          $packageVersion = (Get-Content -Raw package.json | ConvertFrom-Json).version
+          if ($releaseVersion -ne $packageVersion) { throw "La etiqueta $releaseVersion no coincide con package.json $packageVersion." }
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor $env:GITHUB_SHA origin/main
+          if ($LASTEXITCODE -ne 0) { throw 'La etiqueta no apunta a un commit integrado en main.' }
+          "RELEASE_VERSION=$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Instalación limpia
+        run: npm ci
+
+      - name: Auditoría de dependencias de producción
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Lint
+        run: npm run lint
+
+      - name: TypeScript
+        run: npx tsc --noEmit
+
+      - name: Pruebas
+        run: npm run test:sync-core
+
+      - name: Build y empaquetado NSIS x64
+        run: npm run desktop:dist
+
+      - name: Generar política, manifiesto canónico y firma Ed25519
+        shell: pwsh
+        run: |
+          if (-not $env:DESKTOP_UPDATE_MINIMUM_VERSION) { throw 'Falta DESKTOP_UPDATE_MINIMUM_VERSION.' }
+          $releaseDir = (Resolve-Path dist-desktop).Path
+          $artifacts = Get-ChildItem -LiteralPath $releaseDir -File | Where-Object { $_.Extension -in '.exe', '.yml', '.blockmap' }
+          if (-not ($artifacts | Where-Object Extension -eq '.exe')) { throw 'No se generó el instalador NSIS.' }
+          if (-not ($artifacts | Where-Object Name -eq 'latest.yml')) { throw 'No se generó latest.yml.' }
+          $manifestArgs = @('--version', $env:RELEASE_VERSION, '--output', (Join-Path $releaseDir 'release-manifest.json'))
+          foreach ($artifact in $artifacts) { $manifestArgs += @('--artifact', $artifact.FullName) }
+          & node scripts/generate_desktop_release_manifest.mjs @manifestArgs
+          & node scripts/generate_desktop_release_policy.mjs --version $env:RELEASE_VERSION --minimum-version $env:DESKTOP_UPDATE_MINIMUM_VERSION --kind normal --output (Join-Path $releaseDir 'release-policy.json')
+          & node scripts/sign_desktop_release_manifest.mjs --manifest (Join-Path $releaseDir 'release-manifest.json') --output (Join-Path $releaseDir 'release-manifest.sig')
+
+      - name: Conservar evidencia del release
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ github.ref_name }}-signed
+          path: |
+            dist-desktop/*.exe
+            dist-desktop/*.blockmap
+            dist-desktop/latest.yml
+            dist-desktop/release-manifest.json
+            dist-desktop/release-manifest.sig
+            dist-desktop/release-policy.json
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publicar objetos inmutables y mover el puntero pilot
+        run: >-
+          node scripts/publish_desktop_release.mjs
+          --channel pilot
+          --directory dist-desktop
+          --manifest release-manifest.json
+          --signature release-manifest.sig
+          --policy release-policy.json

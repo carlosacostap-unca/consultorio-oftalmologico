@@ -19,6 +19,8 @@ import type {
 
 export const DESKTOP_SYNC_STATUS_EVENT = "consultorio:desktop-sync-status";
 let syncRunning = false;
+let maintenanceRequested = false;
+let activeSyncPromise: Promise<SyncStatusSnapshot> | null = null;
 const executeSingleFlight = createSingleFlightRunner(async () => {
   syncRunning = true;
   try {
@@ -29,7 +31,23 @@ const executeSingleFlight = createSingleFlightRunner(async () => {
 });
 
 export function runDesktopSync(): Promise<SyncStatusSnapshot> {
-  return executeSingleFlight();
+  if (maintenanceRequested) return getDesktopSyncStatus();
+  const promise = executeSingleFlight();
+  activeSyncPromise = promise;
+  void promise.finally(() => {
+    if (activeSyncPromise === promise) activeSyncPromise = null;
+  });
+  return promise;
+}
+
+export async function prepareDesktopSyncForMaintenance(): Promise<SyncStatusSnapshot> {
+  maintenanceRequested = true;
+  if (activeSyncPromise) await activeSyncPromise;
+  return getDesktopSyncStatus();
+}
+
+export function releaseDesktopSyncMaintenance() {
+  maintenanceRequested = false;
 }
 
 export async function getDesktopSyncStatus(): Promise<SyncStatusSnapshot> {

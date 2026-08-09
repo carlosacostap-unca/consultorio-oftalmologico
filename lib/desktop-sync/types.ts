@@ -1,3 +1,5 @@
+import type { DesktopUpdateChannel, DesktopUpdateStatus } from "../desktop-updates/types";
+
 export const SYNC_ENTITIES = ["pacientes", "consultas", "recetas"] as const;
 
 export type SyncEntity = (typeof SYNC_ENTITIES)[number];
@@ -27,6 +29,13 @@ export interface SyncDevice {
   lastSeenAt?: string;
   lastSyncAt?: string;
   appVersion?: string;
+  updateChannel: DesktopUpdateChannel;
+  updatesEnabled: boolean;
+  installedVersion?: string;
+  lastUpdateStatus?: DesktopUpdateStatus;
+  lastUpdateAt?: string;
+  lastUpdateVersion?: string;
+  lastUpdateCode?: string;
 }
 
 export interface SyncCursor {

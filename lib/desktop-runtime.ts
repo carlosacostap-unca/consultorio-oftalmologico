@@ -34,6 +34,34 @@ export interface ConsultorioDesktopBridge {
       body?: unknown;
     }): Promise<{ status: number; ok: boolean; body: Record<string, unknown> }>;
   };
+  updates: {
+    getState(): Promise<DesktopUpdateClientState>;
+    check(): Promise<DesktopUpdateClientState>;
+    postpone(): Promise<DesktopUpdateClientState>;
+    install(): Promise<{ ok: true; backupDirectory: string }>;
+    onState(callback: (state: DesktopUpdateClientState) => void): () => void;
+  };
+  maintenance: {
+    ready(requestId: string, status: DesktopMaintenanceStatus): Promise<boolean>;
+    onPrepare(callback: (requestId: string) => void): () => void;
+    onRelease(callback: () => void): () => void;
+  };
+}
+
+export interface DesktopMaintenanceStatus {
+  ok: boolean;
+  pending: number;
+  errors: number;
+  conflicts: number;
+}
+
+export interface DesktopUpdateClientState {
+  status: "idle" | "checking" | "available" | "mandatory" | "downloading" | "ready" | "postponed" | "error";
+  version: string | null;
+  kind: "normal" | "mandatory" | null;
+  percent: number | null;
+  checkedAt: string | null;
+  code: string | null;
 }
 
 declare global {

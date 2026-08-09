@@ -16,6 +16,22 @@ Los endpoints de sincronización agregarán:
 
 Nunca se deben incluir credenciales administrativas de PocketBase en el instalador, variables `NEXT_PUBLIC_*`, logs ni respuestas de API.
 
+## Variables del servidor de actualizaciones
+
+El procedimiento completo de publicación, promoción, detención, rotación y recuperación está en [desktop-automatic-updates-runbook.md](desktop-automatic-updates-runbook.md).
+
+La puerta de actualizaciones se configura en Dokploy exclusivamente con variables de runtime del servidor:
+
+- `DESKTOP_UPDATES_ENABLED`: habilita las rutas de distribución cuando vale `true`.
+- `DESKTOP_UPDATE_FEED_URL`: URL HTTPS central bajo `/api/desktop-updates/v1/feed`; electron-builder la incorpora al metadato interno del instalador.
+- `DESKTOP_UPDATE_PUBLIC_KEY`: clave pública Ed25519 en formato DER codificado en base64. No es secreta, pero no se expone mediante `NEXT_PUBLIC_*`.
+- `DESKTOP_UPDATE_PRESIGNED_TTL_SECONDS`: vigencia de cada enlace temporal; por defecto 900 segundos y siempre entre 60 y 3600.
+- `IDRIVE_E2_ENDPOINT` e `IDRIVE_E2_REGION`: origen HTTPS y región exactos informados por iDrive e2.
+- `IDRIVE_E2_BUCKET`: bucket privado dedicado a releases de escritorio.
+- `IDRIVE_E2_ACCESS_KEY_ID` e `IDRIVE_E2_SECRET_ACCESS_KEY`: credencial de sólo lectura, limitada al bucket, usada únicamente por Dokploy.
+
+GitHub Actions utilizará una credencial distinta con permisos mínimos de publicación y la clave privada Ed25519. Ninguna clave de iDrive ni clave privada de firma se guarda en el repositorio, se incluye en el instalador o se devuelve desde una ruta HTTP.
+
 ## Variables y estado de cada PC
 
 Electron conserva bajo el perfil del usuario de Windows:

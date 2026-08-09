@@ -27,6 +27,7 @@
 /desktop/pocketbase/pocketbase.exe
 /desktop/pocketbase/*.zip
 /desktop/pocketbase/.prepared-version.json
+/desktop/generated/
 
 # misc
 .DS_Store
