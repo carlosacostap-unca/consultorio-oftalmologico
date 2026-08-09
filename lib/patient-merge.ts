@@ -1,7 +1,8 @@
 import type { Patient } from "./types";
 
 export const MERGED_PATIENT_STATUS = "fusionado";
-export const ACTIVE_PATIENT_FILTER = `estado_registro != "${MERGED_PATIENT_STATUS}" && sync_deleted != true`;
+export const ACTIVE_PATIENT_FILTER = `estado_registro != "${MERGED_PATIENT_STATUS}"`;
+export const DESKTOP_ACTIVE_PATIENT_FILTER = `${ACTIVE_PATIENT_FILTER} && sync_deleted != true`;
 
 export function isMergedPatient(patient: Pick<Patient, "estado_registro" | "fusionado_en_paciente_id"> | null | undefined) {
   return Boolean(patient?.fusionado_en_paciente_id || patient?.estado_registro === MERGED_PATIENT_STATUS);
