@@ -2,7 +2,7 @@
 
 Al iniciar este cambio, `origin/main` apunta a `9d30848` y `origin/develop` a `38f3627`, con ancestro común `65c942c`. `main` tiene cinco commits propios y `develop` veintiocho; dos correcciones de antecedentes son equivalentes entre ramas, mientras `fbd817b` aporta a `main` la resolución del médico responsable en impresiones. La simulación de merge detecta un conflicto textual en `app/consultas/[id]/page.tsx`, donde la versión de `develop` reemplaza un `any[]` por `Receta[]`.
 
-El estado final también difiere en dependencias y controles: `main` usa Next.js 16.2.6 y `eslint`, mientras `develop` usa Next.js 16.3.0 y `eslint --max-warnings=0`. La auditoría vigente informa cero vulnerabilidades y Next.js 16.3.0 es la versión estable actual. El despliegue usa Dokploy en un VPS: producción sigue `main@9d308481124f3e35656cd0eaaf1f67eb6c1bf5ff` y staging sigue `develop@38f36275774f59f7352d28e4c45c0dcfaee6374f`. `DESKTOP_SYNC_ENABLED` no está definida en ninguno de los dos entornos, por lo que la API de sincronización permanece deshabilitada.
+El estado final también difiere en dependencias y controles: `main` usaba Next.js 16.2.6 y `eslint`, mientras `develop` incorporó Next.js 16.3.0 y `eslint --max-warnings=0`. La auditoría vigente informa cero vulnerabilidades. El despliegue usa Dokploy en un VPS: producción pasó de `main@9d308481124f3e35656cd0eaaf1f67eb6c1bf5ff` al merge verificado `main@400cbc8dc14e0c83451c931367ad4db85de05962`, mientras staging continúa en `develop@38f36275774f59f7352d28e4c45c0dcfaee6374f`. `DESKTOP_SYNC_ENABLED` no está definida en ninguno de los dos entornos, por lo que la API de sincronización permanece deshabilitada.
 
 `develop` contiene además el runtime y las APIs de escritorio offline. Su OpenSpec conserva nueve tareas pendientes relacionadas con pruebas de interrupción, sincronización, conflictos, impresiones, instalador y piloto. La reconciliación debe distinguir entre código de servidor necesario y una capacidad incompleta expuesta a usuarios web.
 
@@ -78,4 +78,3 @@ Se registra el SHA previo de `main`, el SHA del PR y el SHA observado en el prov
 ## Open Questions
 
 - ¿Las APIs de sincronización de escritorio deben quedar disponibles en producción web para un piloto actual o deben permanecer deshabilitadas hasta completar las nueve tareas pendientes?
-- ¿El proveedor permite promover exactamente un deployment de staging ya verificado a producción o siempre reconstruye desde `main`?
