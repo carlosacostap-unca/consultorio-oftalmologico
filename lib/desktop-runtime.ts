@@ -1,3 +1,5 @@
+import type { CentralAuthenticationResult } from "@/lib/desktop-sync/activation-policy";
+
 export interface DesktopRuntimeConfig {
   appVersion: string;
   isDesktop: true;
@@ -24,10 +26,7 @@ export interface ConsultorioDesktopBridge {
     upsertSystemSetting(input: { id: string; key: string; value: unknown }): Promise<boolean>;
   };
   central: {
-    authenticate(input: { pocketBaseUrl: string; email: string; password: string }): Promise<{
-      user: Record<string, unknown> & { id: string };
-      validatedAt: string;
-    }>;
+    authenticate(input: { pocketBaseUrl: string; email: string; password: string }): Promise<CentralAuthenticationResult>;
     request(input: {
       baseUrl: string;
       path: `/api/desktop-sync/v1/${string}`;

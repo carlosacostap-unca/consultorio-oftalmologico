@@ -34,7 +34,7 @@
 - [x] 4.3 Replicar el usuario activado en PocketBase local sin almacenar contraseña reversible
 - [x] 4.4 Implementar login online/offline, renovación de token central, estado de última validación y reautenticación
 - [x] 4.5 Bloquear con explicación las mutaciones offline de módulos fuera de pacientes, consultas y recetas
-- [ ] 4.6 Probar activación interrumpida, usuario no activado, usuario sin contraseña y revocación al reconectar
+- [x] 4.6 Probar activación interrumpida, usuario no activado, usuario sin contraseña y revocación al reconectar
 
 ## 5. Motor de sincronización
 
@@ -43,7 +43,7 @@
 - [x] 5.3 Implementar pull por cursores y upsert/baja local con supresión de eco
 - [x] 5.4 Aplicar confirmaciones, actualizar fichas definitivas y cerrar operaciones idempotentemente
 - [x] 5.5 Integrar sincronización al iniciar, periódica, por reconexión y manual
-- [ ] 5.6 Probar reinicio con pendientes, respuesta perdida, corte durante lote y dos sincronizaciones solicitadas a la vez
+- [x] 5.6 Probar reinicio con pendientes, respuesta perdida, corte durante lote y dos sincronizaciones solicitadas a la vez
 
 ## 6. Flujos clínicos offline
 

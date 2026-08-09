@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain, safeStorage, shell } from "electron";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { randomBytes, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -308,6 +308,12 @@ async function readEncryptedSecret(key) {
   }
 }
 
+async function deleteEncryptedSecret(key) {
+  await unlink(secretPath(key)).catch((error) => {
+    if (error?.code !== "ENOENT") throw error;
+  });
+}
+
 function validatedEndpoint(value) {
   const endpoint = new URL(String(value || "").trim());
   const local = endpoint.hostname === "127.0.0.1" || endpoint.hostname === "localhost";
@@ -342,9 +348,15 @@ function registerIpc() {
       signal: AbortSignal.timeout(15_000),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.token || !data.record?.id) throw new Error("No se pudo validar el usuario contra el servidor central.");
+    if (!response.ok || !data.token || !data.record?.id) {
+      if (response.status >= 400 && response.status < 500) {
+        await deleteEncryptedSecret("central-auth-token");
+        return { ok: false, reason: "rejected" };
+      }
+      throw new Error("No se pudo validar el usuario contra el servidor central.");
+    }
     await writeEncryptedSecret("central-auth-token", data.token);
-    return { user: data.record, validatedAt: new Date().toISOString() };
+    return { ok: true, user: data.record, validatedAt: new Date().toISOString() };
   });
   ipcMain.handle("desktop:central:request", async (_event, input) => {
     const baseUrl = validatedEndpoint(input?.baseUrl);
@@ -373,10 +385,7 @@ function registerIpc() {
   });
   ipcMain.handle("desktop:secret:delete", async (_event, key) => {
     if (key !== "desktop-activation") throw new Error("Secreto no disponible para el renderer.");
-    const { unlink } = await import("node:fs/promises");
-    await unlink(secretPath(key)).catch((error) => {
-      if (error?.code !== "ENOENT") throw error;
-    });
+    await deleteEncryptedSecret(key);
     return true;
   });
   ipcMain.handle("desktop:diagnostics:open", async () => shell.openPath(runtime.logsDir));
