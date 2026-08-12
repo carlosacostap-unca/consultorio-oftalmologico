@@ -28,10 +28,20 @@ interface CreateUserForm {
   roles: UserRole[];
 }
 
+interface PasswordResetForm {
+  password: string;
+  passwordConfirm: string;
+}
+
 const emptyCreateUserForm: CreateUserForm = {
   name: "",
   email: "",
   roles: ["secretaria"],
+};
+
+const emptyPasswordResetForm: PasswordResetForm = {
+  password: "",
+  passwordConfirm: "",
 };
 
 export default function UsuariosPage() {
@@ -44,6 +54,11 @@ export default function UsuariosPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [createUserForm, setCreateUserForm] = useState<CreateUserForm>(emptyCreateUserForm);
+  const [passwordResetUser, setPasswordResetUser] = useState<ManagedUser | null>(null);
+  const [passwordResetForm, setPasswordResetForm] =
+    useState<PasswordResetForm>(emptyPasswordResetForm);
+  const [passwordResetError, setPasswordResetError] = useState("");
+  const [passwordResetNotice, setPasswordResetNotice] = useState("");
 
   const loadUsers = useCallback(async (role: UserRole | null) => {
     const response = await fetch("/api/usuarios", {
@@ -261,6 +276,65 @@ export default function UsuariosPage() {
     }
   };
 
+  const closePasswordReset = () => {
+    setPasswordResetUser(null);
+    setPasswordResetForm(emptyPasswordResetForm);
+    setPasswordResetError("");
+  };
+
+  const openPasswordReset = (user: ManagedUser) => {
+    setPasswordResetUser(user);
+    setPasswordResetForm(emptyPasswordResetForm);
+    setPasswordResetError("");
+    setPasswordResetNotice("");
+  };
+
+  const resetPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!passwordResetUser) return;
+
+    setPasswordResetError("");
+    if (passwordResetForm.password.length < 8) {
+      setPasswordResetError("La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+    if (passwordResetForm.password !== passwordResetForm.passwordConfirm) {
+      setPasswordResetError("Las contraseñas no coinciden.");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/usuarios/password/reset", {
+        method: "PATCH",
+        headers: {
+          ...activeRoleJsonHeaders(pb.authStore.token, activeRole),
+        },
+        body: JSON.stringify({
+          userId: passwordResetUser.id,
+          password: passwordResetForm.password,
+          passwordConfirm: passwordResetForm.passwordConfirm,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new Error(data?.error || "No se pudo restablecer la contraseña.");
+      }
+
+      const userLabel = passwordResetUser.name || passwordResetUser.email;
+      closePasswordReset();
+      setPasswordResetNotice(`Contraseña restablecida para ${userLabel}.`);
+    } catch (error) {
+      console.error("Error al restablecer contraseña:", error);
+      setPasswordResetError(
+        error instanceof Error ? error.message : "No se pudo restablecer la contraseña."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const toggleCreateUserRole = (role: UserRole) => {
     setCreateUserForm((prev) => {
       const roles = prev.roles.includes(role)
@@ -399,6 +473,14 @@ export default function UsuariosPage() {
               </div>
             </form>
           )}
+          {passwordResetNotice && (
+            <div
+              role="status"
+              className="border-b border-emerald-200 bg-emerald-50 px-6 py-3 text-sm text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300"
+            >
+              {passwordResetNotice}
+            </div>
+          )}
           <div className="overflow-x-auto">
             <table className="w-full text-left">
               <thead className="bg-zinc-50 dark:bg-zinc-950 border-b border-zinc-200 dark:border-zinc-800">
@@ -438,18 +520,28 @@ export default function UsuariosPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      {currentUser?.id === user.id ? (
-                        <span className="text-xs text-zinc-500 dark:text-zinc-400">Cuenta activa</span>
-                      ) : (
+                      <div className="flex flex-wrap items-center justify-end gap-2">
                         <button
                           type="button"
-                          onClick={() => deleteUser(user)}
+                          onClick={() => openPasswordReset(user)}
                           disabled={isSaving}
-                          className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                          className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/20"
                         >
-                          Eliminar
+                          Restablecer contraseña
                         </button>
-                      )}
+                        {currentUser?.id === user.id ? (
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">Cuenta activa</span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => deleteUser(user)}
+                            disabled={isSaving}
+                            className="rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/20"
+                          >
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -458,6 +550,104 @@ export default function UsuariosPage() {
           </div>
         </section>
       </div>
+
+      {passwordResetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="password-reset-title"
+            className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <form onSubmit={resetPassword} noValidate>
+              <h2
+                id="password-reset-title"
+                className="text-xl font-semibold text-zinc-900 dark:text-zinc-100"
+              >
+                Restablecer contraseña
+              </h2>
+              <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+                Definí una nueva contraseña para {passwordResetUser.name || passwordResetUser.email}.
+              </p>
+              {passwordResetUser.name && (
+                <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-500">
+                  {passwordResetUser.email}
+                </p>
+              )}
+              <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                Compartí la nueva contraseña con el usuario por un medio seguro.
+              </p>
+
+              <div className="mt-5 space-y-4">
+                <div>
+                  <label
+                    htmlFor="password-reset-new"
+                    className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                  >
+                    Nueva contraseña
+                  </label>
+                  <input
+                    id="password-reset-new"
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordResetForm.password}
+                    onChange={(event) =>
+                      setPasswordResetForm((prev) => ({ ...prev, password: event.target.value }))
+                    }
+                    autoFocus
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+                  />
+                </div>
+                <div>
+                  <label
+                    htmlFor="password-reset-confirm"
+                    className="mb-2 block text-sm font-medium text-zinc-700 dark:text-zinc-300"
+                  >
+                    Repetir contraseña
+                  </label>
+                  <input
+                    id="password-reset-confirm"
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordResetForm.passwordConfirm}
+                    onChange={(event) =>
+                      setPasswordResetForm((prev) => ({
+                        ...prev,
+                        passwordConfirm: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-lg border border-zinc-200 bg-white px-3 py-2 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-200"
+                  />
+                </div>
+              </div>
+
+              {passwordResetError && (
+                <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-400">
+                  {passwordResetError}
+                </p>
+              )}
+
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closePasswordReset}
+                  disabled={isSaving}
+                  className="rounded-xl px-4 py-2 text-zinc-700 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="rounded-xl bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isSaving ? "Guardando..." : "Guardar nueva contraseña"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
