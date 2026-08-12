@@ -128,6 +128,90 @@ test.describe("configuracion de contrasena post login", () => {
   });
 });
 
+test.describe("restablecimiento administrativo de contrasenas", () => {
+  test("admin restablece la contrasena de un usuario desde el listado", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const targetEmail = "secretaria.demo@consultorio.local";
+    const targetUserId = await getUserIdByEmail(request, env, adminToken, targetEmail);
+    const newPassword = "Restablecida123!";
+
+    try {
+      await login(page, "admin.demo@consultorio.local");
+      await page.goto("/usuarios");
+
+      const userRow = page.getByText(targetEmail, { exact: true }).locator("xpath=ancestor::tr[1]");
+      await userRow.getByRole("button", { name: "Restablecer contraseña" }).click();
+
+      const dialog = page.getByRole("dialog", { name: "Restablecer contraseña" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog.getByText(targetEmail, { exact: true })).toBeVisible();
+
+      await dialog.getByLabel("Nueva contraseña").fill("corta");
+      await dialog.getByLabel("Repetir contraseña").fill("corta");
+      await dialog.getByRole("button", { name: "Guardar nueva contraseña" }).click();
+      await expect(dialog.getByText("La contraseña debe tener al menos 8 caracteres.")).toBeVisible();
+
+      await dialog.getByLabel("Nueva contraseña").fill(newPassword);
+      await dialog.getByLabel("Repetir contraseña").fill("Distinta123!");
+      await dialog.getByRole("button", { name: "Guardar nueva contraseña" }).click();
+      await expect(dialog.getByText("Las contraseñas no coinciden.")).toBeVisible();
+
+      await dialog.getByLabel("Repetir contraseña").fill(newPassword);
+      const passwordResponsePromise = page.waitForResponse(
+        (response) =>
+          response.url().includes("/api/usuarios/password/reset") &&
+          response.request().method() === "PATCH"
+      );
+      await dialog.getByRole("button", { name: "Guardar nueva contraseña" }).click();
+      const passwordResponse = await passwordResponsePromise;
+      expect(passwordResponse.ok()).toBeTruthy();
+      const passwordResponseBody = await passwordResponse.json();
+      expect(passwordResponseBody).not.toHaveProperty("password");
+      expect(passwordResponseBody).not.toHaveProperty("passwordConfirm");
+
+      await expect(page.getByRole("dialog", { name: "Restablecer contraseña" })).toHaveCount(0);
+      await expect(page.getByText("Contraseña restablecida para Secretaria Demo.")).toBeVisible();
+
+      const authentication = await request.post(
+        `${pocketBaseUrl(env)}/api/collections/users/auth-with-password`,
+        { data: { identity: targetEmail, password: newPassword } }
+      );
+      expect(authentication.ok()).toBeTruthy();
+    } finally {
+      await resetDemoUserPassword(request, env, adminToken, targetUserId);
+    }
+  });
+
+  test("usuario sin rol activo admin no puede restablecer contrasenas", async ({ request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const secretaryToken = await getUserToken(request, env, "secretaria.demo@consultorio.local");
+    const targetUserId = await getUserIdByEmail(
+      request,
+      env,
+      adminToken,
+      "medico.demo@consultorio.local"
+    );
+
+    const response = await request.patch("/api/usuarios/password/reset", {
+      headers: {
+        Authorization: `Bearer ${secretaryToken}`,
+        [ACTIVE_ROLE_HEADER]: "secretaria",
+      },
+      data: {
+        userId: targetUserId,
+        password: "NoAutorizada123!",
+        passwordConfirm: "NoAutorizada123!",
+      },
+    });
+
+    expect(response.status()).toBe(403);
+  });
+});
+
 test.describe("roles y otorgamiento de turnos", () => {
   test("secretaria ingresa y puede ver todos los medicos", async ({ page }) => {
     await login(page, "secretaria.demo@consultorio.local");
