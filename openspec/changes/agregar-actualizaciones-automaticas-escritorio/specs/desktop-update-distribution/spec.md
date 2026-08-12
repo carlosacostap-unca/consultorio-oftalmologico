@@ -35,6 +35,13 @@ El sistema SHALL conservar los artefactos en almacenamiento privado y SHALL auto
 - **THEN** el servidor rechaza la solicitud sin generar una URL de descarga
 - **AND** registra el motivo técnico sin credenciales ni información clínica
 
+#### Scenario: Migrar un registro de equipo legacy
+- **WHEN** `sync_devices` conserva campos legacy obligatorios y se prepara la habilitación de actualizaciones
+- **THEN** el sistema agrega y completa idempotentemente los campos actuales sin eliminar los anteriores ni recrear la identidad del equipo
+- **AND** activación, búsqueda y contacto aceptan ambos formatos durante la transición
+- **AND** los índices únicos nuevos se crean después de verificar el backfill técnico
+- **AND** no modifica registros de pacientes, consultas ni recetas
+
 ### Requirement: Canales piloto y estable
 El sistema SHALL asignar de manera determinista cada equipo a `pilot` o `stable` y MUST promover a estable exactamente los artefactos ya verificados en piloto.
 

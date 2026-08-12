@@ -40,6 +40,8 @@ Rutas Node de la aplicación central bajo `/api/desktop-updates/v1` validarán e
 
 `sync_devices` recibirá de forma aditiva los datos mínimos para `update_channel`, habilitación, versión instalada y último resultado informado. No se modifican colecciones clínicas. Se descarta colocar una clave de sólo lectura dentro del cliente porque cualquier secreto distribuido puede extraerse y no permite revocar un equipo de forma individual.
 
+La colección central existente puede conservar el contrato legacy `device_key`, `nombre`, `modo`, `habilitado`, `usuario_id` y `ultimo_contacto_at`. La migración agregará los campos actuales sin eliminar ni renombrar los anteriores, completará idempotentemente cada registro técnico existente y creará los índices nuevos sólo después del backfill. Mientras dure la transición, activación, búsqueda y contacto escribirán o leerán ambos formatos; un alta nueva satisfará también los campos legacy obligatorios. La puerta de actualizaciones permanecerá deshabilitada hasta verificar esquema, registros e índices. Se descarta reemplazar la colección porque perdería identidad y revocación de equipos ya activados.
+
 ### 3. Electron Updater con instalación exclusivamente controlada
 
 Se utilizará `electron-updater` con el destino NSIS actual y un proveedor genérico apuntando a la puerta central. El proceso principal consultará después de iniciar correctamente, cuando exista sesión central válida, al reconectar, cada seis horas y mediante una acción manual. Una falla de consulta nunca impedirá abrir la copia local.
@@ -90,6 +92,7 @@ Una versión ya instalada no se revertirá automáticamente a un número inferio
 
 1. Confirmar región/endpoint, bucket privado y claves separadas de iDrive e2; habilitar versionado y auditoría.
 2. Agregar de forma aditiva la política de actualización a `sync_devices` y desplegar la puerta central deshabilitada por configuración.
+   Si existe el contrato legacy, desplegar primero la lectura/escritura dual, ejecutar dry-run, agregar campos sin índices únicos, completar registros técnicos y crear los índices recién después de verificar el backfill.
 3. Implementar publicación reproducible, manifiesto firmado y carga a `pilot` sin afectar clientes existentes.
 4. Integrar el updater, estado visual, respaldo y recuperación en una versión bootstrap que todavía se instalará manualmente sobre 0.1.1.
 5. Probar 0.1.1 → bootstrap → versión piloto, incluyendo red cortada, firma inválida, descarga corrupta, respaldo fallido y operaciones pendientes.
