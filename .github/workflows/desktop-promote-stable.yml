@@ -1,0 +1,46 @@
+name: Promover release de escritorio a stable
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Versión SemVer ya publicada y probada en pilot"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-stable-promotion
+  cancel-in-progress: false
+
+jobs:
+  verify-and-promote:
+    runs-on: ubuntu-latest
+    environment: desktop-stable
+    timeout-minutes: 20
+    env:
+      DESKTOP_UPDATE_PUBLIC_KEYS: ${{ vars.DESKTOP_UPDATE_PUBLIC_KEYS }}
+      IDRIVE_E2_ENDPOINT: ${{ vars.IDRIVE_E2_ENDPOINT }}
+      IDRIVE_E2_REGION: ${{ vars.IDRIVE_E2_REGION }}
+      IDRIVE_E2_BUCKET: ${{ vars.IDRIVE_E2_BUCKET }}
+      IDRIVE_E2_ACCESS_KEY_ID: ${{ secrets.IDRIVE_E2_ACCESS_KEY_ID }}
+      IDRIVE_E2_SECRET_ACCESS_KEY: ${{ secrets.IDRIVE_E2_SECRET_ACCESS_KEY }}
+    steps:
+      - name: Obtener scripts del repositorio
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.19.1
+          cache: npm
+
+      - name: Instalar dependencias de producción sin ejecutar scripts
+        run: npm ci --omit=dev --ignore-scripts
+
+      - name: Verificar bytes firmados y promover el mismo release
+        run: node scripts/promote_desktop_release.mjs --version "${{ inputs.version }}"
