@@ -2,6 +2,7 @@ import { ACTIVE_ROLE_HEADER } from "./active-role";
 import { hasAdminRole } from "./permissions";
 import { normalizePocketBaseUrl } from "./pocketbase-url";
 import { isUserRole, normalizeUserRoles } from "./permissions";
+import { fetchWithAdminAuth } from "./pocketbase-admin-request";
 
 const PB_URL = normalizePocketBaseUrl(process.env.POCKETBASE_URL || process.env.NEXT_PUBLIC_POCKETBASE_URL || "");
 
@@ -12,18 +13,13 @@ export async function pbAdmin(path: string, options: RequestInit = {}) {
     throw new Error("POCKETBASE_URL no configurada");
   }
 
-  const token = await adminToken();
-  const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
-
-  if (token) {
-    headers.set("Authorization", `Bearer ${token}`);
-  }
-
-  const response = await fetch(`${PB_URL}${path}`, {
-    ...options,
-    headers,
-    cache: "no-store",
+  const response = await fetchWithAdminAuth({
+    getToken: adminToken,
+    invalidateToken: () => {
+      cachedAdminToken = "";
+    },
+    options,
+    url: `${PB_URL}${path}`,
   });
 
   const text = await response.text();
@@ -84,7 +80,7 @@ async function adminToken() {
   }
 
   const body = JSON.stringify({ identity, password });
-  let response = await fetch(`${PB_URL}/api/admins/auth-with-password`, {
+  let response = await fetch(`${PB_URL}/api/collections/_superusers/auth-with-password`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
@@ -92,7 +88,7 @@ async function adminToken() {
   });
 
   if (!response.ok) {
-    response = await fetch(`${PB_URL}/api/collections/_superusers/auth-with-password`, {
+    response = await fetch(`${PB_URL}/api/admins/auth-with-password`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
