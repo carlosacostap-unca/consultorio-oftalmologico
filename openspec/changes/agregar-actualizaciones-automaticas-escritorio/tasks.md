@@ -50,7 +50,7 @@
 ## 7. Verificación y piloto
 
 - [x] 7.1 Ejecutar auditorías, lint, TypeScript, pruebas unitarias/integración, build Next.js y validación OpenSpec desde una instalación limpia
-- [ ] 7.2 Generar el instalador bootstrap y probar manualmente la actualización desde 0.1.1 preservando base, identidad, activación y accesos directos
+- [x] 7.2 Generar el instalador bootstrap y probar manualmente la actualización desde 0.1.1 preservando base, identidad, activación y accesos directos
 - [ ] 7.3 Publicar una versión posterior sólo en `pilot` y probar detección, descarga, posposición, respaldo, reinicio e instalación con datos de prueba y operaciones pendientes
 - [ ] 7.4 Simular falta de red, token vencido, URL expirada, manifiesto alterado, descarga corrupta y actualización obligatoria sin interrumpir el trabajo local
 - [ ] 7.5 Promover el artefacto probado a `stable`, actualizar los equipos restantes uno por uno y registrar versión, resultado y evidencia de conservación de datos

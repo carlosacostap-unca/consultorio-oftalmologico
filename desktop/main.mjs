@@ -18,6 +18,10 @@ import {
 import { stopManagedServices, waitWithTimeout } from "./update-maintenance.mjs";
 import { assertDesktopPostUpdateHealth } from "./update-recovery.mjs";
 import {
+  initializeDesktopUpdaterWithoutBlocking,
+  resolveElectronAutoUpdater,
+} from "./update-loader.mjs";
+import {
   publicDesktopUpdateState,
   nextDesktopUpdateReminderAt,
   shouldEnableDesktopUpdater,
@@ -624,36 +628,45 @@ async function initializeDesktopUpdater() {
   });
   if (!enabled) return;
 
-  const { autoUpdater } = await import("electron-updater");
-  desktopAutoUpdater = autoUpdater;
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = false;
-  autoUpdater.allowDowngrade = false;
-  autoUpdater.disableWebInstaller = true;
-  autoUpdater.logger = {
-    info: (message) => void log("info", "[updater]", message),
-    warn: (message) => void log("warn", "[updater]", message),
-    error: (message) => void log("error", "[updater]", message),
-  };
-  autoUpdater.on("checking-for-update", () => setDesktopUpdateState({ status: "checking" }));
-  autoUpdater.on("update-available", (info) => setDesktopUpdateState({
-    status: updateKind === "mandatory" ? "mandatory" : "available",
-    version: info.version,
-    kind: updateKind,
-    percent: 0,
-  }));
-  autoUpdater.on("update-not-available", (info) => setDesktopUpdateState({ status: "idle", version: info.version, kind: null, percent: null, code: "up_to_date" }));
-  autoUpdater.on("download-progress", (progress) => setDesktopUpdateState({ status: "downloading", percent: progress.percent }));
-  autoUpdater.on("update-downloaded", (info) => void handleDownloadedDesktopUpdate(info));
-  autoUpdater.on("error", (error) => {
-    void log("error", "Fallo Electron Updater", error?.message || error);
-    setDesktopUpdateState({ status: "error", code: "updater_failed" });
-    void reportDesktopUpdate("error", updateState.version, "updater_failed");
-  });
+  return initializeDesktopUpdaterWithoutBlocking(async () => {
+    const updaterModule = await import("electron-updater");
+    const autoUpdater = resolveElectronAutoUpdater(updaterModule);
+    desktopAutoUpdater = autoUpdater;
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = false;
+    autoUpdater.allowDowngrade = false;
+    autoUpdater.disableWebInstaller = true;
+    autoUpdater.logger = {
+      info: (message) => void log("info", "[updater]", message),
+      warn: (message) => void log("warn", "[updater]", message),
+      error: (message) => void log("error", "[updater]", message),
+    };
+    autoUpdater.on("checking-for-update", () => setDesktopUpdateState({ status: "checking" }));
+    autoUpdater.on("update-available", (info) => setDesktopUpdateState({
+      status: updateKind === "mandatory" ? "mandatory" : "available",
+      version: info.version,
+      kind: updateKind,
+      percent: 0,
+    }));
+    autoUpdater.on("update-not-available", (info) => setDesktopUpdateState({ status: "idle", version: info.version, kind: null, percent: null, code: "up_to_date" }));
+    autoUpdater.on("download-progress", (progress) => setDesktopUpdateState({ status: "downloading", percent: progress.percent }));
+    autoUpdater.on("update-downloaded", (info) => void handleDownloadedDesktopUpdate(info));
+    autoUpdater.on("error", (error) => {
+      void log("error", "Fallo Electron Updater", error?.message || error);
+      setDesktopUpdateState({ status: "error", code: "updater_failed" });
+      void reportDesktopUpdate("error", updateState.version, "updater_failed");
+    });
 
-  updateInterval = setInterval(() => void checkDesktopUpdates("interval"), 6 * 60 * 60 * 1000);
-  updateInterval.unref?.();
-  await checkDesktopUpdates("startup");
+    updateInterval = setInterval(() => void checkDesktopUpdates("interval"), 6 * 60 * 60 * 1000);
+    updateInterval.unref?.();
+    await checkDesktopUpdates("startup");
+  }, async (error) => {
+    desktopAutoUpdater = null;
+    if (updateInterval) clearInterval(updateInterval);
+    updateInterval = null;
+    setDesktopUpdateState({ status: "error", code: "updater_initialization_failed" });
+    await log("error", "Actualizador deshabilitado durante este inicio", error?.message || error);
+  });
 }
 
 async function requestRendererMaintenance() {
