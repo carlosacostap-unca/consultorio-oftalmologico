@@ -36,6 +36,13 @@ await ensureBaseCollection({
     dateField("last_seen_at"),
     dateField("last_sync_at"),
     textField("app_version"),
+    selectField("update_channel", ["pilot", "stable"]),
+    boolField("updates_enabled"),
+    textField("installed_version"),
+    selectField("last_update_status", ["idle", "checking", "available", "downloading", "downloaded", "postponed", "installed", "error", "blocked"]),
+    dateField("last_update_at"),
+    textField("last_update_version"),
+    textField("last_update_code"),
   ],
   indexes: [
     "CREATE UNIQUE INDEX `idx_sync_devices_device_id` ON `sync_devices` (`device_id`)",

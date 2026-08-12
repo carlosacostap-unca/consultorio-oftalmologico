@@ -1,6 +1,6 @@
 {
   "name": "consultorio-oftalmologico",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Sistema clínico web y de escritorio offline para consultorio oftalmológico.",
   "author": "Acosta Parra",
   "private": true,
@@ -34,13 +34,22 @@
     "test:playwright": "playwright test",
     "test:playwright:test": "node scripts/run_playwright_test.mjs --env .env.test.local",
     "test:playwright:headed": "playwright test --headed",
-    "test:sync-core": "node --test desktop/local-record-policy.test.mjs lib/desktop-record-filter.test.ts lib/desktop-record-status.test.ts lib/desktop-sync/activation-policy.test.ts lib/desktop-sync/bootstrap-concurrency.test.ts lib/desktop-sync/core.test.ts lib/desktop-sync/sync-runner.test.ts lib/desktop-sync/server-auth-policy.test.ts lib/desktop-sync/client-error.test.ts lib/desktop-sync/local-password.test.ts lib/desktop-sync/local-user-bootstrap.test.ts lib/desktop-sync/local-settings-bootstrap.test.ts lib/desktop-scope.test.ts lib/patient-merge.test.ts lib/pocketbase-request.test.ts",
+    "test:sync-core": "node --test desktop/local-record-policy.test.mjs desktop/update-backup.test.mjs desktop/update-client-policy.test.mjs desktop/update-integrity.test.mjs desktop/update-loader.test.mjs desktop/update-maintenance.test.mjs desktop/update-recovery.test.mjs lib/desktop-record-filter.test.ts lib/desktop-record-status.test.ts lib/desktop-sync/activation-policy.test.ts lib/desktop-sync/bootstrap-concurrency.test.ts lib/desktop-sync/core.test.ts lib/desktop-sync/sync-runner.test.ts lib/desktop-sync/server-auth-policy.test.ts lib/desktop-sync/client-error.test.ts lib/desktop-sync/local-password.test.ts lib/desktop-sync/local-user-bootstrap.test.ts lib/desktop-sync/local-settings-bootstrap.test.ts lib/desktop-scope.test.ts lib/desktop-updates/config-policy.test.ts lib/desktop-updates/gateway.test.ts lib/desktop-updates/policy.test.ts lib/patient-merge.test.ts lib/pocketbase-request.test.ts",
+    "desktop:release:manifest": "node scripts/generate_desktop_release_manifest.mjs",
+    "desktop:release:policy": "node scripts/generate_desktop_release_policy.mjs",
+    "desktop:release:sign": "node scripts/sign_desktop_release_manifest.mjs",
+    "desktop:release:publish": "node scripts/publish_desktop_release.mjs",
+    "desktop:release:promote": "node scripts/promote_desktop_release.mjs",
     "desktop:dev": "concurrently -k \"next dev\" \"wait-on http://127.0.0.1:3000 && electron .\"",
     "desktop:prepare-pocketbase": "node desktop/scripts/prepare-pocketbase.mjs",
-    "desktop:pack": "npm run desktop:prepare-pocketbase && npm run build && electron-builder --dir --win --x64",
-    "desktop:dist": "npm run desktop:prepare-pocketbase && npm run build && electron-builder --win nsis --x64"
+    "desktop:prepare-update-keys": "node scripts/prepare_desktop_update_keys.mjs",
+    "desktop:pack": "npm run desktop:prepare-update-keys && npm run desktop:prepare-pocketbase && npm run build && electron-builder --dir --win --x64",
+    "desktop:dist": "npm run desktop:prepare-update-keys && npm run desktop:prepare-pocketbase && npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1106.0",
+    "@aws-sdk/s3-request-presigner": "^3.1106.0",
+    "electron-updater": "^6.8.9",
     "next": "16.3.0",
     "pocketbase": "^0.26.8",
     "react": "19.2.5",
@@ -66,6 +75,13 @@
     "appId": "com.acostaparra.consultoriooftalmologico",
     "productName": "Consultorio Oftalmológico",
     "artifactName": "Consultorio-Oftalmologico-${version}-${arch}.${ext}",
+    "electronUpdaterCompatibility": ">=2.16",
+    "publish": [
+      {
+        "provider": "generic",
+        "url": "${env.DESKTOP_UPDATE_FEED_URL}"
+      }
+    ],
     "asar": true,
     "directories": {
       "output": "dist-desktop"
@@ -73,6 +89,13 @@
     "files": [
       "desktop/main.mjs",
       "desktop/local-record-policy.mjs",
+      "desktop/update-backup.mjs",
+      "desktop/update-client-policy.mjs",
+      "desktop/update-integrity.mjs",
+      "desktop/update-loader.mjs",
+      "desktop/update-maintenance.mjs",
+      "desktop/update-recovery.mjs",
+      "desktop/generated/update-public-keys.json",
       "desktop/preload.cjs",
       "package.json"
     ],

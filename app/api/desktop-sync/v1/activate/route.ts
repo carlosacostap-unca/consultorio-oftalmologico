@@ -53,6 +53,9 @@ export async function POST(request: Request) {
       activated_at: existing?.activated_at || now,
       last_seen_at: now,
       app_version: appVersion,
+      update_channel: existing?.update_channel === "pilot" ? "pilot" : "stable",
+      updates_enabled: existing?.updates_enabled === true,
+      installed_version: appVersion || existing?.installed_version || "",
     };
     const record = existing
       ? await pbAdmin(`/api/collections/sync_devices/records/${encodeURIComponent(existing.id)}`, {
@@ -75,6 +78,13 @@ export async function POST(request: Request) {
         activatedAt: record.activated_at,
         lastSeenAt: record.last_seen_at,
         appVersion: record.app_version,
+        updateChannel: record.update_channel === "pilot" ? "pilot" : "stable",
+        updatesEnabled: record.updates_enabled === true,
+        installedVersion: record.installed_version,
+        lastUpdateStatus: record.last_update_status,
+        lastUpdateAt: record.last_update_at,
+        lastUpdateVersion: record.last_update_version,
+        lastUpdateCode: record.last_update_code,
       },
       user: safeUser(context.user),
       schemaVersion: 1,

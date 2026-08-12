@@ -11,6 +11,8 @@ import {
   type UserRole,
 } from "@/lib/permissions";
 import { desktopDeviceAccess, isDesktopOperationAllowed } from "./server-auth-policy";
+import { normalizeDesktopUpdateChannel } from "../desktop-updates/device-policy";
+import { DESKTOP_UPDATE_STATUSES, type DesktopUpdateStatus } from "../desktop-updates/types";
 import type { SyncDevice, SyncEntity, SyncOperationAction, SyncRecord } from "./types";
 
 export const DESKTOP_DEVICE_HEADER = "x-consultorio-device-id";
@@ -159,5 +161,16 @@ function mapDevice(record: Record<string, unknown>): SyncDevice {
     lastSeenAt: typeof record.last_seen_at === "string" ? record.last_seen_at : undefined,
     lastSyncAt: typeof record.last_sync_at === "string" ? record.last_sync_at : undefined,
     appVersion: typeof record.app_version === "string" ? record.app_version : undefined,
+    updateChannel: normalizeDesktopUpdateChannel(record.update_channel),
+    updatesEnabled: record.updates_enabled === true,
+    installedVersion: typeof record.installed_version === "string" ? record.installed_version : undefined,
+    lastUpdateStatus: isDesktopUpdateStatus(record.last_update_status) ? record.last_update_status : undefined,
+    lastUpdateAt: typeof record.last_update_at === "string" ? record.last_update_at : undefined,
+    lastUpdateVersion: typeof record.last_update_version === "string" ? record.last_update_version : undefined,
+    lastUpdateCode: typeof record.last_update_code === "string" ? record.last_update_code : undefined,
   };
+}
+
+function isDesktopUpdateStatus(value: unknown): value is DesktopUpdateStatus {
+  return DESKTOP_UPDATE_STATUSES.includes(value as DesktopUpdateStatus);
 }

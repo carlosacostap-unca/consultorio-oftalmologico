@@ -14,6 +14,7 @@ import {
 } from "@/lib/active-role";
 import { ROLE_LABELS, normalizeUserRoles, type UserRole } from "@/lib/permissions";
 import { DesktopSyncIndicator } from "@/components/DesktopSyncIndicator";
+import { DesktopUpdateIndicator } from "@/components/DesktopUpdateIndicator";
 
 type MenuItem = { name: string; href: string };
 type MenuSectionDefinition = { title: string; items: MenuItem[] };
@@ -290,6 +291,7 @@ export function Sidebar() {
           <MenuSection key={section.title} title={section.title} items={section.items} pathname={pathname} currentHash={currentHash} isCollapsed={isCollapsed} />
         ))}
       </nav>
+      {isDesktop && <DesktopUpdateIndicator collapsed={isCollapsed} />}
       <DesktopSyncIndicator collapsed={isCollapsed} />
       {user && (
         <div className={`${isCollapsed ? "p-3" : "p-4"} border-t border-zinc-200 dark:border-zinc-800`}>
