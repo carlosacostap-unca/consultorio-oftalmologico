@@ -5,11 +5,19 @@ import {
   loadEnvFile,
   pocketBaseUrl,
 } from "./env_utils.mjs";
+import {
+  assertUniqueDesktopDeviceBackfills,
+  buildDesktopDeviceBackfill,
+  changedDesktopDeviceFields,
+  mergePocketBaseIndexes,
+  missingPocketBaseIndexes,
+} from "./desktop_sync_device_compat.mjs";
 
 const envFile = envFileFromArgs(".env.local");
 const env = loadEnvFile(envFile, { required: true });
 const PB_URL = pocketBaseUrl({ ...process.env, ...env });
 const dryRun = hasFlag("--dry-run");
+const devicesOnly = hasFlag("--devices-only");
 
 assertTestingPocketBaseUrl(PB_URL, {
   requireTest: hasFlag("--require-test-pocketbase") || process.env.REQUIRE_TEST_POCKETBASE === "true",
@@ -20,37 +28,62 @@ const collections = await listCollections();
 const byName = new Map(collections.map((collection) => [collection.name, collection]));
 const users = requiredCollection("users");
 
-for (const name of ["pacientes", "consultas", "recetas"]) {
-  await ensureDomainSyncFields(requiredCollection(name), users.id, { patient: name === "pacientes" });
+if (!devicesOnly) {
+  for (const name of ["pacientes", "consultas", "recetas"]) {
+    await ensureDomainSyncFields(requiredCollection(name), users.id, { patient: name === "pacientes" });
+  }
 }
 
-await ensureBaseCollection({
-  name: "sync_devices",
-  fields: [
-    textField("device_id", { required: true }),
-    textField("code", { required: true }),
-    textField("name"),
-    boolField("enabled"),
-    relationField("activated_by", users.id),
-    dateField("activated_at"),
-    dateField("last_seen_at"),
-    dateField("last_sync_at"),
-    textField("app_version"),
-    selectField("update_channel", ["pilot", "stable"]),
-    boolField("updates_enabled"),
-    textField("installed_version"),
-    selectField("last_update_status", ["idle", "checking", "available", "downloading", "downloaded", "postponed", "installed", "error", "blocked"]),
-    dateField("last_update_at"),
-    textField("last_update_version"),
-    textField("last_update_code"),
-  ],
-  indexes: [
-    "CREATE UNIQUE INDEX `idx_sync_devices_device_id` ON `sync_devices` (`device_id`)",
-    "CREATE UNIQUE INDEX `idx_sync_devices_code` ON `sync_devices` (`code`)",
-  ],
-});
+const syncDeviceFields = [
+  textField("device_key", { required: true }),
+  textField("nombre"),
+  selectField("modo", ["desktop", "sync-worker"], { required: true }),
+  boolField("habilitado"),
+  relationField("usuario_id", users.id),
+  dateField("ultimo_contacto_at"),
+  jsonField("metadata"),
+  textField("device_id", { required: true }),
+  textField("code", { required: true }),
+  textField("name"),
+  boolField("enabled"),
+  relationField("activated_by", users.id),
+  dateField("activated_at"),
+  dateField("last_seen_at"),
+  dateField("last_sync_at"),
+  textField("app_version"),
+  selectField("update_channel", ["pilot", "stable"]),
+  boolField("updates_enabled"),
+  textField("installed_version"),
+  selectField("last_update_status", ["idle", "checking", "available", "downloading", "downloaded", "postponed", "installed", "error", "blocked"]),
+  dateField("last_update_at"),
+  textField("last_update_version"),
+  textField("last_update_code"),
+];
+const syncDeviceIndexes = [
+  "CREATE UNIQUE INDEX `idx_sync_devices_device_key` ON `sync_devices` (`device_key`)",
+  "CREATE UNIQUE INDEX `idx_sync_devices_device_id` ON `sync_devices` (`device_id`)",
+  "CREATE UNIQUE INDEX `idx_sync_devices_code` ON `sync_devices` (`code`)",
+];
+const existingSyncDevices = byName.get("sync_devices");
 
-await ensureBaseCollection({
+if (!existingSyncDevices) {
+  await ensureBaseCollection({ name: "sync_devices", fields: syncDeviceFields, indexes: syncDeviceIndexes });
+} else {
+  const transitionalFields = syncDeviceFields.map((field) =>
+    field.name === "device_id" || field.name === "code" ? { ...field, required: false } : field
+  );
+  await updateCollectionFields(existingSyncDevices, transitionalFields);
+  await backfillSyncDevices();
+  if (dryRun) {
+    const missingIndexes = missingPocketBaseIndexes(existingSyncDevices.indexes || [], syncDeviceIndexes);
+    if (missingIndexes.length > 0) console.log("Actualizaría sync_devices: campos obligatorios e índices posteriores al backfill");
+  } else {
+    const refreshed = await pb(`/api/collections/${encodeURIComponent(existingSyncDevices.id)}`);
+    await updateCollectionFields(refreshed, syncDeviceFields, syncDeviceIndexes);
+  }
+}
+
+if (!devicesOnly) await ensureBaseCollection({
   name: "sync_applied_operations",
   fields: [
     textField("operation_id", { required: true }),
@@ -68,7 +101,7 @@ await ensureBaseCollection({
   ],
 });
 
-await ensureBaseCollection({
+if (!devicesOnly) await ensureBaseCollection({
   name: "sync_conflicts",
   fields: [
     textField("operation_id", { required: true }),
@@ -155,7 +188,7 @@ async function updateCollectionFields(collection, requiredFields, requiredIndexe
     }
   }
 
-  const indexes = [...new Set([...(collection.indexes || []), ...requiredIndexes])];
+  const indexes = mergePocketBaseIndexes(collection.indexes || [], requiredIndexes);
   const indexesChanged = indexes.length !== (collection.indexes || []).length;
 
   if (changes.length === 0 && !indexesChanged) {
@@ -209,8 +242,8 @@ function jsonField(name) {
   return { name, type: "json", required: false, hidden: false, presentable: false, maxSize: 0 };
 }
 
-function selectField(name, values) {
-  return { name, type: "select", required: false, hidden: false, presentable: false, maxSelect: 1, values };
+function selectField(name, values, { required = false } = {}) {
+  return { name, type: "select", required, hidden: false, presentable: false, maxSelect: 1, values };
 }
 
 function relationField(name, collectionId) {
@@ -246,4 +279,38 @@ async function pb(path, options = {}) {
   if (!response.ok) throw new Error(`PocketBase ${response.status}: ${await response.text()}`);
   const text = await response.text();
   return text ? JSON.parse(text) : null;
+}
+
+async function backfillSyncDevices() {
+  const records = await listAllRecords("sync_devices");
+  const backfills = records.map((record) => ({
+    id: record.id,
+    record,
+    payload: buildDesktopDeviceBackfill(record),
+  }));
+  assertUniqueDesktopDeviceBackfills(backfills);
+
+  let changed = 0;
+  for (const item of backfills) {
+    const fields = changedDesktopDeviceFields(item.record, item.payload);
+    if (fields.length === 0) continue;
+    changed += 1;
+    console.log(`${dryRun ? "Completaría" : "Completando"} sync_devices/${item.id}: ${fields.join(", ")}`);
+    if (!dryRun) {
+      await pb(`/api/collections/sync_devices/records/${encodeURIComponent(item.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(item.payload),
+      });
+    }
+  }
+  console.log(`Backfill técnico sync_devices: ${changed}/${records.length} registro(s) ${dryRun ? "requerirían" : "requirieron"} actualización.`);
+}
+
+async function listAllRecords(collection) {
+  const records = [];
+  for (let page = 1; ; page += 1) {
+    const result = await pb(`/api/collections/${encodeURIComponent(collection)}/records?page=${page}&perPage=200&sort=id`);
+    records.push(...(result.items || []));
+    if (page >= (result.totalPages || 1)) return records;
+  }
 }

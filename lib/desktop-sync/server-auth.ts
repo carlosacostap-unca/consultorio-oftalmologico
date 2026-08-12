@@ -11,8 +11,11 @@ import {
   type UserRole,
 } from "@/lib/permissions";
 import { desktopDeviceAccess, isDesktopOperationAllowed } from "./server-auth-policy";
-import { normalizeDesktopUpdateChannel } from "../desktop-updates/device-policy";
-import { DESKTOP_UPDATE_STATUSES, type DesktopUpdateStatus } from "../desktop-updates/types";
+import {
+  desktopDeviceTouchPayload,
+  lookupDesktopDeviceRecord,
+  mapDesktopDeviceRecord,
+} from "./device-record-compat";
 import type { SyncDevice, SyncEntity, SyncOperationAction, SyncRecord } from "./types";
 
 export const DESKTOP_DEVICE_HEADER = "x-consultorio-device-id";
@@ -104,20 +107,23 @@ export function desktopSyncEnabled() {
 }
 
 export async function findDeviceByKey(deviceId: string): Promise<SyncDevice | null> {
-  const filter = encodeURIComponent(`device_id = "${escapeFilterValue(deviceId)}"`);
-  const result = await pbAdmin(`/api/collections/sync_devices/records?page=1&perPage=1&filter=${filter}`);
-  const item = result.items?.[0];
-  return item ? mapDevice(item) : null;
+  const item = await findDeviceRecordByKey(deviceId);
+  return item ? mapDesktopDeviceRecord(item) : null;
+}
+
+export async function findDeviceRecordByKey(deviceId: string): Promise<Record<string, unknown> | null> {
+  return lookupDesktopDeviceRecord(deviceId, async (_field, filter) => {
+    const encodedFilter = encodeURIComponent(filter);
+    const result = await pbAdmin(`/api/collections/sync_devices/records?page=1&perPage=1&filter=${encodedFilter}`);
+    return result.items?.[0] || null;
+  });
 }
 
 export async function touchDevice(deviceRecordId: string, values: { lastSeenAt?: string; lastSyncAt?: string } = {}) {
   const now = new Date().toISOString();
   await pbAdmin(`/api/collections/sync_devices/records/${encodeURIComponent(deviceRecordId)}`, {
     method: "PATCH",
-    body: JSON.stringify({
-      last_seen_at: values.lastSeenAt || now,
-      ...(values.lastSyncAt ? { last_sync_at: values.lastSyncAt } : {}),
-    }),
+    body: JSON.stringify(desktopDeviceTouchPayload(values, now)),
   });
 }
 
@@ -147,30 +153,4 @@ function sanitizePermissions(value: unknown): PermissionKey[] {
   return value.filter((permission): permission is PermissionKey =>
     ALL_PERMISSION_KEYS.includes(permission as PermissionKey)
   );
-}
-
-function mapDevice(record: Record<string, unknown>): SyncDevice {
-  return {
-    id: String(record.id || ""),
-    deviceId: String(record.device_id || ""),
-    code: String(record.code || ""),
-    name: typeof record.name === "string" ? record.name : undefined,
-    enabled: record.enabled === true,
-    activatedBy: String(record.activated_by || ""),
-    activatedAt: String(record.activated_at || record.created || ""),
-    lastSeenAt: typeof record.last_seen_at === "string" ? record.last_seen_at : undefined,
-    lastSyncAt: typeof record.last_sync_at === "string" ? record.last_sync_at : undefined,
-    appVersion: typeof record.app_version === "string" ? record.app_version : undefined,
-    updateChannel: normalizeDesktopUpdateChannel(record.update_channel),
-    updatesEnabled: record.updates_enabled === true,
-    installedVersion: typeof record.installed_version === "string" ? record.installed_version : undefined,
-    lastUpdateStatus: isDesktopUpdateStatus(record.last_update_status) ? record.last_update_status : undefined,
-    lastUpdateAt: typeof record.last_update_at === "string" ? record.last_update_at : undefined,
-    lastUpdateVersion: typeof record.last_update_version === "string" ? record.last_update_version : undefined,
-    lastUpdateCode: typeof record.last_update_code === "string" ? record.last_update_code : undefined,
-  };
-}
-
-function isDesktopUpdateStatus(value: unknown): value is DesktopUpdateStatus {
-  return DESKTOP_UPDATE_STATUSES.includes(value as DesktopUpdateStatus);
 }

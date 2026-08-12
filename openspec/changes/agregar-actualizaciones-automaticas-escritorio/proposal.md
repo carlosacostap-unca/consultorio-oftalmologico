@@ -12,6 +12,7 @@ La aplicación de escritorio ya puede instalarse y actualizarse manualmente cons
 - Crear una copia de seguridad consistente de la base local, identidad, secretos operativos y estado de sincronización antes de instalar; abortar la actualización si el respaldo no puede verificarse.
 - Verificar manifiesto y artefactos mediante hashes y una firma criptográfica propia antes de ejecutar un instalador descargado. Esta firma no reemplaza un certificado comercial de Windows ni elimina las advertencias de SmartScreen del instalador inicial.
 - Mantener Windows 11 x64 como plataforma inicial soportada y rechazar de forma explicativa arquitecturas incompatibles.
+- Compatibilizar de forma aditiva los registros técnicos `sync_devices` existentes con el contrato nuevo, preservando temporalmente ambos juegos de campos sin modificar contenido clínico.
 
 ## Capabilities
 
@@ -31,3 +32,4 @@ La aplicación de escritorio ya puede instalarse y actualizarse manualmente cons
 - Bucket privado de iDrive e2, credenciales S3 restringidas almacenadas sólo como secretos de CI/Dokploy y enlaces prefirmados de corta duración.
 - Flujo de GitHub Actions disparado por etiquetas de escritorio, con promoción separada de `pilot` a `stable`.
 - Posibles campos aditivos de canal/estado de actualización en el registro central de dispositivos; no se modifican colecciones clínicas ni se migra contenido de pacientes, consultas o recetas.
+- Migración idempotente de metadatos técnicos de equipos legacy (`device_key`, `nombre`, `modo`, `habilitado`) hacia sus equivalentes actuales, con escritura dual durante la transición.

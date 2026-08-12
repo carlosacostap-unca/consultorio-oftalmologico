@@ -2,10 +2,14 @@ import { normalizeDeviceCode } from "@/lib/desktop-sync/core";
 import {
   DesktopSyncHttpError,
   desktopSyncErrorResponse,
-  escapeFilterValue,
+  findDeviceRecordByKey,
   requireDesktopSyncContext,
 } from "@/lib/desktop-sync/server-auth";
 import { canActivateDesktopDevice } from "@/lib/desktop-sync/server-auth-policy";
+import {
+  desktopDeviceActivationPayload,
+  mapDesktopDeviceRecord,
+} from "@/lib/desktop-sync/device-record-compat";
 import { pbAdmin } from "@/lib/pocketbase-admin";
 
 export const dynamic = "force-dynamic";
@@ -24,9 +28,8 @@ export async function POST(request: Request) {
       return Response.json({ error: "Identidad de equipo inválida", code: "invalid_device_id" }, { status: 400 });
     }
 
-    const filter = encodeURIComponent(`device_id = "${escapeFilterValue(deviceId)}"`);
-    const existingResult = await pbAdmin(`/api/collections/sync_devices/records?page=1&perPage=1&filter=${filter}`);
-    const existing = existingResult.items?.[0];
+    const existing = await findDeviceRecordByKey(deviceId);
+    const existingDevice = existing ? mapDesktopDeviceRecord(existing) : null;
 
     if (!canActivateDesktopDevice(context.roles, Boolean(existing))) {
       throw new DesktopSyncHttpError(
@@ -36,29 +39,19 @@ export async function POST(request: Request) {
       );
     }
 
-    if (existing && existing.enabled !== true) {
+    if (existingDevice && existingDevice.enabled !== true) {
       return Response.json({ error: "El equipo está deshabilitado", code: "disabled_device" }, { status: 403 });
     }
-    if (existing && String(existing.code || "") !== code) {
+    if (existingDevice?.code && existingDevice.code !== code) {
       return Response.json({ error: "El código del equipo activado no puede cambiar", code: "immutable_device_code" }, { status: 409 });
     }
 
     const now = new Date().toISOString();
-    const payload = {
-      device_id: deviceId,
-      code,
-      name,
-      enabled: true,
-      activated_by: existing?.activated_by || context.user.id,
-      activated_at: existing?.activated_at || now,
-      last_seen_at: now,
-      app_version: appVersion,
-      update_channel: existing?.update_channel === "pilot" ? "pilot" : "stable",
-      updates_enabled: existing?.updates_enabled === true,
-      installed_version: appVersion || existing?.installed_version || "",
-    };
+    const payload = desktopDeviceActivationPayload({
+      deviceId, code, name, appVersion, actorId: context.user.id, now, existing,
+    });
     const record = existing
-      ? await pbAdmin(`/api/collections/sync_devices/records/${encodeURIComponent(existing.id)}`, {
+      ? await pbAdmin(`/api/collections/sync_devices/records/${encodeURIComponent(String(existing.id || ""))}`, {
           method: "PATCH",
           body: JSON.stringify(payload),
         })
@@ -67,24 +60,10 @@ export async function POST(request: Request) {
           body: JSON.stringify(payload),
         });
 
+    const mappedRecord = mapDesktopDeviceRecord(record);
     return Response.json({
       device: {
-        id: record.id,
-        deviceId: record.device_id,
-        code: record.code,
-        name: record.name,
-        enabled: record.enabled === true,
-        activatedBy: record.activated_by,
-        activatedAt: record.activated_at,
-        lastSeenAt: record.last_seen_at,
-        appVersion: record.app_version,
-        updateChannel: record.update_channel === "pilot" ? "pilot" : "stable",
-        updatesEnabled: record.updates_enabled === true,
-        installedVersion: record.installed_version,
-        lastUpdateStatus: record.last_update_status,
-        lastUpdateAt: record.last_update_at,
-        lastUpdateVersion: record.last_update_version,
-        lastUpdateCode: record.last_update_code,
+        ...mappedRecord,
       },
       user: safeUser(context.user),
       schemaVersion: 1,
