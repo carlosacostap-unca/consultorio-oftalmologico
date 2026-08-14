@@ -9,6 +9,7 @@ import {
   resolveDesktopConflict,
   runDesktopSync,
 } from "@/lib/desktop-sync/engine";
+import { sanitizeSyncError } from "@/lib/desktop-sync/core";
 import type { SyncStatusSnapshot } from "@/lib/desktop-sync/types";
 
 export default function SynchronizationPage() {
@@ -17,6 +18,7 @@ export default function SynchronizationPage() {
   const [conflicts, setConflicts] = useState<RecordModel[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [loadError, setLoadError] = useState("");
   const [resolvingId, setResolvingId] = useState("");
   const [patientIds, setPatientIds] = useState<Record<string, string>>({});
 
@@ -25,15 +27,21 @@ export default function SynchronizationPage() {
       setLoading(false);
       return;
     }
-    const [nextStatus, nextOperations, nextConflicts] = await Promise.all([
-      getDesktopSyncStatus(),
-      pb.collection("sync_operations").getFullList({ filter: 'status != "confirmed"', sort: "-queued_at", requestKey: null }),
-      pb.collection("sync_local_conflicts").getFullList({ filter: 'status = "open"', sort: "-created", requestKey: null }),
-    ]);
-    setStatus(nextStatus);
-    setOperations(nextOperations);
-    setConflicts(nextConflicts);
-    setLoading(false);
+    setLoadError("");
+    try {
+      const [nextStatus, nextOperations, nextConflicts] = await Promise.all([
+        getDesktopSyncStatus(),
+        pb.collection("sync_operations").getFullList({ filter: 'status != "confirmed"', sort: "-queued_at", requestKey: null }),
+        pb.collection("sync_local_conflicts").getFullList({ filter: 'status = "open"', requestKey: null }),
+      ]);
+      setStatus(nextStatus);
+      setOperations(nextOperations);
+      setConflicts(nextConflicts);
+    } catch (error) {
+      setLoadError(`No se pudo cargar el estado local: ${sanitizeSyncError(error)}`);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -94,7 +102,16 @@ export default function SynchronizationPage() {
         <Metric label="Conflictos" value={String(status?.conflicts || 0)} tone={status?.conflicts ? "amber" : "gray"} />
       </section>
 
-      {(message || status?.lastError) && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300">{message || status?.lastError}</div>}
+      {(loadError || message || status?.lastError) && (
+        <div aria-live="polite" className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300 sm:flex-row sm:items-center sm:justify-between">
+          <span>{loadError || message || status?.lastError}</span>
+          {loadError && (
+            <button type="button" onClick={() => void refresh()} className="rounded-lg border border-amber-300 px-3 py-2 font-semibold hover:bg-amber-100 dark:border-amber-800 dark:hover:bg-amber-900/40">
+              Reintentar
+            </button>
+          )}
+        </div>
+      )}
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="text-lg font-bold">Actividad pendiente</h2>

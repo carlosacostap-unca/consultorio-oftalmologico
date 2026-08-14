@@ -11,6 +11,7 @@
 - [x] 2.2 Actualizar tipos y helpers de autenticación para resolver un equipo activo y su canal autoritativo mediante token central y cabecera de dispositivo
 - [x] 2.3 Implementar la política de versión normal, obligatoria y mínima compatible con validación estricta de SemVer, plataforma y arquitectura
 - [x] 2.4 Probar equipo estable/piloto, equipo revocado, token vencido, identidad inconsistente y versión incompatible
+- [x] 2.5 Compatibilizar el esquema legacy de `sync_devices` mediante lectura/escritura dual, backfill técnico idempotente e índices posteriores, con pruebas y sin modificar registros clínicos
 
 ## 3. Puerta privada de actualizaciones
 

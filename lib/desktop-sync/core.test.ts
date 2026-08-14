@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   changedFields,
   conflictingFields,
+  connectivityAfterSyncFailure,
   createPocketBaseId,
   createTemporaryFicha,
   isTemporaryFicha,
@@ -11,6 +12,7 @@ import {
   retryDelayMs,
   sanitizeSyncError,
   sortOperationsByDependencies,
+  sortSyncEntitiesByDependencies,
 } from "./core.ts";
 import type { SyncOperation } from "./types.ts";
 
@@ -71,6 +73,20 @@ test("reconstruye la cola pendiente y su orden después de un reinicio", () => {
     sortOperationsByDependencies(restored).map((item) => item.operationId),
     ["p-restart", "c-restart", "r-restart"],
   );
+});
+
+test("planifica el pull completo en orden de dependencias", () => {
+  assert.deepEqual(sortSyncEntitiesByDependencies(["recetas", "pacientes", "consultas", "recetas"]), [
+    "pacientes",
+    "consultas",
+    "recetas",
+  ]);
+});
+
+test("distingue errores funcionales de fallas de conectividad", () => {
+  assert.equal(connectivityAfterSyncFailure(new Error("Failed to create record."), true), "online");
+  assert.equal(connectivityAfterSyncFailure(new TypeError("fetch failed"), true), "offline");
+  assert.equal(connectivityAfterSyncFailure(new Error("validation rejected"), false), "offline");
 });
 
 test("rechaza ciclos de dependencias", () => {

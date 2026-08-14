@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import type { SyncOperation, SyncRecord } from "./types";
+import type { SyncConnectivity, SyncEntity, SyncOperation, SyncRecord } from "./types";
 export { isTemporaryFicha } from "../temporary-ficha.ts";
 
 const POCKETBASE_ID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -106,6 +106,31 @@ export function sortOperationsByDependencies(operations: readonly SyncOperation[
   }
 
   return result;
+}
+
+export function sortSyncEntitiesByDependencies(entities: readonly SyncEntity[]): SyncEntity[] {
+  return [...new Set(entities)].sort((left, right) => ENTITY_PRIORITY[left] - ENTITY_PRIORITY[right]);
+}
+
+export function connectivityAfterSyncFailure(error: unknown, navigatorOnline: boolean): SyncConnectivity {
+  if (!navigatorOnline) return "offline";
+  const message = sanitizeSyncError(error).toLowerCase();
+  const transportFailure = [
+    "fetch failed",
+    "failed to fetch",
+    "networkerror",
+    "network request failed",
+    "connection refused",
+    "connection reset",
+    "enotfound",
+    "econnrefused",
+    "econnreset",
+    "etimedout",
+    "timeout",
+    "timed out",
+    "no se pudo contactar",
+  ].some((fragment) => message.includes(fragment));
+  return transportFailure ? "offline" : "online";
 }
 
 export function retryDelayMs(attempts: number, baseMs = 1_000, maximumMs = 60_000): number {
