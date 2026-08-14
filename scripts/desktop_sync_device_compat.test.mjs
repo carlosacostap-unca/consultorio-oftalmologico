@@ -4,6 +4,7 @@ import {
   assertUniqueDesktopDeviceBackfills,
   buildDesktopDeviceBackfill,
   changedDesktopDeviceFields,
+  desktopDeviceEnabledAuthority,
   mergePocketBaseIndexes,
   missingPocketBaseIndexes,
   transitionalDesktopDeviceFields,
@@ -79,6 +80,30 @@ test("reconoce índices legacy aunque PocketBase cambie el formato SQL", () => {
 
   assert.deepEqual(missingPocketBaseIndexes(existing, required), [required[1]]);
   assert.deepEqual(mergePocketBaseIndexes(existing, required), [existing[0], required[1]]);
+});
+
+test("preserva el estado habilitado del contrato que existía antes de migrar", () => {
+  assert.equal(desktopDeviceEnabledAuthority([{ name: "enabled" }]), "current");
+  assert.equal(desktopDeviceEnabledAuthority([{ name: "habilitado" }]), "legacy");
+
+  const current = buildDesktopDeviceBackfill({
+    id: "current",
+    device_id: "current-device-1234",
+    code: "PCCURREN",
+    enabled: true,
+    habilitado: false,
+  }, { enabledAuthority: "current" });
+  assert.equal(current.enabled, true);
+  assert.equal(current.habilitado, true);
+
+  const legacy = buildDesktopDeviceBackfill({
+    id: "legacy",
+    device_key: "legacy-device-1234",
+    habilitado: true,
+    enabled: false,
+  }, { enabledAuthority: "legacy" });
+  assert.equal(legacy.enabled, true);
+  assert.equal(legacy.habilitado, true);
 });
 
 test("agrega ambos contratos de identidad como opcionales antes del backfill", () => {

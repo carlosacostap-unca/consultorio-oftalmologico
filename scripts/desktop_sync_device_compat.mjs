@@ -1,4 +1,4 @@
-export function buildDesktopDeviceBackfill(record) {
+export function buildDesktopDeviceBackfill(record, { enabledAuthority = "auto" } = {}) {
   const deviceId = text(record.device_id) || text(record.device_key);
   if (!deviceId) throw new Error(`El registro técnico ${text(record.id) || "sin-id"} no tiene identidad de equipo.`);
 
@@ -6,7 +6,7 @@ export function buildDesktopDeviceBackfill(record) {
   if (!code) throw new Error(`No se pudo derivar el código del equipo ${text(record.id) || deviceId}.`);
 
   const name = text(record.name) || text(record.nombre) || code;
-  const enabled = typeof record.habilitado === "boolean" ? record.habilitado : record.enabled === true;
+  const enabled = desktopDeviceEnabled(record, enabledAuthority);
   const activatedBy = text(record.activated_by) || text(record.usuario_id);
   const lastSeenAt = text(record.last_seen_at) || text(record.ultimo_contacto_at);
   const appVersion = text(record.app_version) || metadataText(record.metadata, "appVersion");
@@ -70,6 +70,13 @@ export function missingPocketBaseIndexes(existingIndexes, requiredIndexes) {
   });
 }
 
+export function desktopDeviceEnabledAuthority(fields) {
+  const names = new Set(fields.map((field) => field.name));
+  if (names.has("enabled") && !names.has("habilitado")) return "current";
+  if (names.has("habilitado") && !names.has("enabled")) return "legacy";
+  return names.has("enabled") ? "current" : "legacy";
+}
+
 export function transitionalDesktopDeviceFields(fields) {
   const identityFields = new Set(["device_key", "modo", "device_id", "code"]);
   return fields.map((field) => identityFields.has(field.name) ? { ...field, required: false } : field);
@@ -100,6 +107,12 @@ function normalizeDeviceCode(value) {
 
 function metadataText(metadata, key) {
   return metadata && typeof metadata === "object" ? text(metadata[key]) : "";
+}
+
+function desktopDeviceEnabled(record, authority) {
+  if (authority === "current") return record.enabled === true;
+  if (authority === "legacy") return record.habilitado === true;
+  return typeof record.habilitado === "boolean" ? record.habilitado : record.enabled === true;
 }
 
 function text(value) {
