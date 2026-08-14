@@ -24,6 +24,7 @@ import {
 import {
   publicDesktopUpdateState,
   nextDesktopUpdateReminderAt,
+  resolveDesktopCentralUrl,
   shouldEnableDesktopUpdater,
   shouldDeferDesktopUpdate,
   shouldInstallMandatoryUpdateOnClose,
@@ -152,6 +153,7 @@ async function initializeRuntime() {
   const pocketBasePort = await findFreePort();
   const nextPort = isDevelopment ? null : await findFreePort();
   const resourcesRoot = isDevelopment ? desktopDir : process.resourcesPath;
+  const configuredCentralUrl = process.env.DESKTOP_CENTRAL_URL || process.env.NEXT_PUBLIC_APP_URL || "";
 
   runtime = {
     appVersion: app.getVersion(),
@@ -171,7 +173,8 @@ async function initializeRuntime() {
     rendererUrl: isDevelopment
       ? process.env.DESKTOP_DEV_URL || "http://127.0.0.1:3000"
       : `http://127.0.0.1:${nextPort}`,
-    centralUrl: process.env.DESKTOP_CENTRAL_URL || process.env.NEXT_PUBLIC_APP_URL || "",
+    configuredCentralUrl,
+    centralUrl: configuredCentralUrl,
     deviceId: identity.deviceId,
     deviceCode: identity.deviceCode,
   };
@@ -415,6 +418,17 @@ async function deleteEncryptedSecret(key) {
   });
 }
 
+async function resolveDesktopCentralConfiguration() {
+  const activationSecret = await readEncryptedSecret("desktop-activation");
+  const resolved = resolveDesktopCentralUrl({
+    configuredUrl: runtime.configuredCentralUrl,
+    activationSecret,
+    allowLocal: isDevelopment,
+  });
+  if (resolved) runtime.centralUrl = resolved.url;
+  return resolved;
+}
+
 function validatedEndpoint(value) {
   const endpoint = new URL(String(value || "").trim());
   const local = endpoint.hostname === "127.0.0.1" || endpoint.hostname === "localhost";
@@ -444,8 +458,9 @@ function setDesktopUpdateState(next) {
 
 async function reportDesktopUpdate(status, version, code) {
   const token = await readEncryptedSecret("central-auth-token");
-  if (!token || !runtime.centralUrl) return;
-  const baseUrl = validatedEndpoint(runtime.centralUrl);
+  const central = await resolveDesktopCentralConfiguration();
+  if (!token || !central) return;
+  const baseUrl = central.url;
   const report = {
     status,
     installedVersion: runtime.appVersion,
@@ -571,10 +586,20 @@ async function postponeDesktopUpdate() {
 async function checkDesktopUpdates(reason = "manual") {
   if (!desktopAutoUpdater || updateCheckInFlight) return updateCheckInFlight || updateState;
   updateCheckInFlight = (async () => {
+    const checkedAt = new Date().toISOString();
+    setDesktopUpdateState({ status: "checking", checkedAt, code: null });
+    await log("info", "Inicio de consulta de actualización", `reason=${reason}`);
+    const central = await resolveDesktopCentralConfiguration();
+    if (!central) {
+      await log("warn", "Consulta de actualización omitida", `reason=${reason} code=configuration_required`);
+      return setDesktopUpdateState({ status: "error", checkedAt, code: "configuration_required" });
+    }
     const token = await readEncryptedSecret("central-auth-token");
-    if (!token || !runtime.centralUrl) return setDesktopUpdateState({ status: "idle", code: "auth_required" });
-    setDesktopUpdateState({ status: "checking", checkedAt: new Date().toISOString(), code: null });
-    const baseUrl = validatedEndpoint(runtime.centralUrl);
+    if (!token) {
+      await log("warn", "Consulta de actualización omitida", `reason=${reason} code=auth_required source=${central.source}`);
+      return setDesktopUpdateState({ status: "error", checkedAt, code: "auth_required" });
+    }
+    const baseUrl = central.url;
     const policyUrl = new URL(`${baseUrl}/api/desktop-updates/v1/policy`);
     policyUrl.searchParams.set("version", runtime.appVersion);
     policyUrl.searchParams.set("platform", process.platform);
@@ -584,12 +609,14 @@ async function checkDesktopUpdates(reason = "manual") {
     const response = await fetch(policyUrl, { headers, signal: AbortSignal.timeout(20_000) });
     const body = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
-      return setDesktopUpdateState({ status: "idle", code: "auth_required" });
+      await log("warn", "Consulta de actualización rechazada", `reason=${reason} code=auth_required source=${central.source}`);
+      return setDesktopUpdateState({ status: "error", checkedAt, code: "auth_required" });
     }
     if (!response.ok) throw new Error(`Política de actualización HTTP ${response.status}`);
     if (body?.evaluation?.status === "up-to-date") {
       updateKind = null;
-      return setDesktopUpdateState({ status: "idle", version: body.evaluation.version, kind: null, percent: null, code: "up_to_date" });
+      await log("info", "Consulta de actualización completada", `reason=${reason} result=up_to_date source=${central.source}`);
+      return setDesktopUpdateState({ status: "idle", version: body.evaluation.version, kind: null, percent: null, checkedAt, code: "up_to_date" });
     }
     if (body?.evaluation?.status !== "available" || !["normal", "mandatory"].includes(body.evaluation.kind)) {
       throw new Error("El equipo o la versión no son compatibles con el release.");
@@ -606,12 +633,12 @@ async function checkDesktopUpdates(reason = "manual") {
       url: currentUpdateFeedUrl,
       requestHeaders: headers,
     });
-    await log("info", "Consulta de actualización", `reason=${reason} version=${version} kind=${updateKind}`);
+    await log("info", "Consulta de actualización completada", `reason=${reason} result=available source=${central.source} version=${version} kind=${updateKind}`);
     await reportDesktopUpdate("available", version, updateKind);
     await desktopAutoUpdater.checkForUpdates();
     return updateState;
   })().catch(async (error) => {
-    await log("warn", "No se pudo consultar la actualización", error?.message || error);
+    await log("warn", "No se pudo consultar la actualización", `reason=${reason} ${error?.message || error}`);
     return setDesktopUpdateState({ status: "error", code: "check_failed" });
   }).finally(() => {
     updateCheckInFlight = null;
@@ -776,6 +803,8 @@ function registerIpc() {
   ipcMain.handle("desktop:secret:set", async (_event, key, value) => {
     if (key !== "desktop-activation") throw new Error("Secreto no disponible para el renderer.");
     await writeEncryptedSecret(key, value);
+    const central = await resolveDesktopCentralConfiguration();
+    if (central && desktopAutoUpdater) void checkDesktopUpdates("activation");
     return true;
   });
   ipcMain.handle("desktop:secret:get", async (_event, key) => {

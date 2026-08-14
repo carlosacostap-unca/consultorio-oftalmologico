@@ -2,6 +2,40 @@ export function shouldEnableDesktopUpdater({ isPackaged, smokeTest, platform, ar
   return Boolean(isPackaged && !smokeTest && platform === "win32" && arch === "x64");
 }
 
+export function resolveDesktopCentralUrl({ configuredUrl, activationSecret, allowLocal = false }) {
+  const explicit = String(configuredUrl || "").trim();
+  if (explicit) {
+    return { url: validatedDesktopCentralUrl(explicit, allowLocal), source: "environment" };
+  }
+
+  let activation;
+  try {
+    activation = JSON.parse(String(activationSecret || ""));
+  } catch {
+    return null;
+  }
+
+  const activatedUrl = typeof activation?.centralAppUrl === "string" ? activation.centralAppUrl.trim() : "";
+  if (!activatedUrl) return null;
+  try {
+    return { url: validatedDesktopCentralUrl(activatedUrl, allowLocal), source: "activation" };
+  } catch {
+    return null;
+  }
+}
+
+function validatedDesktopCentralUrl(value, allowLocal) {
+  const endpoint = new URL(String(value || "").trim());
+  const local = endpoint.hostname === "127.0.0.1" || endpoint.hostname === "localhost";
+  if (endpoint.protocol !== "https:" && !(allowLocal && local)) {
+    throw new Error("El servidor central debe usar HTTPS.");
+  }
+  endpoint.pathname = endpoint.pathname.replace(/\/+$/, "");
+  endpoint.search = "";
+  endpoint.hash = "";
+  return endpoint.toString().replace(/\/+$/, "");
+}
+
 export function validatedDesktopUpdateFeedUrl(value, centralUrl) {
   const feed = new URL(String(value || ""));
   const central = new URL(String(centralUrl || ""));
