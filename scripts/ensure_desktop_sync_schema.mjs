@@ -10,6 +10,7 @@ import {
   assertUniqueDesktopDeviceBackfills,
   buildDesktopDeviceBackfill,
   changedDesktopDeviceFields,
+  desktopDeviceEnabledAuthority,
   mergePocketBaseIndexes,
   missingPocketBaseIndexes,
   transitionalDesktopDeviceFields,
@@ -72,9 +73,10 @@ const existingSyncDevices = byName.get("sync_devices");
 if (!existingSyncDevices) {
   await ensureBaseCollection({ name: "sync_devices", fields: syncDeviceFields, indexes: syncDeviceIndexes });
 } else {
+  const enabledAuthority = desktopDeviceEnabledAuthority(existingSyncDevices.fields || []);
   const transitionalFields = transitionalDesktopDeviceFields(syncDeviceFields);
   await updateCollectionFields(existingSyncDevices, transitionalFields);
-  await backfillSyncDevices();
+  await backfillSyncDevices({ enabledAuthority });
   if (dryRun) {
     const missingIndexes = missingPocketBaseIndexes(existingSyncDevices.indexes || [], syncDeviceIndexes);
     if (missingIndexes.length > 0) console.log("Actualizaría sync_devices: campos obligatorios e índices posteriores al backfill");
@@ -282,12 +284,12 @@ async function pb(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-async function backfillSyncDevices() {
+async function backfillSyncDevices({ enabledAuthority }) {
   const records = await listAllRecords("sync_devices");
   const backfills = records.map((record) => ({
     id: record.id,
     record,
-    payload: buildDesktopDeviceBackfill(record),
+    payload: buildDesktopDeviceBackfill(record, { enabledAuthority }),
   }));
   assertUniqueDesktopDeviceBackfills(backfills);
 
