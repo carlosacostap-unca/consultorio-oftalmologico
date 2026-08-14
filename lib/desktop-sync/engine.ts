@@ -10,7 +10,14 @@ import {
   sortSyncEntitiesByDependencies,
 } from "./core";
 import { desktopCentralRequest, loadDesktopActivation } from "./client";
-import { createSingleFlightRunner, processInBatches, processPullEntities } from "./sync-runner";
+import { createSyncContinuationScheduler } from "./sync-continuation";
+import {
+  createSingleFlightRunner,
+  DESKTOP_PULL_MAX_PAGES_PER_SLICE,
+  DESKTOP_PULL_PAGE_SIZE,
+  processInBatches,
+  processPullEntities,
+} from "./sync-runner";
 import type {
   SyncCursor,
   SyncEntity,
@@ -35,9 +42,11 @@ const executeSingleFlight = createSingleFlightRunner(async () => {
     syncRunning = false;
   }
 });
+const continuationScheduler = createSyncContinuationScheduler(async () => runDesktopSync());
 
 export function runDesktopSync(): Promise<SyncStatusSnapshot> {
   if (maintenanceRequested) return getDesktopSyncStatus();
+  continuationScheduler.cancel();
   const promise = executeSingleFlight();
   activeSyncPromise = promise;
   void promise.finally(() => {
@@ -48,12 +57,17 @@ export function runDesktopSync(): Promise<SyncStatusSnapshot> {
 
 export async function prepareDesktopSyncForMaintenance(): Promise<SyncStatusSnapshot> {
   maintenanceRequested = true;
+  continuationScheduler.pause();
   if (activeSyncPromise) await activeSyncPromise;
   return getDesktopSyncStatus();
 }
 
 export function releaseDesktopSyncMaintenance() {
   maintenanceRequested = false;
+  continuationScheduler.resume();
+  void getDesktopSyncStatus().then((status) => {
+    if (status.phase === "continuation_required") continuationScheduler.schedule();
+  }).catch(() => undefined);
 }
 
 export async function getDesktopSyncStatus(): Promise<SyncStatusSnapshot> {
@@ -69,7 +83,7 @@ export async function getDesktopSyncStatus(): Promise<SyncStatusSnapshot> {
     pending: operations.filter((item) => item.status === "pending" || item.status === "sending").length,
     errors: operations.filter((item) => item.status === "error").length,
     conflicts: conflicts.length,
-    running: syncRunning,
+    running: syncRunning || value.phase === "continuation_required" || value.phase === "pulling" || value.phase === "pushing",
   };
 }
 
@@ -107,16 +121,45 @@ async function executeSync(): Promise<SyncStatusSnapshot> {
   const activation = await loadDesktopActivation();
   if (!activation?.bootstrapCompleted) return emptyStatus();
   const startedAt = new Date().toISOString();
-  await publishStatus({ ...(await getDesktopSyncStatus()), running: true, connectivity: navigator.onLine ? "checking" : "offline", lastAttemptAt: startedAt });
+  await publishStatus({
+    ...(await getDesktopSyncStatus()),
+    running: true,
+    phase: "pushing",
+    connectivity: navigator.onLine ? "checking" : "offline",
+    currentEntity: undefined,
+    pagesProcessed: 0,
+    recordsProcessed: 0,
+    lastAttemptAt: startedAt,
+    lastError: undefined,
+  });
 
   try {
     if (!navigator.onLine) throw new Error("Sin conexión al servidor central.");
     await pushPendingOperations(activation.centralAppUrl, window.consultorioDesktop.runtime.deviceId);
-    await pullCentralChanges(activation.centralAppUrl, window.consultorioDesktop.runtime.deviceId);
+    const pullResult = await pullCentralChanges(activation.centralAppUrl, window.consultorioDesktop.runtime.deviceId);
+    if (!pullResult.complete) {
+      const status = await publishStatus({
+        ...(await getDesktopSyncStatus()),
+        running: true,
+        phase: "continuation_required",
+        connectivity: "online",
+        currentEntity: pullResult.entity,
+        pagesProcessed: pullResult.pagesProcessed,
+        recordsProcessed: pullResult.recordsProcessed,
+        lastAttemptAt: startedAt,
+        lastError: undefined,
+      });
+      continuationScheduler.schedule();
+      return status;
+    }
     return publishStatus({
       ...(await getDesktopSyncStatus()),
       running: false,
+      phase: "caught_up",
       connectivity: "online",
+      currentEntity: undefined,
+      pagesProcessed: pullResult.pagesProcessed,
+      recordsProcessed: pullResult.recordsProcessed,
       lastAttemptAt: startedAt,
       lastSuccessAt: new Date().toISOString(),
       lastError: undefined,
@@ -126,6 +169,7 @@ async function executeSync(): Promise<SyncStatusSnapshot> {
     return publishStatus({
       ...(await getDesktopSyncStatus()),
       running: false,
+      phase: "error",
       connectivity: connectivityAfterSyncFailure(error, navigator.onLine),
       lastAttemptAt: startedAt,
       lastError: sanitizeSyncError(error),
@@ -190,15 +234,26 @@ async function applyConfirmation(confirmation: SyncOperationConfirmation, batch:
 async function pullCentralChanges(centralAppUrl: string, deviceId: string) {
   const cursors = await loadCursors();
   const entities = sortSyncEntitiesByDependencies(["pacientes", "consultas", "recetas"]);
-  await processPullEntities(
+  await publishStatus({
+    ...(await getDesktopSyncStatus()),
+    running: true,
+    phase: "pulling",
+    connectivity: "online",
+    currentEntity: entities[0],
+    pagesProcessed: 0,
+    recordsProcessed: 0,
+    lastError: undefined,
+  });
+  return processPullEntities(
     entities,
-    100,
-    async (entity) => {
+    DESKTOP_PULL_MAX_PAGES_PER_SLICE,
+    cursors,
+    async (entity, cursor) => {
       const body = (await desktopCentralRequest(centralAppUrl, "/api/desktop-sync/v1/pull", {
         deviceId,
         entities: [entity],
-        cursors,
-        limit: 100,
+        cursors: cursor ? { [entity]: cursor } : {},
+        limit: DESKTOP_PULL_PAGE_SIZE,
       })) as unknown as SyncPullResponse;
       const page = (body.pages || []).find((candidate) => candidate.entity === entity);
       if (!page) throw new Error(`El servidor no devolvió la página de ${entity}.`);
@@ -208,6 +263,19 @@ async function pullCentralChanges(centralAppUrl: string, deviceId: string) {
     async (cursor) => {
       cursors[cursor.entity] = cursor;
       await saveCursor(cursor);
+    },
+    async (progress) => {
+      if (progress.pagesProcessed % 10 !== 0) return;
+      await publishStatus({
+        ...(await getDesktopSyncStatus()),
+        running: true,
+        phase: "pulling",
+        connectivity: "online",
+        currentEntity: progress.entity,
+        pagesProcessed: progress.pagesProcessed,
+        recordsProcessed: progress.recordsProcessed,
+        lastError: undefined,
+      });
     },
   );
 }
@@ -380,5 +448,12 @@ function escapeFilter(value: string) {
 }
 
 function emptyStatus(): SyncStatusSnapshot {
-  return { connectivity: navigator.onLine ? "checking" : "offline", pending: 0, errors: 0, conflicts: 0, running: false };
+  return {
+    connectivity: navigator.onLine ? "checking" : "offline",
+    phase: "idle",
+    pending: 0,
+    errors: 0,
+    conflicts: 0,
+    running: false,
+  };
 }

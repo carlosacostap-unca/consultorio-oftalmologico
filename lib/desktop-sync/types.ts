@@ -8,6 +8,7 @@ export type SyncOperationStatus = "pending" | "sending" | "confirmed" | "error" 
 export type SyncConflictStatus = "open" | "resolved" | "discarded";
 export type SyncConflictResolution = "keep_central" | "apply_local" | "link_patient";
 export type SyncConnectivity = "online" | "offline" | "checking";
+export type SyncPhase = "idle" | "pushing" | "pulling" | "continuation_required" | "caught_up" | "error";
 
 export type SyncRecord = Record<string, unknown> & {
   id?: string;
@@ -123,8 +124,12 @@ export interface SyncPullResponse {
 
 export interface SyncStatusSnapshot {
   connectivity: SyncConnectivity;
+  phase: SyncPhase;
   deviceId?: string;
   deviceCode?: string;
+  currentEntity?: SyncEntity;
+  pagesProcessed?: number;
+  recordsProcessed?: number;
   pending: number;
   errors: number;
   conflicts: number;
