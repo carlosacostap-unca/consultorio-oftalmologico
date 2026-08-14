@@ -3,6 +3,7 @@ import {
   envFileFromArgs,
   hasFlag,
   loadEnvFile,
+  mergeEnvValues,
   pocketBaseUrl,
 } from "./env_utils.mjs";
 import {
@@ -15,15 +16,16 @@ import {
 
 const envFile = envFileFromArgs(".env.local");
 const env = loadEnvFile(envFile, { required: true });
-const PB_URL = pocketBaseUrl({ ...process.env, ...env });
+const values = mergeEnvValues(process.env, env);
+const PB_URL = pocketBaseUrl(values);
 const dryRun = hasFlag("--dry-run");
 const devicesOnly = hasFlag("--devices-only");
 
 assertTestingPocketBaseUrl(PB_URL, {
-  requireTest: hasFlag("--require-test-pocketbase") || process.env.REQUIRE_TEST_POCKETBASE === "true",
+  requireTest: hasFlag("--require-test-pocketbase") || values.REQUIRE_TEST_POCKETBASE === "true",
 });
 
-const token = await adminToken(PB_URL, env, envFile);
+const token = await adminToken(PB_URL, values, envFile);
 const collections = await listCollections();
 const byName = new Map(collections.map((collection) => [collection.name, collection]));
 const users = requiredCollection("users");

@@ -43,6 +43,10 @@ export function loadEnvFile(path, { required = false } = {}) {
   return result;
 }
 
+export function mergeEnvValues(runtimeValues = process.env, fileValues = {}) {
+  return { ...runtimeValues, ...fileValues };
+}
+
 export function applyEnv(env) {
   for (const [key, value] of Object.entries(env)) {
     if (value && !process.env[key]) process.env[key] = value;
