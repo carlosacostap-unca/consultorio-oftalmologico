@@ -12,6 +12,7 @@ import {
   changedDesktopDeviceFields,
   mergePocketBaseIndexes,
   missingPocketBaseIndexes,
+  transitionalDesktopDeviceFields,
 } from "./desktop_sync_device_compat.mjs";
 
 const envFile = envFileFromArgs(".env.local");
@@ -71,9 +72,7 @@ const existingSyncDevices = byName.get("sync_devices");
 if (!existingSyncDevices) {
   await ensureBaseCollection({ name: "sync_devices", fields: syncDeviceFields, indexes: syncDeviceIndexes });
 } else {
-  const transitionalFields = syncDeviceFields.map((field) =>
-    field.name === "device_id" || field.name === "code" ? { ...field, required: false } : field
-  );
+  const transitionalFields = transitionalDesktopDeviceFields(syncDeviceFields);
   await updateCollectionFields(existingSyncDevices, transitionalFields);
   await backfillSyncDevices();
   if (dryRun) {

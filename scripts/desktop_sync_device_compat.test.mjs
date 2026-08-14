@@ -6,6 +6,7 @@ import {
   changedDesktopDeviceFields,
   mergePocketBaseIndexes,
   missingPocketBaseIndexes,
+  transitionalDesktopDeviceFields,
 } from "./desktop_sync_device_compat.mjs";
 
 test("completa un registro legacy sin borrar su contrato anterior", () => {
@@ -78,4 +79,27 @@ test("reconoce índices legacy aunque PocketBase cambie el formato SQL", () => {
 
   assert.deepEqual(missingPocketBaseIndexes(existing, required), [required[1]]);
   assert.deepEqual(mergePocketBaseIndexes(existing, required), [existing[0], required[1]]);
+});
+
+test("agrega ambos contratos de identidad como opcionales antes del backfill", () => {
+  const fields = [
+    { name: "device_key", required: true },
+    { name: "modo", required: true },
+    { name: "device_id", required: true },
+    { name: "code", required: true },
+    { name: "unrelated_required", required: true },
+  ];
+
+  const transitional = transitionalDesktopDeviceFields(fields);
+  assert.deepEqual(
+    transitional.map((field) => [field.name, field.required]),
+    [
+      ["device_key", false],
+      ["modo", false],
+      ["device_id", false],
+      ["code", false],
+      ["unrelated_required", true],
+    ],
+  );
+  assert.equal(fields[0].required, true);
 });
