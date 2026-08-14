@@ -70,6 +70,11 @@ export function missingPocketBaseIndexes(existingIndexes, requiredIndexes) {
   });
 }
 
+export function transitionalDesktopDeviceFields(fields) {
+  const identityFields = new Set(["device_key", "modo", "device_id", "code"]);
+  return fields.map((field) => identityFields.has(field.name) ? { ...field, required: false } : field);
+}
+
 function pocketBaseIndexName(index) {
   return String(index || "").match(/^CREATE\s+(?:UNIQUE\s+)?INDEX\s+[`"]?([^`"\s]+)[`"]?/i)?.[1] || "";
 }
