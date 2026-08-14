@@ -1,6 +1,6 @@
 {
   "name": "consultorio-oftalmologico",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Sistema clínico web y de escritorio offline para consultorio oftalmológico.",
   "author": "Acosta Parra",
   "private": true,
@@ -34,7 +34,7 @@
     "test:playwright": "playwright test",
     "test:playwright:test": "node scripts/run_playwright_test.mjs --env .env.test.local",
     "test:playwright:headed": "playwright test --headed",
-    "test:sync-core": "node --test desktop/local-record-policy.test.mjs desktop/update-backup.test.mjs desktop/update-client-policy.test.mjs desktop/update-integrity.test.mjs desktop/update-loader.test.mjs desktop/update-maintenance.test.mjs desktop/update-recovery.test.mjs lib/desktop-record-filter.test.ts lib/desktop-record-status.test.ts lib/desktop-sync/activation-policy.test.ts lib/desktop-sync/bootstrap-concurrency.test.ts lib/desktop-sync/client-error.test.ts lib/desktop-sync/core.test.ts lib/desktop-sync/device-record-compat.test.ts lib/desktop-sync/local-password.test.ts lib/desktop-sync/local-settings-bootstrap.test.ts lib/desktop-sync/local-user-bootstrap.test.ts lib/desktop-sync/server-auth-policy.test.ts lib/desktop-sync/sync-runner.test.ts lib/desktop-scope.test.ts lib/desktop-updates/config-policy.test.ts lib/desktop-updates/gateway.test.ts lib/desktop-updates/policy.test.ts lib/patient-merge.test.ts lib/pocketbase-request.test.ts scripts/desktop_sync_device_compat.test.mjs scripts/env_utils.test.mjs",
+    "test:sync-core": "node --import tsx --test desktop/local-record-policy.test.mjs desktop/update-backup.test.mjs desktop/update-client-policy.test.mjs desktop/update-integrity.test.mjs desktop/update-loader.test.mjs desktop/update-maintenance.test.mjs desktop/update-recovery.test.mjs lib/desktop-record-filter.test.ts lib/desktop-record-status.test.ts lib/desktop-sync/activation-policy.test.ts lib/desktop-sync/bootstrap-concurrency.test.ts lib/desktop-sync/client-error.test.ts lib/desktop-sync/core.test.ts lib/desktop-sync/device-record-compat.test.ts lib/desktop-sync/local-password.test.ts lib/desktop-sync/local-settings-bootstrap.test.ts lib/desktop-sync/local-user-bootstrap.test.ts lib/desktop-sync/server-auth-policy.test.ts lib/desktop-sync/sync-runner.test.ts lib/desktop-scope.test.ts lib/desktop-updates/config-policy.test.ts lib/desktop-updates/gateway.test.ts lib/desktop-updates/policy.test.ts lib/patient-merge.test.ts lib/pocketbase-request.test.ts scripts/desktop_sync_device_compat.test.mjs scripts/env_utils.test.mjs",
     "desktop:release:manifest": "node scripts/generate_desktop_release_manifest.mjs",
     "desktop:release:policy": "node scripts/generate_desktop_release_policy.mjs",
     "desktop:release:sign": "node scripts/sign_desktop_release_manifest.mjs",
@@ -68,6 +68,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4.3.3",
+    "tsx": "4.23.12",
     "typescript": "^5",
     "wait-on": "9.0.10"
   },
