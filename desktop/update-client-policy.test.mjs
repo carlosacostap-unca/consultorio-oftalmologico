@@ -3,11 +3,56 @@ import test from "node:test";
 import {
   publicDesktopUpdateState,
   nextDesktopUpdateReminderAt,
+  resolveDesktopCentralUrl,
   shouldEnableDesktopUpdater,
   shouldDeferDesktopUpdate,
   shouldInstallMandatoryUpdateOnClose,
   validatedDesktopUpdateFeedUrl,
 } from "./update-client-policy.mjs";
+
+test("resuelve la URL central desde el entorno con precedencia sobre la activación", () => {
+  assert.deepEqual(resolveDesktopCentralUrl({
+    configuredUrl: "https://central.example/consultorio/?token=no-debe-quedar#fragmento",
+    activationSecret: JSON.stringify({ centralAppUrl: "https://activacion.example" }),
+  }), {
+    url: "https://central.example/consultorio",
+    source: "environment",
+  });
+});
+
+test("usa la URL HTTPS de la activación cuando Windows no define variables", () => {
+  assert.deepEqual(resolveDesktopCentralUrl({
+    configuredUrl: "",
+    activationSecret: JSON.stringify({ centralAppUrl: "https://consultorio.example/" }),
+  }), {
+    url: "https://consultorio.example",
+    source: "activation",
+  });
+});
+
+test("trata una activación ausente, corrupta o insegura como configuración faltante", () => {
+  assert.equal(resolveDesktopCentralUrl({ configuredUrl: "", activationSecret: "" }), null);
+  assert.equal(resolveDesktopCentralUrl({ configuredUrl: "", activationSecret: "{" }), null);
+  assert.equal(resolveDesktopCentralUrl({
+    configuredUrl: "",
+    activationSecret: JSON.stringify({ centralAppUrl: "http://consultorio.example" }),
+  }), null);
+  assert.throws(() => resolveDesktopCentralUrl({
+    configuredUrl: "http://configuracion.example",
+    activationSecret: JSON.stringify({ centralAppUrl: "https://consultorio.example" }),
+  }), /HTTPS/);
+});
+
+test("permite loopback HTTP únicamente durante desarrollo", () => {
+  assert.deepEqual(resolveDesktopCentralUrl({
+    configuredUrl: "http://127.0.0.1:3000/",
+    activationSecret: "",
+    allowLocal: true,
+  }), {
+    url: "http://127.0.0.1:3000",
+    source: "environment",
+  });
+});
 
 test("habilita el updater sólo en Windows x64 empaquetado y fuera de smoke", () => {
   assert.equal(shouldEnableDesktopUpdater({ isPackaged: true, smokeTest: false, platform: "win32", arch: "x64" }), true);
