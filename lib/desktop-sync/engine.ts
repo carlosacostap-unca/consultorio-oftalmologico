@@ -2,9 +2,15 @@
 
 import type { RecordModel } from "pocketbase";
 import { pb } from "@/lib/pocketbase";
-import { retryDelayMs, sanitizeSyncError, sortOperationsByDependencies } from "./core";
+import {
+  connectivityAfterSyncFailure,
+  retryDelayMs,
+  sanitizeSyncError,
+  sortOperationsByDependencies,
+  sortSyncEntitiesByDependencies,
+} from "./core";
 import { desktopCentralRequest, loadDesktopActivation } from "./client";
-import { createSingleFlightRunner, processInBatches } from "./sync-runner";
+import { createSingleFlightRunner, processInBatches, processPullEntities } from "./sync-runner";
 import type {
   SyncCursor,
   SyncEntity,
@@ -120,7 +126,7 @@ async function executeSync(): Promise<SyncStatusSnapshot> {
     return publishStatus({
       ...(await getDesktopSyncStatus()),
       running: false,
-      connectivity: "offline",
+      connectivity: connectivityAfterSyncFailure(error, navigator.onLine),
       lastAttemptAt: startedAt,
       lastError: sanitizeSyncError(error),
     });
@@ -183,25 +189,27 @@ async function applyConfirmation(confirmation: SyncOperationConfirmation, batch:
 
 async function pullCentralChanges(centralAppUrl: string, deviceId: string) {
   const cursors = await loadCursors();
-  for (let iteration = 0; iteration < 100; iteration += 1) {
-    const body = (await desktopCentralRequest(centralAppUrl, "/api/desktop-sync/v1/pull", {
-      deviceId,
-      entities: ["pacientes", "consultas", "recetas"],
-      cursors,
-      limit: 100,
-    })) as unknown as SyncPullResponse;
-    let hasMore = false;
-    for (const page of body.pages || []) {
-      for (const record of page.records) await upsertCentralRecord(page.entity, record);
-      if (page.cursor) {
-        cursors[page.entity] = page.cursor;
-        await saveCursor(page.cursor);
-      }
-      hasMore ||= page.hasMore;
-    }
-    if (!hasMore) return;
-  }
-  throw new Error("La descarga incremental excedió el límite seguro de páginas.");
+  const entities = sortSyncEntitiesByDependencies(["pacientes", "consultas", "recetas"]);
+  await processPullEntities(
+    entities,
+    100,
+    async (entity) => {
+      const body = (await desktopCentralRequest(centralAppUrl, "/api/desktop-sync/v1/pull", {
+        deviceId,
+        entities: [entity],
+        cursors,
+        limit: 100,
+      })) as unknown as SyncPullResponse;
+      const page = (body.pages || []).find((candidate) => candidate.entity === entity);
+      if (!page) throw new Error(`El servidor no devolvió la página de ${entity}.`);
+      return page;
+    },
+    upsertCentralRecord,
+    async (cursor) => {
+      cursors[cursor.entity] = cursor;
+      await saveCursor(cursor);
+    },
+  );
 }
 
 async function upsertCentralRecord(entity: SyncEntity, record: SyncRecord) {
