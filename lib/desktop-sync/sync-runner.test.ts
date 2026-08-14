@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSingleFlightRunner, processInBatches, processPullEntities } from "./sync-runner.ts";
-import type { SyncEntity, SyncPullPage } from "./types.ts";
+import { createSingleFlightRunner, isCursorAfter, processInBatches, processPullEntities } from "./sync-runner.ts";
+import type { SyncCursor, SyncEntity, SyncPullPage } from "./types.ts";
 
 test("dos sincronizaciones solicitadas a la vez comparten una única ejecución", async () => {
   let executions = 0;
@@ -68,6 +68,7 @@ test("agota cada entidad antes de aplicar registros dependientes", async () => {
   await processPullEntities(
     ["pacientes", "consultas", "recetas"],
     10,
+    {},
     async (entity) => pages.get(entity)!.shift()!,
     async (entity, record) => { events.push(`record:${entity}:${record.id}`); },
     async (cursor) => { events.push(`cursor:${cursor.entity}:${cursor.id}`); },
@@ -91,13 +92,170 @@ test("no guarda el cursor de una página que falló al persistirse", async () =>
     processPullEntities(
       ["consultas"],
       2,
+      {},
       async () => pullPage("consultas", "c1", false),
       async () => { throw new Error("relation missing"); },
       async (cursor) => { saved.push(cursor.id); },
     ),
     /relation missing/,
   );
+  assert.equal(saved.length, 0);
+});
+
+test("devuelve una continuación al agotar el tramo y reanuda desde el cursor durable", async () => {
+  const saved: SyncCursor[] = [];
+  const requested: Array<SyncCursor | null> = [];
+  const pages = Array.from({ length: 101 }, (_, index) => {
+    const id = String(index + 1).padStart(6, "0");
+    return pullPage("consultas", id, index < 100);
+  });
+
+  const first = await processPullEntities(
+    ["consultas"],
+    100,
+    {},
+    async (_entity, cursor) => {
+      requested.push(cursor);
+      return pages.shift()!;
+    },
+    async () => undefined,
+    async (cursor) => { saved.push(cursor); },
+  );
+
+  assert.deepEqual(first, {
+    complete: false,
+    entity: "consultas",
+    pagesProcessed: 100,
+    recordsProcessed: 100,
+  });
+  assert.equal(saved.at(-1)?.id, "000100");
+
+  const second = await processPullEntities(
+    ["consultas"],
+    100,
+    { consultas: saved.at(-1)! },
+    async (_entity, cursor) => {
+      requested.push(cursor);
+      return pages.shift()!;
+    },
+    async () => undefined,
+    async (cursor) => { saved.push(cursor); },
+  );
+
+  assert.equal(second.complete, true);
+  assert.equal(requested.at(-1)?.id, "000100");
+  assert.equal(saved.at(-1)?.id, "000101");
+});
+
+test("rechaza una página vacía que declara más resultados", async () => {
+  await assert.rejects(
+    processPullEntities(
+      ["consultas"],
+      2,
+      {},
+      async () => ({ entity: "consultas", records: [], cursor: null, hasMore: true }),
+      async () => undefined,
+      async () => undefined,
+    ),
+    /más resultados pero no contiene registros/,
+  );
+});
+
+test("rechaza un cursor ausente o estancado sin guardarlo", async () => {
+  const previous: SyncCursor = { entity: "consultas", updated: "2026-08-14T12:00:00.000Z", id: "c1" };
+  const saved: SyncCursor[] = [];
+
+  await assert.rejects(
+    processPullEntities(
+      ["consultas"],
+      2,
+      { consultas: previous },
+      async () => ({ entity: "consultas", records: [{ id: "c1" }], cursor: previous, hasMore: true }),
+      async () => undefined,
+      async (cursor) => { saved.push(cursor); },
+    ),
+    /no avanzó/,
+  );
+  assert.equal(saved.length, 0);
+
+  await assert.rejects(
+    processPullEntities(
+      ["consultas"],
+      2,
+      {},
+      async () => ({ entity: "consultas", records: [{ id: "c2" }], cursor: null, hasMore: false }),
+      async () => undefined,
+      async (cursor) => { saved.push(cursor); },
+    ),
+    /no devolvió un cursor/,
+  );
   assert.deepEqual(saved, []);
+});
+
+test("rechaza un cursor sin entidad antes de aplicar la página", async () => {
+  let applied = 0;
+  await assert.rejects(
+    processPullEntities(
+      ["consultas"],
+      2,
+      {},
+      async () => ({
+        entity: "consultas",
+        records: [{ id: "c1" }],
+        cursor: { updated: "2026-08-14T12:00:00.000Z", id: "c1" } as SyncCursor,
+        hasMore: false,
+      }),
+      async () => { applied += 1; },
+      async () => undefined,
+    ),
+    /cursor recibido no corresponde/,
+  );
+  assert.equal(applied, 0);
+});
+
+test("compara cursores con updated e id como desempate estable", () => {
+  const base: SyncCursor = { entity: "consultas", updated: "2026-08-14T12:00:00.000Z", id: "c1" };
+  assert.equal(isCursorAfter({ ...base, id: "c2" }, base), true);
+  assert.equal(isCursorAfter({ ...base, updated: "2026-08-15T12:00:00.000Z", id: "a1" }, base), true);
+  assert.equal(isCursorAfter(base, base), false);
+  assert.equal(isCursorAfter({ ...base, entity: "pacientes" }, base), false);
+});
+
+test("completa más de doscientos mil registros mediante tramos reanudables", async () => {
+  const totalPages = 1_001;
+  const recordsPerPage = 200;
+  let pageNumber = 0;
+  let durableCursor: SyncCursor | undefined;
+  let slices = 0;
+  let applied = 0;
+  let complete = false;
+
+  while (!complete) {
+    const result = await processPullEntities(
+      ["consultas"],
+      100,
+      durableCursor ? { consultas: durableCursor } : {},
+      async () => {
+        pageNumber += 1;
+        const id = String(pageNumber).padStart(6, "0");
+        return {
+          entity: "consultas",
+          records: Array.from({ length: recordsPerPage }, (_, index) => ({ id: `${id}-${index}` })),
+          cursor: { entity: "consultas", updated: "2026-08-14T12:00:00.000Z", id },
+          hasMore: pageNumber < totalPages,
+        };
+      },
+      async () => { applied += 1; },
+      async (cursor) => { durableCursor = cursor; },
+    );
+    slices += 1;
+    complete = result.complete;
+  }
+
+  assert.equal(applied, 200_200);
+  assert.equal(pageNumber, totalPages);
+  assert.equal(slices, 11);
+  assert.equal(durableCursor?.id, "001001");
 });
 
 function pullPage(entity: SyncEntity, id: string, hasMore: boolean): SyncPullPage {
