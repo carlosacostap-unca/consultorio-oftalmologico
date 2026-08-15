@@ -56,6 +56,12 @@ El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftal
 - **AND** permite abrir consultas y recetas previas desde esa seccion
 - **AND** en escritorio el contexto no ocupa ancho permanente ni aumenta la altura del documento cuando esta oculto
 
+#### Scenario: Mostrar ocupacion en carga inicial
+- **WHEN** el usuario selecciona o abre una nueva consulta con paciente
+- **THEN** el sistema muestra la ocupacion del paciente en la misma fila que edad, obra social y domicilio cuando este disponible
+- **AND** mantiene edad y ocupacion como campos compactos, con ocupacion despues de domicilio
+- **AND** mantiene la fila legible en escritorio y apilada en pantallas angostas
+
 #### Scenario: Formulario clinico organizado
 - **WHEN** el usuario abre una nueva consulta
 - **THEN** el sistema muestra secciones distinguibles para paciente, antecedentes, motivo, examen oftalmologico, refraccion y cierre clinico
@@ -169,6 +175,11 @@ El sistema SHALL permitir navegar dentro del historial de consultas del mismo pa
 - **AND** muestra la fecha de la consulta como `dd/mm/aaaa`, sin depender de la configuracion regional del navegador
 - **AND** muestra un resumen clinico con motivo, diagnostico, tratamiento, PIO, AV, refraccion y antecedentes activos
 - **AND** muestra un panel de continuidad clinica con estado de diagnostico, tratamiento, recetas emitidas y datos clave del paciente
+
+#### Scenario: Mostrar ocupacion en consulta existente
+- **WHEN** se abre una consulta existente asociada a un paciente con ocupacion cargada
+- **THEN** el sistema muestra la ocupacion junto con los datos resumidos del paciente
+- **AND** la muestra tambien en la fila de datos iniciales del paciente de la consulta despues de domicilio
 
 #### Scenario: Acciones clinicas desde detalle
 - **WHEN** se abre una consulta existente
