@@ -23,5 +23,5 @@
 
 - [x] 4.1 Ejecutar las pruebas focalizadas de sincronización con un volumen sintético equivalente a más de 200.000 registros paginados.
 - [x] 4.2 Ejecutar lint, comprobación de tipos, suite relevante, build de producción y validación OpenSpec estricta.
-- [ ] 4.3 Desplegar el contrato compatible en staging y verificar que el equipo piloto reanuda su cursor existente hasta quedar al día sin pendientes, errores ni conflictos espurios.
-- [ ] 4.4 Preparar la versión de escritorio `0.1.7` para el canal piloto y comprobar la actualización in-place, manteniendo estable sin cambios hasta aprobar el piloto.
+- [x] 4.3 Desplegar el contrato compatible en staging y verificar que el equipo piloto reanuda su cursor existente hasta quedar al día sin pendientes, errores ni conflictos espurios.
+- [x] 4.4 Preparar la versión de escritorio `0.1.7` para el canal piloto y comprobar la actualización in-place, manteniendo estable sin cambios hasta aprobar el piloto.
