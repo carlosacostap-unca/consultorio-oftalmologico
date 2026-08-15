@@ -10,6 +10,7 @@ import {
   runDesktopSync,
 } from "@/lib/desktop-sync/engine";
 import { sanitizeSyncError } from "@/lib/desktop-sync/core";
+import { presentSyncStatus } from "@/lib/desktop-sync/status-presentation";
 import type { SyncStatusSnapshot } from "@/lib/desktop-sync/types";
 
 export default function SynchronizationPage() {
@@ -54,7 +55,13 @@ export default function SynchronizationPage() {
   async function synchronizeNow() {
     setMessage("");
     const result = await runDesktopSync();
-    setMessage(result.lastError ? `No se pudo completar: ${result.lastError}` : "Sincronización completada.");
+    setMessage(
+      result.lastError
+        ? `No se pudo completar: ${result.lastError}`
+        : result.phase === "continuation_required"
+          ? "La descarga continúa automáticamente."
+          : "Sincronización completada.",
+    );
     await refresh();
   }
 
@@ -79,6 +86,7 @@ export default function SynchronizationPage() {
 
   if (loading) return <div className="p-8 text-zinc-500">Cargando estado de sincronización...</div>;
   if (!window.consultorioDesktop) return <div className="p-8"><h1 className="text-2xl font-bold">Sincronización</h1><p className="mt-2 text-zinc-500">Esta pantalla está disponible en la versión de escritorio.</p></div>;
+  const presentation = status ? presentSyncStatus(status) : null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 sm:p-8">
@@ -101,6 +109,13 @@ export default function SynchronizationPage() {
         <Metric label="Errores" value={String(status?.errors || 0)} tone={status?.errors ? "amber" : "gray"} />
         <Metric label="Conflictos" value={String(status?.conflicts || 0)} tone={status?.conflicts ? "amber" : "gray"} />
       </section>
+
+      {presentation?.active && (
+        <section aria-live="polite" className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+          <strong className="block">{presentation.label}</strong>
+          <span className="mt-1 block text-sm">{presentation.detail}</span>
+        </section>
+      )}
 
       {(loadError || message || status?.lastError) && (
         <div aria-live="polite" className="flex flex-col gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-300 sm:flex-row sm:items-center sm:justify-between">
