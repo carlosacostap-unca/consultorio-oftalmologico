@@ -22,7 +22,12 @@ El sistema SHALL listar pacientes autenticados con paginacion, orden alfabetico 
 - **AND** reinicia la paginacion a la primera pagina
 
 ### Requirement: Alta de paciente
-El sistema SHALL permitir crear pacientes con datos personales, documento, ficha, contacto y cobertura, SHALL preservar la fecha de nacimiento como dato calendario y SHALL ejecutar las validaciones previas sin requerir permisos administrativos de lectura del esquema de PocketBase.
+El sistema SHALL permitir crear pacientes con datos personales, ocupacion, documento, ficha, contacto y cobertura, SHALL preservar la fecha de nacimiento como dato calendario y SHALL ejecutar las validaciones previas sin requerir permisos administrativos de lectura del esquema de PocketBase.
+
+#### Scenario: Crear paciente con ocupacion opcional
+- **WHEN** el usuario completa los datos de alta de paciente
+- **THEN** el sistema permite ingresar ocupacion como texto opcional
+- **AND** guarda `ocupacion` en `pacientes` junto con el resto de datos administrativos
 
 #### Scenario: Crear paciente con mutual existente
 - **WHEN** el usuario completa apellido, nombre, numero de documento y selecciona una mutual
@@ -95,6 +100,11 @@ El sistema SHALL permitir ver, editar, eliminar e imprimir pacientes desde `/pac
 - **THEN** el sistema actualiza `pacientes`
 - **AND** valida que el numero de ficha no pertenezca a otro paciente usando `exclude_id`
 
+#### Scenario: Editar ocupacion del paciente
+- **WHEN** el usuario guarda cambios de un paciente con ocupacion cargada
+- **THEN** el sistema actualiza `pacientes.ocupacion`
+- **AND** conserva la ocupacion visible en los datos de la ficha del paciente
+
 #### Scenario: Ver paciente con fecha guardada a medianoche UTC
 - **WHEN** un paciente tiene `fecha_nacimiento` guardada a `00:00:00.000Z`
 - **THEN** la ficha del paciente muestra el dia calendario almacenado
@@ -114,6 +124,17 @@ El sistema SHALL permitir ver, editar, eliminar e imprimir pacientes desde `/pac
 - **WHEN** el usuario confirma la eliminacion
 - **THEN** el sistema elimina el registro de `pacientes`
 - **AND** regresa al listado de pacientes
+
+### Requirement: Importacion de ocupaciones de pacientes
+El sistema SHALL permitir importar ocupaciones legacy desde `PACIENTE.DBF` cruzando por numero de ficha.
+
+#### Scenario: Importar ocupaciones por ficha
+- **WHEN** se ejecuta la importacion de ocupaciones desde DBF
+- **THEN** el sistema lee `NUM_FICH` y `OCUPAC`
+- **AND** actualiza `pacientes.ocupacion` cuando `NUM_FICH` coincide con `pacientes.numero_ficha`
+- **AND** omite registros sin ocupacion o sin ficha
+- **AND** omite fichas con ocupaciones contradictorias en el DBF
+- **AND** informa totales de revisados, sin cambios, a actualizar, actualizados, sin match y ambiguos
 
 ### Requirement: Historial clinico desde paciente
 El sistema SHALL mostrar las consultas del paciente ordenadas por fecha descendente, una continuidad clinica resumida, una historia clinica unificada y sus recetas recientes asociadas.
