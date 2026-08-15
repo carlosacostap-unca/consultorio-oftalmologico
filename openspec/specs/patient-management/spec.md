@@ -22,7 +22,7 @@ El sistema SHALL listar pacientes autenticados con paginacion, orden alfabetico 
 - **AND** reinicia la paginacion a la primera pagina
 
 ### Requirement: Alta de paciente
-El sistema SHALL permitir crear pacientes con datos personales, documento, ficha, contacto y cobertura, y SHALL ejecutar las validaciones previas sin requerir permisos administrativos de lectura del esquema de PocketBase.
+El sistema SHALL permitir crear pacientes con datos personales, documento, ficha, contacto y cobertura, SHALL preservar la fecha de nacimiento como dato calendario y SHALL ejecutar las validaciones previas sin requerir permisos administrativos de lectura del esquema de PocketBase.
 
 #### Scenario: Crear paciente con mutual existente
 - **WHEN** el usuario completa apellido, nombre, numero de documento y selecciona una mutual
@@ -40,10 +40,14 @@ El sistema SHALL permitir crear pacientes con datos personales, documento, ficha
 - **THEN** el sistema informa el paciente duplicado
 - **AND** no crea el registro
 
-#### Scenario: DNI duplicado
-- **WHEN** el usuario intenta guardar un DNI asignado a otro paciente activo del mismo tipo de documento
-- **THEN** el sistema informa el paciente duplicado
-- **AND** no crea el registro
+#### Scenario: Crear paciente con fecha de nacimiento
+- **WHEN** el usuario completa una fecha de nacimiento valida al crear un paciente
+- **THEN** el sistema guarda `pacientes.fecha_nacimiento` normalizada a mediodia UTC
+- **AND** al volver a mostrarla conserva el mismo dia, mes y anio ingresados
+
+#### Scenario: Crear paciente sin fecha de nacimiento
+- **WHEN** el usuario crea un paciente sin fecha de nacimiento
+- **THEN** el sistema conserva el campo vacio
 
 #### Scenario: Validacion de DNI con permisos operativos
 - **WHEN** el usuario intenta guardar un paciente y las credenciales del servidor pueden consultar registros pero no leer el esquema de PocketBase
@@ -66,7 +70,7 @@ El sistema SHALL permitir crear una mutual durante el alta de paciente si no exi
 - **AND** selecciona automaticamente la mutual creada para el paciente
 
 ### Requirement: Detalle, edicion y vista de paciente
-El sistema SHALL permitir ver, editar, eliminar e imprimir pacientes desde `/pacientes/[id]`, y SHALL mostrar una ficha clinica optimizada para el medico en modo lectura.
+El sistema SHALL permitir ver, editar, eliminar e imprimir pacientes desde `/pacientes/[id]`, SHALL mostrar una ficha clinica optimizada para el medico en modo lectura y SHALL preservar la fecha de nacimiento como dato calendario.
 
 #### Scenario: Ver paciente
 - **WHEN** el usuario abre `/pacientes/[id]?mode=view`
@@ -90,6 +94,21 @@ El sistema SHALL permitir ver, editar, eliminar e imprimir pacientes desde `/pac
 - **WHEN** el usuario guarda cambios de un paciente
 - **THEN** el sistema actualiza `pacientes`
 - **AND** valida que el numero de ficha no pertenezca a otro paciente usando `exclude_id`
+
+#### Scenario: Ver paciente con fecha guardada a medianoche UTC
+- **WHEN** un paciente tiene `fecha_nacimiento` guardada a `00:00:00.000Z`
+- **THEN** la ficha del paciente muestra el dia calendario almacenado
+- **AND** no desplaza la fecha al dia anterior por zona horaria local
+
+#### Scenario: Editar paciente con fecha de nacimiento
+- **WHEN** el usuario guarda cambios de un paciente con fecha de nacimiento
+- **THEN** el sistema actualiza `pacientes.fecha_nacimiento` normalizada a mediodia UTC
+- **AND** conserva el mismo dia elegido en el formulario
+
+#### Scenario: Calcular edad en flujos clinicos
+- **WHEN** una consulta muestra la edad del paciente
+- **THEN** el sistema calcula la edad desde el dia calendario de nacimiento
+- **AND** no depende de interpretar la fecha como medianoche UTC
 
 #### Scenario: Eliminar paciente
 - **WHEN** el usuario confirma la eliminacion
@@ -161,6 +180,41 @@ El sistema SHALL tratar las advertencias de duplicados como informacion operativ
 - **WHEN** el usuario revisa una advertencia de posible duplicado
 - **THEN** el sistema permite continuar con el flujo actual
 - **AND** no modifica ni fusiona otros pacientes
+
+### Requirement: Revision de DNI duplicados
+El sistema SHALL permitir a administradores revisar DNI presentes en mas de una ficha activa.
+
+#### Scenario: Acceso desde calidad de datos
+- **WHEN** un usuario con rol activo admin abre el menu lateral
+- **THEN** el sistema muestra la opcion "DNI duplicados" dentro de "Calidad de datos"
+- **AND** la opcion navega a `/pacientes/dni-duplicados`
+
+#### Scenario: Listar DNI en mas de una ficha
+- **WHEN** un administrador abre `/pacientes/dni-duplicados`
+- **THEN** el sistema lista cada DNI normalizado que aparece en mas de una ficha activa
+- **AND** muestra para cada DNI los pacientes, documentos cargados, fichas, telefono, obra social y enlace a la ficha del paciente
+
+#### Scenario: No autorizado
+- **WHEN** un usuario sin rol activo admin intenta consultar DNI duplicados
+- **THEN** el sistema rechaza el acceso
+
+### Requirement: Documento unico en pacientes activos
+El sistema SHALL impedir que dos pacientes activos tengan el mismo DNI o numero de documento.
+
+#### Scenario: DNI duplicado
+- **WHEN** el usuario intenta crear un paciente con un DNI ya asignado a otro paciente activo
+- **THEN** el sistema informa a que paciente y ficha pertenece el DNI
+- **AND** no crea el registro
+
+#### Scenario: Edicion con documento duplicado
+- **WHEN** el usuario intenta editar un paciente y guardar un DNI ya asignado a otro paciente activo
+- **THEN** el sistema informa a que paciente y ficha pertenece el DNI
+- **AND** no actualiza el registro
+
+#### Scenario: Compatibilidad con campo historico dni
+- **WHEN** existen registros activos con el documento en `dni` o en `numero_documento`
+- **THEN** la validacion busca coincidencias en ambos campos
+- **AND** excluye al paciente actual cuando se edita una ficha existente
 
 ### Requirement: Pacientes fusionados en gestion de pacientes
 El sistema SHALL identificar pacientes fusionados y evitar que aparezcan como pacientes activos en flujos normales.
