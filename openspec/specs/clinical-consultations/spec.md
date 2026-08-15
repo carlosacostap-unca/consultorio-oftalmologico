@@ -4,12 +4,15 @@
 Define la carga, consulta, edicion, navegacion e impresion de datos clinicos oftalmologicos.
 ## Requirements
 ### Requirement: Listado de consultas
-El sistema SHALL listar consultas con filtros por paciente, letra inicial y fecha.
+El sistema SHALL listar consultas con filtros por paciente, letra inicial y fecha, mostrando por defecto primero las atenciones clinicas mas recientes y el estado operativo de cada consulta.
 
 #### Scenario: Cargar consultas
 - **WHEN** el usuario abre `/consultas`
 - **THEN** el sistema consulta `consultas` paginadas de a 20
-- **AND** ordena por fecha descendente y expande `paciente_id`
+- **AND** ordena por fecha descendente y creacion descendente
+- **AND** expande `paciente_id`
+- **AND** muestra fecha, paciente, numero de ficha, estado, motivo y diagnostico
+- **AND** no muestra fechas futuras en el listado general sin filtro de fecha
 
 #### Scenario: Filtrar por paciente
 - **WHEN** el usuario busca por nombre, apellido, documento o ficha
@@ -25,7 +28,7 @@ El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftal
 
 #### Scenario: Mostrar contexto clinico previo
 - **WHEN** el usuario selecciona o abre una nueva consulta con paciente
-- **THEN** el sistema permite abrir el contexto clinico previo desde una accion visible
+- **THEN** el sistema permite abrir el contexto clinico previo desde una accion visible al final del formulario
 - **AND** el contexto incluye ultimas consultas con fecha, motivo, diagnostico y tratamiento cuando existan
 - **AND** incluye recetas recientes con fecha, medicamentos e indicaciones cuando existan
 - **AND** permite abrir consultas y recetas previas desde esa seccion
@@ -37,6 +40,24 @@ El sistema SHALL crear consultas asociadas a un paciente con datos medicos oftal
 - **AND** mantiene disponibles todos los campos clinicos actuales
 - **AND** permite cargar biomicroscopia, fondo de ojo, diagnostico y tratamiento como texto multilínea
 - **AND** en un monitor Full HD prioriza que la carga clinica y los controles de guardado queden dentro del area visible de escritorio sin scroll vertical de pagina
+
+#### Scenario: Mostrar fecha clinica en formato local fijo
+- **WHEN** el usuario abre o edita la fecha de una nueva consulta
+- **THEN** el sistema muestra la fecha como `dd/mm/aaaa`
+- **AND** no depende del idioma o configuracion regional del navegador
+- **AND** conserva internamente la fecha clinica normalizada para guardar la consulta
+
+#### Scenario: Finalizar consulta desde carga principal
+- **WHEN** el usuario completa una nueva consulta desde `/consultas/nueva`
+- **THEN** el sistema muestra `Finalizar consulta` como accion de guardado
+- **AND** no muestra la accion `Guardar avance`
+- **AND** crea la consulta con estado `finalizada`
+- **AND** si la consulta proviene de un turno, marca el turno como `Atendido`
+
+#### Scenario: Retornar desde nueva consulta
+- **WHEN** el usuario llega al final de la pantalla de nueva consulta
+- **THEN** el sistema muestra una accion `Volver` junto con las acciones de cierre
+- **AND** no muestra una cabecera superior dedicada a navegacion o contexto
 
 ### Requirement: Antecedentes clinicos
 El sistema SHALL registrar antecedentes fijos, copiarlos desde el paciente o la consulta anterior cuando corresponda y presentarlos de forma estable al revisar una consulta existente.
@@ -62,6 +83,11 @@ El sistema SHALL registrar motivo, agudeza visual, presion ocular, refraccion, b
 - **WHEN** el usuario completa el formulario medico
 - **THEN** el sistema conserva los campos de agudeza visual, PIO, refraccion de lejos y cerca, ADD, biomicroscopia, fondo de ojo, diagnostico y tratamiento
 - **AND** agrupa esos campos por tipo de dato clinico para facilitar la carga
+- **AND** el esquema operativo de `consultas` acepta los campos persistidos por el formulario clinico
+
+#### Scenario: Error de esquema al guardar
+- **WHEN** PocketBase rechaza el alta de consulta por campos faltantes o validacion de esquema
+- **THEN** el sistema informa una causa accionable para corregir el esquema o los datos enviados
 
 #### Scenario: Cargar AV y PIO por ojo
 - **WHEN** el usuario carga agudeza visual o presion ocular
@@ -79,16 +105,33 @@ El sistema SHALL registrar motivo, agudeza visual, presion ocular, refraccion, b
 - **AND** suma ADD a la esfera de lejos para calcular esfera de cerca
 
 ### Requirement: Edicion protegida de consultas
-El sistema SHALL limitar la edicion de consultas segun la configuracion `consulta_edit_limit_days`.
+El sistema SHALL limitar la edicion de consultas segun la configuracion `consulta_edit_limit_days` y permitir finalizar consultas editables.
 
 #### Scenario: Consulta editable
 - **WHEN** la fecha de consulta esta dentro del limite permitido
 - **THEN** el formulario permite editar y guardar mediante `PATCH /api/consultas/[id]`
+- **AND** conserva el estado actual salvo que el usuario elija cambiarlo
 
 #### Scenario: Consulta fuera de limite
 - **WHEN** la fecha de consulta es anterior al limite configurado
 - **THEN** el formulario queda en modo lectura
 - **AND** el API rechaza el PATCH con estado 403
+
+#### Scenario: Finalizar consulta existente
+- **WHEN** el usuario finaliza una consulta editable
+- **THEN** el sistema actualiza `estado = finalizada`
+- **AND** registra auditoria del cambio de estado
+
+#### Scenario: Accion de edicion visible para medico
+- **WHEN** un medico abre una consulta existente en modo lectura
+- **AND** la fecha de consulta esta dentro del limite permitido
+- **THEN** el sistema muestra una accion para editar la consulta
+- **AND** la accion navega a `/consultas/<id>` sin `mode=view`
+
+#### Scenario: Accion de edicion oculta fuera de limite
+- **WHEN** un medico abre una consulta existente en modo lectura
+- **AND** la fecha de consulta es anterior al limite configurado
+- **THEN** el sistema no muestra la accion para editar la consulta
 
 ### Requirement: Navegacion clinica entre consultas
 El sistema SHALL permitir navegar dentro del historial de consultas del mismo paciente y revisar una consulta existente con contexto clinico resumido y continuidad de acciones.
@@ -101,6 +144,7 @@ El sistema SHALL permitir navegar dentro del historial de consultas del mismo pa
 #### Scenario: Resumen de consulta existente
 - **WHEN** se abre una consulta existente
 - **THEN** el sistema muestra una cabecera con paciente, fecha, edad, ficha y obra social cuando esten disponibles
+- **AND** muestra la fecha de la consulta como `dd/mm/aaaa`, sin depender de la configuracion regional del navegador
 - **AND** muestra un resumen clinico con motivo, diagnostico, tratamiento, PIO, AV, refraccion y antecedentes activos
 - **AND** muestra un panel de continuidad clinica con estado de diagnostico, tratamiento, recetas emitidas y datos clave del paciente
 
@@ -111,6 +155,12 @@ El sistema SHALL permitir navegar dentro del historial de consultas del mismo pa
 - **AND** permite imprimir un informe clinico de la consulta
 - **AND** permite abrir el paciente y crear una nueva consulta para el mismo paciente
 - **AND** mantiene esas acciones visibles en el panel de continuidad
+
+#### Scenario: Acciones de navegacion al final de la consulta
+- **WHEN** el usuario llega al final de una consulta existente
+- **THEN** el sistema muestra `Volver` y `Ver contexto` en las acciones inferiores
+- **AND** conserva sus comportamientos de retorno y acceso al contexto clinico
+- **AND** no muestra una cabecera superior dedicada a esas acciones
 
 ### Requirement: Recetas asociadas a consulta
 El sistema SHALL mostrar recetas emitidas para una consulta y permitir crear nuevas recetas vinculadas.
@@ -194,6 +244,11 @@ El sistema SHALL registrar y mostrar eventos de auditoria asociados a cada consu
 - **THEN** el sistema registra un evento de edicion asociado a la consulta
 - **AND** conserva la consulta actualizada aunque el registro de auditoria falle
 
+#### Scenario: Cambiar estado de consulta
+- **WHEN** se actualiza el estado de una consulta existente
+- **THEN** el sistema registra un evento de auditoria asociado a la consulta
+- **AND** guarda estado anterior y estado nuevo en metadata
+
 #### Scenario: Ver historial de auditoria
 - **WHEN** el usuario abre el detalle de una consulta
 - **THEN** el sistema carga los eventos de auditoria de esa consulta
@@ -202,6 +257,12 @@ El sistema SHALL registrar y mostrar eventos de auditoria asociados a cada consu
 #### Scenario: Consulta sin eventos
 - **WHEN** una consulta no tiene eventos registrados
 - **THEN** el sistema informa que aun no hay historial de auditoria para esa consulta
+
+#### Scenario: Reparar consulta sin auditoria
+- **WHEN** una consulta creada por la app no tiene registros en `consulta_eventos`
+- **THEN** el sistema operativo de mantenimiento puede generar un evento retroactivo minimo
+- **AND** el evento conserva la referencia a consulta, paciente, medico asignado, fecha original y motivo cuando existan
+- **AND** el proceso debe ofrecer dry-run antes de crear registros
 
 ### Requirement: Identificacion del medico responsable
 El sistema SHALL mostrar el nombre del medico responsable de una consulta a todo usuario autenticado con permiso para acceder a esa consulta, aunque el responsable sea otro medico y PocketBase no permita expandir su registro de usuario.
@@ -224,6 +285,16 @@ El sistema SHALL mostrar el nombre del medico responsable de una consulta a todo
 - **WHEN** el sistema obtiene nombres para resolver la responsabilidad medica
 - **THEN** solo utiliza los datos minimos de identificacion provistos por el endpoint autenticado de medicos
 - **AND** no amplia las reglas generales de lectura de la coleccion `users`
+
+#### Scenario: Mostrar medico responsable al crear consulta
+- **WHEN** un usuario con rol medico abre una nueva consulta
+- **THEN** el sistema muestra el nombre del medico responsable usando el usuario autenticado
+- **AND** la consulta se guarda con ese `medico_id`
+
+#### Scenario: Rechazar creacion por usuario no responsable
+- **WHEN** un usuario intenta crear una consulta con rol activo distinto de medico
+- **OR** intenta asignar un `medico_id` distinto del usuario autenticado
+- **THEN** el sistema rechaza la creacion
 
 ### Requirement: Consultas clínicas offline
 El sistema SHALL permitir crear, ver e imprimir consultas desde la base local sin conexión, manteniendo paciente, médico, fecha clínica y campos oftalmológicos.

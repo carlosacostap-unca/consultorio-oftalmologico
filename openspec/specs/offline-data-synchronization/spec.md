@@ -18,13 +18,18 @@ El sistema SHALL registrar cada alta, edición o baja lógica offline de pacient
 - **AND** conservan su orden y dependencias
 
 ### Requirement: Sincronización bidireccional ordenada
-El sistema SHALL enviar primero las operaciones locales pendientes y luego descargar los cambios confirmados por el servidor central.
+El sistema SHALL enviar primero las operaciones locales pendientes y luego descargar los cambios confirmados por el servidor central respetando las dependencias entre pacientes, consultas y recetas.
 
 #### Scenario: Reconexión con cambios relacionados
 - **WHEN** vuelve Internet y existen un paciente, una consulta y una receta creados offline
 - **THEN** el sistema envía primero el paciente, luego la consulta y finalmente la receta
 - **AND** descarga los cambios centrales posteriores a los cursores durables
 - **AND** marca cada operación como confirmada sólo después de recibir aceptación central
+
+#### Scenario: Descargar cambios relacionados paginados
+- **WHEN** una receta central referencia una consulta ubicada en una página posterior del pull
+- **THEN** la PC completa primero todas las páginas de pacientes y consultas
+- **AND** comienza a aplicar recetas sólo después de que sus dependencias estén disponibles localmente
 
 #### Scenario: Falla durante un lote
 - **WHEN** la conexión se interrumpe durante push o pull
@@ -68,12 +73,12 @@ El sistema SHALL asignar una ficha provisoria única a cada paciente creado offl
 - **AND** la PC actualiza sus vistas y conserva la ficha provisoria en auditoría
 
 ### Requirement: Pull incremental y bajas lógicas
-El sistema SHALL descargar cambios centrales por colección mediante cursores durables y SHALL propagar bajas lógicas sin depender de registros físicamente eliminados.
+El sistema SHALL descargar cambios centrales por colección mediante cursores durables, SHALL procesar las colecciones en orden de dependencia y SHALL propagar bajas lógicas sin depender de registros físicamente eliminados.
 
 #### Scenario: Descargar página de cambios
 - **WHEN** existen cambios centrales posteriores al cursor local
 - **THEN** el servidor devuelve una página ordenada de forma estable
-- **AND** la PC aplica upserts por el mismo ID antes de avanzar el cursor
+- **AND** la PC aplica todos los upserts por el mismo ID antes de avanzar el cursor de esa colección
 
 #### Scenario: Recibir baja lógica
 - **WHEN** un registro central está marcado como eliminado
@@ -162,7 +167,7 @@ El sistema SHALL procesar las descargas centrales extensas en tramos acotados y 
 - **AND** el reintento vuelve a solicitarla y aplica sus registros de manera idempotente
 
 ### Requirement: Estado de sincronización visible
-El sistema SHALL mostrar conectividad, fase de sincronización, colección en curso, última sincronización completa, cantidad de pendientes, errores y conflictos, y SHALL permitir iniciar una sincronización manual no concurrente.
+El sistema SHALL mostrar conectividad, fase de sincronización, colección en curso, última sincronización completa, cantidad de pendientes, errores y conflictos, SHALL permitir iniciar una sincronización manual no concurrente y SHALL abandonar los estados transitorios de carga ante una falla recuperable.
 
 #### Scenario: Ver resumen persistente
 - **WHEN** un usuario autenticado navega por la aplicación de escritorio
@@ -186,8 +191,13 @@ El sistema SHALL mostrar conectividad, fase de sincronización, colección en cu
 
 #### Scenario: Error visible y recuperable
 - **WHEN** una operación falla por red, autenticación, validación, persistencia, cursor inválido o conflicto
-- **THEN** la pantalla clasifica el error y conserva la operación y los cursores confirmados
+- **THEN** la pantalla abandona el estado transitorio de carga, clasifica el error y conserva la operación y los cursores confirmados
 - **AND** ofrece la acción adecuada de reintentar, revalidar o revisar
+
+#### Scenario: Error funcional con servidor alcanzable
+- **WHEN** la red está disponible pero una validación o dependencia impide completar la sincronización
+- **THEN** la interfaz mantiene la conectividad como disponible
+- **AND** muestra el error de sincronización sin informarlo como falta de conexión
 
 ### Requirement: Auditoría de sincronización
 El sistema SHALL conservar médico, equipo, fecha local, fecha central, operación, versiones y resultado para cada cambio sincronizado.

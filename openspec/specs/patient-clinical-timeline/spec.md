@@ -41,6 +41,17 @@ El sistema SHALL mostrar una historia clinica unificada en la ficha de lectura d
 - **AND** permite imprimir la consulta
 - **AND** permite crear una nueva receta vinculada a esa consulta
 
+#### Scenario: Editar consulta desde ficha del paciente
+- **WHEN** un medico abre la ficha de un paciente
+- **AND** una consulta del historial esta dentro del limite de edicion configurado
+- **THEN** el sistema muestra una accion para editar esa consulta
+- **AND** la accion navega a `/consultas/<id>`
+
+#### Scenario: Ocultar edicion no permitida desde ficha del paciente
+- **WHEN** una consulta del historial excede el limite de edicion configurado
+- **OR** el usuario no opera con rol medico
+- **THEN** el sistema no muestra accion de edicion para esa consulta
+
 #### Scenario: Filtrar eventos clinicos
 - **WHEN** el usuario selecciona Todo, Consultas o Recetas en la historia clinica
 - **THEN** el sistema muestra solamente los eventos correspondientes al filtro seleccionado
@@ -69,4 +80,3 @@ El sistema SHALL mostrar una historia clinica unificada en la ficha de lectura d
 #### Scenario: Filtro o busqueda sin eventos
 - **WHEN** el filtro seleccionado o la busqueda no tienen eventos disponibles
 - **THEN** el sistema informa que no hay eventos para ese criterio
-
