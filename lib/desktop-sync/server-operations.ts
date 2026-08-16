@@ -1,6 +1,6 @@
 import "server-only";
 
-import { mergeDisjointPatientChanges } from "./core";
+import { deleteConflictFields, mergeDisjointPatientChanges } from "./core";
 import {
   assertOperationAllowed,
   DesktopSyncHttpError,
@@ -102,8 +102,14 @@ async function applyOperation(context: DesktopSyncContext, operation: SyncOperat
   assertOperationAllowed(context, operation.entity, operation.action, local, central);
 
   if (operation.action === "delete") {
-    if (!sameVersion(operation.baseUpdated, central.updated)) {
-      return createConflict(context, operation, "delete_conflict", central, ["updated"]);
+    const fields = deleteConflictFields(
+      operation.baseUpdated,
+      typeof central.updated === "string" ? central.updated : null,
+      operation.baseSnapshot,
+      central,
+    );
+    if (fields.length > 0) {
+      return createConflict(context, operation, "delete_conflict", central, fields);
     }
     const deleted = await pbAdmin(`/api/collections/${collection}/records/${operation.recordId}`, {
       method: "PATCH",

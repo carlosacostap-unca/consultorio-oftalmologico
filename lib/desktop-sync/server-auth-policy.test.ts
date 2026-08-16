@@ -36,6 +36,11 @@ test("la sincronizacion respeta permisos de pacientes por accion", () => {
   assert.equal(isDesktopOperationAllowed({ ...base, action: "update" }), true);
   assert.equal(isDesktopOperationAllowed({ ...base, action: "create" }), false);
   assert.equal(isDesktopOperationAllowed({ ...base, action: "delete" }), false);
+  assert.equal(isDesktopOperationAllowed({
+    ...base,
+    permissions: ["pacientes.view", "pacientes.edit", "pacientes.delete"],
+    action: "delete",
+  }), true);
 });
 
 test("un medico no puede mutar registros clinicos de otro medico", () => {

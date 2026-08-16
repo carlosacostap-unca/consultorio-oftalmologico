@@ -52,6 +52,31 @@ export function changedFields(
     .sort();
 }
 
+export function functionalChangedFields(
+  base: SyncRecord | null | undefined,
+  next: SyncRecord | null | undefined,
+): string[] {
+  return changedFields(base, next).filter((key) => !key.startsWith("sync_"));
+}
+
+export function centralRevisionForOperation(record: SyncRecord | null | undefined): string | null {
+  const centralRevision = typeof record?.sync_base_updated === "string" ? record.sync_base_updated.trim() : "";
+  if (centralRevision) return centralRevision;
+
+  const localRevision = typeof record?.updated === "string" ? record.updated.trim() : "";
+  return localRevision || null;
+}
+
+export function deleteConflictFields(
+  baseUpdated: string | null | undefined,
+  centralUpdated: string | null | undefined,
+  baseSnapshot: SyncRecord | null | undefined,
+  central: SyncRecord,
+): string[] {
+  if (sameBaseVersion(baseUpdated, centralUpdated)) return [];
+  return functionalChangedFields(baseSnapshot, central);
+}
+
 export function conflictingFields(
   base: SyncRecord | null | undefined,
   local: SyncRecord,
