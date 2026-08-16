@@ -11,6 +11,7 @@ import {
 } from "@/lib/desktop-sync/engine";
 import { sanitizeSyncError } from "@/lib/desktop-sync/core";
 import { presentSyncStatus } from "@/lib/desktop-sync/status-presentation";
+import { presentConflict } from "@/lib/desktop-sync/conflict-presentation";
 import type { SyncStatusSnapshot } from "@/lib/desktop-sync/types";
 
 export default function SynchronizationPage() {
@@ -142,16 +143,24 @@ export default function SynchronizationPage() {
         {conflicts.length === 0 ? <Empty text="No hay conflictos abiertos." /> : (
           <div className="space-y-3">{conflicts.map((item) => {
             const fields = differingFields(item.local_snapshot, item.central_snapshot);
+            const operation = operations.find((candidate) => candidate.operation_id === item.operation_id);
+            const conflictPresentation = presentConflict({
+              entity: String(item.entity),
+              recordId: String(item.record_id),
+              operationAction: operation ? String(operation.action) : undefined,
+              differingFieldCount: fields.length,
+            });
             const busy = resolvingId === item.id;
             return <details key={item.id} className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20">
-              <summary className="cursor-pointer font-semibold text-amber-900 dark:text-amber-200">{item.entity} · registro {item.record_id} · {fields.length} campo{fields.length === 1 ? "" : "s"} diferente{fields.length === 1 ? "" : "s"}</summary>
-              <div className="mt-4 overflow-x-auto rounded-lg bg-white/70 p-3 dark:bg-zinc-950/50">
+              <summary className="cursor-pointer font-semibold text-amber-900 dark:text-amber-200">{conflictPresentation.summary}</summary>
+              <p className="mt-3 text-amber-900/80 dark:text-amber-100/80">{conflictPresentation.detail}</p>
+              {!conflictPresentation.isDelete && <div className="mt-4 overflow-x-auto rounded-lg bg-white/70 p-3 dark:bg-zinc-950/50">
                 <table className="w-full text-left text-xs"><thead><tr className="text-zinc-500"><th className="pb-2">Campo</th><th className="pb-2">Versión local</th><th className="pb-2">Versión central</th></tr></thead><tbody>{fields.map((field) => <tr key={field} className="border-t border-zinc-200/70 dark:border-zinc-800"><td className="py-2 font-medium">{field}</td><td className="max-w-64 break-words pr-3">{displayValue(item.local_snapshot?.[field])}</td><td className="max-w-64 break-words">{displayValue(item.central_snapshot?.[field])}</td></tr>)}</tbody></table>
-              </div>
+              </div>}
               <div className="mt-4 flex flex-wrap gap-2">
-                <button disabled={busy} onClick={() => void resolveConflict(item, "keep_central")} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900">Conservar central</button>
-                <button disabled={busy} onClick={() => void resolveConflict(item, "apply_local")} className="rounded-lg bg-blue-600 px-3 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50">Aplicar versión local</button>
-                {item.entity === "pacientes" && <><input value={patientIds[item.id] || ""} onChange={(event) => setPatientIds((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="ID de paciente central" className="min-w-48 rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" /><button disabled={busy || !patientIds[item.id]} onClick={() => void resolveConflict(item, "link_patient")} className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">Vincular paciente</button></>}
+                <button disabled={busy} onClick={() => void resolveConflict(item, "keep_central")} className="rounded-lg border border-zinc-300 bg-white px-3 py-2 font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900">{conflictPresentation.keepCentralLabel}</button>
+                <button disabled={busy} onClick={() => void resolveConflict(item, "apply_local")} className="rounded-lg bg-blue-600 px-3 py-2 font-medium text-white hover:bg-blue-700 disabled:opacity-50">{conflictPresentation.applyLocalLabel}</button>
+                {!conflictPresentation.isDelete && item.entity === "pacientes" && <><input value={patientIds[item.id] || ""} onChange={(event) => setPatientIds((current) => ({ ...current, [item.id]: event.target.value }))} placeholder="ID de paciente central" className="min-w-48 rounded-lg border border-zinc-300 bg-white px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900" /><button disabled={busy || !patientIds[item.id]} onClick={() => void resolveConflict(item, "link_patient")} className="rounded-lg border border-blue-300 bg-blue-50 px-3 py-2 font-medium text-blue-800 hover:bg-blue-100 disabled:opacity-50 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">Vincular paciente</button></>}
               </div>
             </details>;
           })}</div>

@@ -14,6 +14,7 @@ export type SyncRecord = Record<string, unknown> & {
   id?: string;
   created?: string;
   updated?: string;
+  sync_base_updated?: string;
   sync_deleted?: boolean;
   sync_deleted_at?: string;
   sync_deleted_by?: string;

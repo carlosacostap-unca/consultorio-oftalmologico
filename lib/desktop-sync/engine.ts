@@ -3,6 +3,7 @@
 import type { RecordModel } from "pocketbase";
 import { pb } from "@/lib/pocketbase";
 import {
+  centralRevisionForOperation,
   connectivityAfterSyncFailure,
   retryDelayMs,
   sanitizeSyncError,
@@ -284,6 +285,9 @@ async function upsertCentralRecord(entity: SyncEntity, record: SyncRecord) {
   const id = String(record.id || "");
   if (!id) return;
   const payload = sanitizeLocalPayload(record);
+  if (typeof record.updated === "string" && record.updated.trim()) {
+    payload.sync_base_updated = record.updated;
+  }
   const options = { headers: { "x-consultorio-sync-origin": "central" }, requestKey: null };
   try {
     await pb.collection(entity).getOne(id, { requestKey: null });
@@ -412,7 +416,7 @@ function mapLocalOperation(record: RecordModel): LocalSyncOperation {
     action: record.action,
     payload: (record.payload || {}) as SyncRecord,
     baseSnapshot,
-    baseUpdated: typeof baseSnapshot?.updated === "string" ? baseSnapshot.updated : null,
+    baseUpdated: centralRevisionForOperation(baseSnapshot),
     changedFields: Array.isArray(record.changed_fields) ? record.changed_fields.map(String) : [],
     actorId: String(record.actor_id),
     deviceId: String(record.device_id),
