@@ -381,3 +381,43 @@ El sistema SHALL conservar el historial y representar cualquier eliminación sin
 - **THEN** el sistema no purga físicamente el contenido clínico
 - **AND** registra actor, equipo, fecha y operación pendiente o confirmada
 
+### Requirement: Campos clinicos opcionales vacios
+El sistema SHALL mantener vacios los campos clinicos opcionales que no fueron cargados.
+
+#### Scenario: Mostrar consulta con ceros de relleno
+- **WHEN** una consulta existente tiene `0`, `+0`, `+0.00` o valores equivalentes en agudeza visual, refraccion, ADD o presion ocular
+- **THEN** el formulario muestra esos campos vacios
+- **AND** no presenta `0` como valor clinico cargado
+
+#### Scenario: Guardar consulta sin datos opcionales
+- **WHEN** el usuario guarda una consulta sin cargar agudeza visual, refraccion, ADD o presion ocular
+- **THEN** el sistema persiste esos campos como vacios
+- **AND** no guarda ceros de relleno
+
+#### Scenario: Imprimir consulta
+- **WHEN** una impresion usa campos clinicos opcionales sin dato real
+- **THEN** el sistema no imprime `0` como valor medido
+
+### Requirement: Medico responsable de consulta
+El sistema SHALL guardar, expandir, mostrar e imprimir el medico responsable de cada consulta clinica.
+
+#### Scenario: Consulta iniciada desde turno
+- **WHEN** se crea una consulta desde un turno con `medico_id`
+- **THEN** la consulta guarda ese medico como responsable
+- **AND** el detalle de la consulta muestra el nombre del medico
+
+#### Scenario: Consulta libre con seleccion de medico
+- **WHEN** se crea una consulta sin turno asociado
+- **THEN** el formulario determina el medico desde el usuario medico activo o permite seleccionarlo
+- **AND** el sistema no guarda la consulta sin medico responsable cuando el usuario debe seleccionarlo manualmente
+
+#### Scenario: Listado e impresion de consulta
+- **WHEN** el usuario ve el listado, detalle o impresion de una consulta
+- **THEN** el sistema muestra el medico responsable cuando exista
+- **AND** muestra "Medico no registrado" cuando no exista atribucion historica
+
+#### Scenario: Editar medico de consulta
+- **WHEN** un usuario con permisos administrativos edita una consulta
+- **THEN** puede corregir el medico responsable
+- **AND** el cambio queda guardado en `consultas.medico_id`
+
