@@ -28,6 +28,30 @@ La corrección quedó desplegada en staging desde el merge de la PR `#62`, commi
 - Una consulta de sólo lectura a `/api/desktop-sync/v1/conflicts?status=open&page=1`, sin credenciales de escritorio, respondió `401` con `code: invalid_session`, confirmando que el Route Handler está activo y aplica el contrato de autenticación esperado.
 - No se crearon, editaron, sincronizaron ni eliminaron registros clínicos durante esta verificación.
 
+## Publicación del piloto corregido
+
+La versión de escritorio `0.1.9` se publicó correctamente el 16 de agosto de 2026:
+
+- La etiqueta anotada `desktop-v0.1.9` apunta al commit de producción `44ad34e06886cdea86d6e147580856aace1ad843` y coincide con la versión declarada en `package.json`.
+- El workflow `Publicar release de escritorio` finalizó correctamente en la ejecución `31972818308`.
+- Pasaron la validación de etiqueta, la auditoría de dependencias, lint, TypeScript, pruebas, el empaquetado NSIS x64 y la generación del manifiesto firmado.
+- El paso `Publicar objetos inmutables y mover el puntero pilot` finalizó correctamente.
+- No se ejecutó el workflow de promoción a `stable`; ese canal permaneció fuera del alcance de esta publicación.
+
+Evidencia: https://github.com/carlosacostap-unca/consultorio-oftalmologico/actions/runs/31972818308
+
+## Resultado de la prueba manual de `0.1.9`
+
+La prueba sobre `PC-E24D57F3` confirmó que la baja central funcionó, pero reveló un defecto visual en el listado local:
+
+- La operación `delete` del paciente `PRUEBAOFFLINEPILOTO` quedó confirmada sin pendientes, errores ni conflictos.
+- El registro local `u2mksoh5vs4e729` conservó `sync_deleted=true` después de la confirmación y del pull central.
+- El listado de pacientes continuó mostrando el registro porque su consulta sólo filtraba `estado_registro != "fusionado"` y omitía `sync_deleted != true` en escritorio.
+- La corrección compone ambos filtros únicamente en el runtime de escritorio; la web conserva su contrato compatible con esquemas donde `sync_deleted` es opcional.
+- La nueva prueba de regresión verifica explícitamente el filtro web y el filtro de escritorio.
+- `npm.cmd run test:sync-core`: 141 pruebas aprobadas, 0 fallidas.
+- `npm.cmd run lint`, `npx.cmd --no-install tsc --noEmit` y `npm.cmd run build`: aprobados.
+
 ## Verificación pendiente en el equipo piloto
 
-La publicación de `0.1.9` en el canal `pilot` y la baja final del paciente sintético permanecen pendientes. El canal `stable` no debe modificarse durante esta validación.
+Permanece pendiente publicar `0.1.10` en `pilot`, actualizar `PC-E24D57F3` y comprobar 0 pendientes, 0 errores, 0 conflictos y ausencia del paciente `PRUEBAOFFLINEPILOTO` en los listados activos. La baja ya fue confirmada; no debe repetirse.

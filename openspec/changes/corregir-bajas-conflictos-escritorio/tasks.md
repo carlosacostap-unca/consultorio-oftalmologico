@@ -25,11 +25,13 @@
 - [x] 4.2 Presentar el conflicto como baja pendiente y reemplazar las acciones genéricas por “Cancelar baja y conservar central” y “Confirmar baja local”.
 - [x] 4.3 Conservar la tabla comparativa y las acciones actuales para conflictos de edición o duplicados.
 - [x] 4.4 Agregar una prueba de regresión del recorrido crear paciente offline, sincronizar, eliminar y volver a sincronizar sin conflicto técnico falso.
+- [x] 4.5 Excluir las bajas lógicas del listado de pacientes únicamente en el runtime de escritorio y cubrir el filtro con una prueba de regresión.
 
 ## 5. Verificación y piloto corregido
 
 - [x] 5.1 Ejecutar las pruebas focalizadas de sincronización y resolución de conflictos, junto con lint, typecheck y build de producción.
 - [x] 5.2 Validar estrictamente el cambio OpenSpec y documentar la evidencia del fallo reproducido y de la corrección.
 - [x] 5.3 Publicar la corrección web en staging y verificar el endpoint de sincronización antes de generar el instalador.
-- [ ] 5.4 Preparar una nueva versión de escritorio para el canal `pilot`, manteniendo `stable` sin cambios.
-- [ ] 5.5 Actualizar `PC-E24D57F3`, eliminar exclusivamente el paciente con documento `PRUEBAOFFLINEPILOTO` y comprobar 0 pendientes, 0 errores, 0 conflictos y ausencia en los listados activos.
+- [x] 5.4 Preparar una nueva versión de escritorio para el canal `pilot`, manteniendo `stable` sin cambios.
+- [ ] 5.5 Publicar la corrección visual en la versión de escritorio `0.1.10` para el canal `pilot`, manteniendo `stable` sin cambios.
+- [ ] 5.6 Actualizar `PC-E24D57F3` y comprobar 0 pendientes, 0 errores, 0 conflictos y ausencia del paciente `PRUEBAOFFLINEPILOTO` en los listados activos, sin repetir la baja ya confirmada.
