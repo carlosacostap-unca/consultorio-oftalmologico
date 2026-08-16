@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  centralRevisionForOperation,
   changedFields,
   conflictingFields,
   connectivityAfterSyncFailure,
   createPocketBaseId,
   createTemporaryFicha,
+  deleteConflictFields,
+  functionalChangedFields,
   isTemporaryFicha,
   mergeDisjointPatientChanges,
   normalizeDeviceCode,
@@ -34,6 +37,61 @@ test("calcula campos modificados ignorando metadatos del sistema", () => {
   const base = { id: "a", nombre: "ANA", telefono: "1", updated: "old", antecedentes: ["A"] };
   const next = { id: "a", nombre: "ANA", telefono: "2", updated: "new", antecedentes: ["A"] };
   assert.deepEqual(changedFields(base, next), ["telefono"]);
+});
+
+test("prioriza la revisión central aunque PocketBase local haya generado otro timestamp", () => {
+  assert.equal(centralRevisionForOperation({
+    updated: "2026-08-16T10:05:00.000Z",
+    sync_base_updated: "2026-08-16T10:00:00.000Z",
+  }), "2026-08-16T10:00:00.000Z");
+  assert.equal(centralRevisionForOperation({ updated: "2026-08-16T10:05:00.000Z" }), "2026-08-16T10:05:00.000Z");
+  assert.equal(centralRevisionForOperation({}), null);
+});
+
+test("ignora deriva técnica al comparar una baja heredada", () => {
+  const base = {
+    id: "patient-a",
+    nombre: "ANA",
+    updated: "local-timestamp",
+    sync_base_updated: "central-old",
+    sync_deleted: true,
+  };
+  const central = {
+    id: "patient-a",
+    nombre: "ANA",
+    updated: "central-current",
+    sync_base_updated: "another-anchor",
+    sync_deleted: false,
+  };
+
+  assert.deepEqual(functionalChangedFields(base, central), []);
+  assert.deepEqual(deleteConflictFields("local-timestamp", "central-current", base, central), []);
+});
+
+test("una baja obsoleta conserva el conflicto con campos funcionales reales", () => {
+  const base = { id: "patient-a", nombre: "ANA", telefono: "1", updated: "local-timestamp" };
+  const central = { id: "patient-a", nombre: "ANA", telefono: "2", updated: "central-current" };
+
+  assert.deepEqual(deleteConflictFields("local-timestamp", "central-current", base, central), ["telefono"]);
+  assert.deepEqual(deleteConflictFields("central-current", "central-current", base, central), []);
+});
+
+test("regresión: crear offline, confirmar y eliminar usa la revisión central sin conflicto técnico", () => {
+  const confirmedCentral = {
+    id: "patient-a",
+    nombre: "PILOTO",
+    numero_documento: "PRUEBAOFFLINEPILOTO",
+    updated: "2026-08-16T10:00:00.000Z",
+  };
+  const localAfterConfirmation = {
+    ...confirmedCentral,
+    updated: "2026-08-16T10:00:03.000Z",
+    sync_base_updated: confirmedCentral.updated,
+  };
+
+  const revision = centralRevisionForOperation(localAfterConfirmation);
+  assert.equal(revision, confirmedCentral.updated);
+  assert.deepEqual(deleteConflictFields(revision, confirmedCentral.updated, localAfterConfirmation, confirmedCentral), []);
 });
 
 test("fusiona cambios de paciente sobre campos distintos", () => {

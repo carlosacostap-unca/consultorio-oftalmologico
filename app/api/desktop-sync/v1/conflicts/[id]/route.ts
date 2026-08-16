@@ -1,5 +1,10 @@
 import { sanitizeRecordPayload } from "@/lib/desktop-sync/server-operations";
 import {
+  conflictCentralIsCurrent,
+  deleteResolutionNote,
+  deleteResolutionPatch,
+} from "@/lib/desktop-sync/conflict-policy";
+import {
   DesktopSyncHttpError,
   assertOperationAllowed,
   desktopSyncErrorResponse,
@@ -31,10 +36,41 @@ export async function POST(request: Request, contextValue: { params: Promise<{ i
     }
 
     const entity = String(conflict.entity || "") as SyncEntity;
+    const isDeleteConflict = conflict.kind === "delete_conflict";
     let centralRecord: SyncRecord | null = conflict.central_snapshot || null;
     let linkedPatientId = "";
+    let resolutionNote = "";
 
-    if (resolution === "apply_local") {
+    if (isDeleteConflict) {
+      if (resolution === "link_patient") {
+        throw new DesktopSyncHttpError("Una baja no se puede resolver vinculando otro paciente", 400, "invalid_delete_resolution");
+      }
+
+      const current = await pbAdmin(`/api/collections/${entity}/records/${encodeURIComponent(conflict.record_id)}`);
+      if (!conflictCentralIsCurrent(conflict.central_snapshot, current)) {
+        throw new DesktopSyncHttpError("La versión central volvió a cambiar; actualizá el conflicto", 409, "central_changed_again");
+      }
+
+      centralRecord = current;
+      resolutionNote = deleteResolutionNote(resolution);
+
+      if (resolution === "apply_local") {
+        const local = sanitizeRecordPayload(conflict.local_snapshot || {});
+        assertOperationAllowed(context, entity, "delete", local, current);
+        centralRecord = await pbAdmin(`/api/collections/${entity}/records/${encodeURIComponent(conflict.record_id)}`, {
+          method: "PATCH",
+          body: JSON.stringify(deleteResolutionPatch({
+            actorId: context.user.id,
+            deviceId: context.device!.deviceId,
+            operationId: String(conflict.operation_id),
+            centralUpdated: String(current.updated || ""),
+            resolvedAt: new Date().toISOString(),
+          })),
+        });
+      }
+    }
+
+    if (resolution === "apply_local" && !isDeleteConflict) {
       const current = await pbAdmin(`/api/collections/${entity}/records/${encodeURIComponent(conflict.record_id)}`);
       const conflictCentralUpdated = String(conflict.central_snapshot?.updated || "");
       if (conflictCentralUpdated && current.updated !== conflictCentralUpdated) {
@@ -71,7 +107,7 @@ export async function POST(request: Request, contextValue: { params: Promise<{ i
         resolved_at: resolvedAt,
         resolved_by: context.user.id,
         resolution,
-        resolution_note: linkedPatientId ? JSON.stringify({ linkedPatientId }) : "",
+        resolution_note: linkedPatientId ? JSON.stringify({ linkedPatientId }) : resolutionNote,
       }),
     });
 
