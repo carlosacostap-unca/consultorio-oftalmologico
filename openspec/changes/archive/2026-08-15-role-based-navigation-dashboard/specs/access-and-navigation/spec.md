@@ -35,7 +35,12 @@ El sistema SHALL mostrar una barra lateral acorde al rol activo del usuario aute
 - **THEN** la barra lateral agrupa accesos en Configuracion, Datos y Calidad de datos
 - **AND** Configuracion muestra Usuarios, Permisos, Edicion de consultas, Horarios medicos y Bloqueos y feriados
 - **AND** Datos muestra Pacientes, Mutuales, Turnos, Consultas y Recetas
-- **AND** Calidad de datos muestra Duplicados
+- **AND** Calidad de datos muestra Duplicados y Fichas duplicadas
+
+#### Scenario: Menu de calidad de datos para admin
+- **WHEN** un usuario con rol activo `admin` navega por la aplicacion
+- **THEN** la barra lateral muestra la seccion "Calidad de datos"
+- **AND** la seccion incluye accesos a "Duplicados" y "Fichas duplicadas"
 
 ### Requirement: Cambio de rol activo
 El sistema SHALL permitir cambiar el rol activo desde el perfil del menu lateral cuando el usuario tenga mas de un rol asignado.
