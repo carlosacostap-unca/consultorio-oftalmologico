@@ -19,6 +19,15 @@ La inspección del flujo confirmó que PocketBase local reemplazaba `updated`, l
 
 Las pruebas agregadas cubren la selección de la revisión central, la compatibilidad con timestamps locales heredados, la detección de diferencias funcionales reales, la autorización y auditoría de la baja, la revalidación central, la presentación específica y el recorrido de regresión alta offline → confirmación → baja.
 
-## Verificación pendiente en entorno
+## Verificación en staging
 
-La publicación en staging, la generación de una versión posterior para el canal `pilot` y la baja final del paciente sintético permanecen pendientes. El canal `stable` no debe modificarse durante esta validación.
+La corrección quedó desplegada en staging desde el merge de la PR `#62`, commit `3f9ddca64ebf12bba8f0688dcf69c6b95fd18f0d`:
+
+- La aplicación respondió correctamente en `https://staging-consultorio-oftalmologico.acostaparra.com/` con una sesión autenticada y rol Admin.
+- La consola del navegador no registró advertencias ni errores durante la comprobación.
+- Una consulta de sólo lectura a `/api/desktop-sync/v1/conflicts?status=open&page=1`, sin credenciales de escritorio, respondió `401` con `code: invalid_session`, confirmando que el Route Handler está activo y aplica el contrato de autenticación esperado.
+- No se crearon, editaron, sincronizaron ni eliminaron registros clínicos durante esta verificación.
+
+## Verificación pendiente en el equipo piloto
+
+La publicación de `0.1.9` en el canal `pilot` y la baja final del paciente sintético permanecen pendientes. El canal `stable` no debe modificarse durante esta validación.

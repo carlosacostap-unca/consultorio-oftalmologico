@@ -30,6 +30,6 @@
 
 - [x] 5.1 Ejecutar las pruebas focalizadas de sincronización y resolución de conflictos, junto con lint, typecheck y build de producción.
 - [x] 5.2 Validar estrictamente el cambio OpenSpec y documentar la evidencia del fallo reproducido y de la corrección.
-- [ ] 5.3 Publicar la corrección web en staging y verificar el endpoint de sincronización antes de generar el instalador.
+- [x] 5.3 Publicar la corrección web en staging y verificar el endpoint de sincronización antes de generar el instalador.
 - [ ] 5.4 Preparar una nueva versión de escritorio para el canal `pilot`, manteniendo `stable` sin cambios.
 - [ ] 5.5 Actualizar `PC-E24D57F3`, eliminar exclusivamente el paciente con documento `PRUEBAOFFLINEPILOTO` y comprobar 0 pendientes, 0 errores, 0 conflictos y ausencia en los listados activos.

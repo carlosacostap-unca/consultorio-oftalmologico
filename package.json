@@ -1,6 +1,6 @@
 {
   "name": "consultorio-oftalmologico",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Sistema clínico web y de escritorio offline para consultorio oftalmológico.",
   "author": "Acosta Parra",
   "private": true,
