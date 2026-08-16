@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDate } from "@/lib/utils";
 import type { AppUser, Consulta, Patient } from "@/lib/types";
-import { appendActivePatientFilter, buildPatientSearchFilter } from "@/lib/patient-merge";
+import { buildPatientSearchFilter, buildRuntimeActivePatientFilter } from "@/lib/patient-merge";
 import { buildActiveRecordFilter } from "@/lib/desktop-record-filter";
 import { isDesktopRuntime } from "@/lib/desktop-runtime";
 import { getSyncRecordStatus } from "@/lib/desktop-record-status";
@@ -66,7 +66,10 @@ export default function PacientesPage() {
           if (searchFilter) filterParts.push(searchFilter);
         }
         
-        const filterString = appendActivePatientFilter(filterParts.length > 0 ? filterParts.join(" && ") : "");
+        const filterString = buildRuntimeActivePatientFilter(
+          filterParts.length > 0 ? filterParts.join(" && ") : "",
+          isDesktopRuntime(),
+        );
 
         const result = await pb.collection("pacientes").getList<Patient>(page, 100, {
           sort: "apellido,nombre",

@@ -5,6 +5,7 @@ import {
   DESKTOP_ACTIVE_PATIENT_FILTER,
   appendActivePatientFilter,
   buildActivePatientSearchFilter,
+  buildRuntimeActivePatientFilter,
 } from "./patient-merge.ts";
 
 test("el filtro web excluye pacientes fusionados sin depender del esquema de escritorio", () => {
@@ -27,4 +28,17 @@ test("los filtros web compuestos conservan el contrato compatible", () => {
   assert.match(searchFilter, /estado_registro != "fusionado"/);
   assert.doesNotMatch(appendedFilter, /sync_deleted/);
   assert.doesNotMatch(searchFilter, /sync_deleted/);
+});
+
+test("el listado de pacientes oculta bajas solo en el runtime de escritorio", () => {
+  const baseFilter = 'numero_documento = "PRUEBAOFFLINEPILOTO"';
+  const webFilter = buildRuntimeActivePatientFilter(baseFilter, false);
+  const desktopFilter = buildRuntimeActivePatientFilter(baseFilter, true);
+
+  assert.match(webFilter, /estado_registro != "fusionado"/);
+  assert.doesNotMatch(webFilter, /sync_deleted/);
+  assert.equal(
+    desktopFilter,
+    `(estado_registro != "fusionado") && (${baseFilter}) && sync_deleted != true`,
+  );
 });
