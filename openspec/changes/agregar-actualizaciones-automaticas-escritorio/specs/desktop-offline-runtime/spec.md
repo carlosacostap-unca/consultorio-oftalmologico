@@ -9,6 +9,11 @@ El sistema SHALL distribuir una aplicación instalable y actualizable desde la p
 - **AND** crea el directorio de datos bajo el perfil del usuario de Windows
 - **AND** no requiere que el usuario abra un navegador
 
+#### Scenario: Actualización de aplicación
+- **WHEN** se instala una versión posterior sobre una instalación existente
+- **THEN** el sistema actualiza los binarios y migraciones
+- **AND** conserva la base local, identidad de equipo, operaciones pendientes y conflictos
+
 #### Scenario: Detectar y descargar una actualización
 - **WHEN** la aplicación empaquetada dispone de sesión central y detecta una versión superior autorizada
 - **THEN** descarga la actualización en segundo plano sin bloquear la consulta ni la escritura local
