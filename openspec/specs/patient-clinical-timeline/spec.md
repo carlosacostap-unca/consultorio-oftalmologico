@@ -41,6 +41,17 @@ El sistema SHALL mostrar una historia clinica unificada en la ficha de lectura d
 - **AND** permite imprimir la consulta
 - **AND** permite crear una nueva receta vinculada a esa consulta
 
+#### Scenario: Editar consulta desde ficha del paciente
+- **WHEN** un medico abre la ficha de un paciente
+- **AND** una consulta del historial esta dentro del limite de edicion configurado
+- **THEN** el sistema muestra una accion para editar esa consulta
+- **AND** la accion navega a `/consultas/<id>`
+
+#### Scenario: Ocultar edicion no permitida desde ficha del paciente
+- **WHEN** una consulta del historial excede el limite de edicion configurado
+- **OR** el usuario no opera con rol medico
+- **THEN** el sistema no muestra accion de edicion para esa consulta
+
 #### Scenario: Filtrar eventos clinicos
 - **WHEN** el usuario selecciona Todo, Consultas o Recetas en la historia clinica
 - **THEN** el sistema muestra solamente los eventos correspondientes al filtro seleccionado
@@ -70,3 +81,18 @@ El sistema SHALL mostrar una historia clinica unificada en la ficha de lectura d
 - **WHEN** el filtro seleccionado o la busqueda no tienen eventos disponibles
 - **THEN** el sistema informa que no hay eventos para ese criterio
 
+### Requirement: Medico en historia clinica del paciente
+El sistema SHALL mostrar el medico asociado a cada evento clinico de consulta o receta en la ficha del paciente.
+
+#### Scenario: Evento de consulta con medico
+- **WHEN** la historia clinica del paciente muestra una consulta con `medico_id`
+- **THEN** el evento muestra el nombre del medico responsable
+
+#### Scenario: Evento de receta con medico
+- **WHEN** la historia clinica del paciente muestra una receta con `medico_id`
+- **THEN** el evento muestra el nombre del medico emisor
+
+#### Scenario: Evento historico sin medico
+- **WHEN** un evento clinico no tiene medico registrado
+- **THEN** la historia clinica muestra "Medico no registrado"
+- **AND** mantiene disponibles las acciones del evento

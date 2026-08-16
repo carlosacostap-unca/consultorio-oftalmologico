@@ -55,3 +55,28 @@ El sistema SHALL permitir abrir la gestion de turnos en una pestaña y fecha esp
 - **THEN** el sistema intenta usar `<medico>` como medico seleccionado cuando el rol activo puede gestionar mas de una agenda
 - **AND** mantiene el comportamiento de agenda propia cuando el rol activo es `medico`
 
+### Requirement: Bloqueo propio del medico
+El sistema SHALL permitir que el medico bloquee su propia agenda sin gestionar agendas de otros medicos.
+
+#### Scenario: Medico crea bloqueo propio
+- **WHEN** un usuario con rol activo `medico` crea un bloqueo desde su agenda
+- **THEN** el sistema asigna el bloqueo a su propio usuario medico
+- **AND** no permite cambiar el medico del bloqueo
+
+#### Scenario: Medico ve turnos propios en conflicto
+- **WHEN** un bloqueo propio o general afecta turnos del medico
+- **THEN** la jornada del medico muestra esos turnos como conflictos a resolver
+- **AND** permite abrir el turno para gestionar la situacion
+
+### Requirement: Bandeja diaria de consultas pendientes
+El sistema SHALL mostrar al medico una bandeja de consultas pendientes de cierre dentro de su jornada diaria.
+
+#### Scenario: Mostrar bandeja en jornada medica
+- **WHEN** un usuario con rol activo `medico` abre el modulo de turnos
+- **THEN** el sistema muestra una seccion de consultas en curso
+- **AND** la seccion no reemplaza el tablero diario ni la agenda
+
+#### Scenario: Bandeja sin consultas en curso
+- **WHEN** no existen consultas con `estado = en_curso`
+- **THEN** el sistema muestra un estado vacio claro
+- **AND** mantiene disponibles las acciones habituales de la jornada

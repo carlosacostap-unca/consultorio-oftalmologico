@@ -1,7 +1,7 @@
 ## 1. Contratos y configuración
 
 - [x] 1.1 Leer las guías locales de Next.js 16 para Route Handlers, runtime Node y variables de entorno antes de modificar la puerta central
-- [ ] 1.2 Confirmar región, endpoint y bucket privado de iDrive e2, equipo piloto y sistema/arquitectura de las computadoras destino
+- [x] 1.2 Confirmar región, endpoint y bucket privado de iDrive e2, equipo piloto y sistema/arquitectura de las computadoras destino
 - [x] 1.3 Definir y validar variables servidor para iDrive e2, URL del feed, habilitación de la puerta y clave pública de verificación sin exponerlas como `NEXT_PUBLIC_*`
 - [x] 1.4 Incorporar `electron-updater` como dependencia del runtime y configurar electron-builder para generar metadatos NSIS compatibles con el proveedor genérico
 
@@ -26,7 +26,7 @@
 - [x] 4.1 Implementar generación canónica del manifiesto de release con versión, plataforma, arquitectura, tamaño y SHA-512 de cada artefacto
 - [x] 4.2 Implementar firma Ed25519 en CI y verificación con clave pública, incluyendo pruebas de firma válida, manifiesto alterado, hash incorrecto y rotación controlada
 - [x] 4.3 Crear el flujo GitHub Actions disparado sólo por `desktop-v<semver>` sobre un commit de `main`, con instalación limpia, auditoría, lint, tipos, pruebas, build y empaquetado
-- [ ] 4.4 Subir objetos inmutables y actualizar atómicamente el canal `pilot` usando una credencial iDrive e2 restringida y sin permisos innecesarios de borrado
+- [x] 4.4 Subir objetos inmutables y actualizar atómicamente el canal `pilot` usando una credencial iDrive e2 restringida y sin permisos innecesarios de borrado
 - [x] 4.5 Crear una promoción manual aprobada de `pilot` a `stable` que verifique y reutilice exactamente los mismos hashes sin recompilar
 - [x] 4.6 Documentar secretos de GitHub/Dokploy, permisos mínimos, versionado del bucket, rotación de claves y recuperación del manifiesto anterior
 

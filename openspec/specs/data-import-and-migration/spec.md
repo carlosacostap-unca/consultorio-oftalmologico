@@ -105,3 +105,61 @@ El sistema SHALL permitir ejecutar seeds demo contra una instancia PocketBase de
 - **WHEN** el script de seed de testing detecta una URL que parece produccion
 - **THEN** el sistema aborta antes de escribir datos
 - **AND** muestra un error que indique revisar la configuracion de PocketBase
+
+### Requirement: Normalizacion de fechas de nacimiento de pacientes
+El sistema SHALL proveer un script administrativo para normalizar `pacientes.fecha_nacimiento` guardadas a medianoche UTC.
+
+#### Scenario: Ejecutar diagnostico sin aplicar cambios
+- **WHEN** se ejecuta el script sin `--apply`
+- **THEN** el script lista candidatos con `fecha_nacimiento` exactamente a `00:00:00.000Z`
+- **AND** escribe un reporte dry-run en `reports/`
+- **AND** no modifica registros en PocketBase
+
+#### Scenario: Aplicar normalizacion confirmada
+- **WHEN** se ejecuta el script con `--apply --confirm=CONFIRMO_NORMALIZAR_FECHAS_NACIMIENTO`
+- **THEN** el script crea un respaldo de los registros candidatos antes de actualizar
+- **AND** cambia solo la hora de `00:00:00.000Z` a `12:00:00.000Z`
+- **AND** conserva el mismo anio, mes y dia calendario
+- **AND** escribe un reporte con actualizados, fallidos y remanentes
+
+#### Scenario: Bloquear apply sin confirmacion
+- **WHEN** se ejecuta el script con `--apply` sin la confirmacion exacta
+- **THEN** el script aborta antes de modificar datos
+- **AND** informa la confirmacion requerida
+
+### Requirement: Normalizacion de fechas clinicas de consulta a medianoche UTC
+El sistema SHALL proveer una migracion administrativa para normalizar consultas existentes cuya `fecha` este guardada a medianoche UTC exacta, conservando el mismo dia clinico y cambiando la hora a mediodia UTC.
+
+#### Scenario: Diagnostico sin aplicar cambios
+- **WHEN** el operador ejecuta la migracion sin `--apply`
+- **THEN** el sistema lista el total de consultas candidatas
+- **AND** informa ejemplos representativos
+- **AND** escribe un reporte de dry-run sin modificar PocketBase
+
+#### Scenario: Bloquear aplicacion sin confirmacion
+- **WHEN** el operador ejecuta la migracion con `--apply` sin confirmacion explicita
+- **THEN** el sistema aborta antes de actualizar consultas
+- **AND** informa la confirmacion requerida
+
+#### Scenario: Aplicar normalizacion confirmada
+- **WHEN** el operador ejecuta la migracion con `--apply` y confirmacion explicita
+- **THEN** el sistema guarda un backup de las consultas objetivo
+- **AND** actualiza solo consultas cuya hora sea `00:00:00.000Z`
+- **AND** cambia la hora a `12:00:00.000Z` manteniendo ano, mes y dia
+- **AND** escribe un reporte de resultado con exitos, fallos y candidatas restantes
+
+### Requirement: Migracion de schema de atribucion medica clinica
+El sistema SHALL proveer una migracion idempotente para agregar campos de medico responsable en consultas y recetas sin modificar registros historicos.
+
+#### Scenario: Asegurar campos de medico
+- **WHEN** se ejecuta la migracion de atribucion medica
+- **THEN** el sistema asegura `consultas.medico_id` como relation hacia `users`
+- **AND** asegura `recetas.medico_id` como relation hacia `users`
+
+#### Scenario: No modificar historicos
+- **WHEN** se ejecuta la migracion de atribucion medica
+- **THEN** no infiere ni escribe `medico_id` en consultas o recetas existentes
+
+#### Scenario: Reejecutar migracion
+- **WHEN** la migracion se ejecuta mas de una vez
+- **THEN** no duplica campos ni sobrescribe atribuciones medicas cargadas manualmente
