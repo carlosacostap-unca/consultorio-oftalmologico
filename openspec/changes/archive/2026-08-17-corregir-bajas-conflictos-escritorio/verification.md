@@ -52,6 +52,18 @@ La prueba sobre `PC-E24D57F3` confirmó que la baja central funcionó, pero reve
 - `npm.cmd run test:sync-core`: 141 pruebas aprobadas, 0 fallidas.
 - `npm.cmd run lint`, `npx.cmd --no-install tsc --noEmit` y `npm.cmd run build`: aprobados.
 
-## Verificación pendiente en el equipo piloto
+## Publicación y verificación parcial de `0.1.10`
 
-Permanece pendiente publicar `0.1.10` en `pilot`, actualizar `PC-E24D57F3` y comprobar 0 pendientes, 0 errores, 0 conflictos y ausencia del paciente `PRUEBAOFFLINEPILOTO` en los listados activos. La baja ya fue confirmada; no debe repetirse.
+La versión de escritorio `0.1.10` se publicó correctamente en el canal `pilot` el 17 de agosto de 2026:
+
+- La etiqueta `desktop-v0.1.10` apunta al commit `c4b5fcfea6a0977d3597fe882624fc5c720797b2` de `main`.
+- El workflow `Publicar release de escritorio` finalizó correctamente en la ejecución `32064322616`.
+- La instalación limpia, auditoría de producción, lint, TypeScript, pruebas, empaquetado NSIS x64, manifiesto firmado y publicación de objetos inmutables concluyeron correctamente.
+- El paso `Publicar objetos inmutables y mover el puntero pilot` terminó correctamente.
+- No se ejecutó una nueva promoción a `stable`; la última ejecución de ese workflow continúa siendo `31881058290`, del 15 de agosto de 2026.
+
+Evidencia: https://github.com/carlosacostap-unca/consultorio-oftalmologico/actions/runs/32064322616
+
+El equipo `PC-E24D57F3` detectó, descargó e instaló `0.1.10` mediante la actualización interna. Después del reinicio, la pantalla de sincronización mostró conexión en línea, `0` pendientes, `0` errores, `0` conflictos y la aplicación actualizada.
+
+La comprobación visual final buscó exactamente `PRUEBAOFFLINEPILOTO` en el listado activo de pacientes de `PC-E24D57F3` y mostró `No se encontraron pacientes`. La aplicación permaneció actualizada y sincronizada. La baja central no se repitió y el piloto concluyó con `0` pendientes, `0` errores, `0` conflictos y el paciente sintético ausente de los listados activos.

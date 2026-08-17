@@ -33,5 +33,5 @@
 - [x] 5.2 Validar estrictamente el cambio OpenSpec y documentar la evidencia del fallo reproducido y de la corrección.
 - [x] 5.3 Publicar la corrección web en staging y verificar el endpoint de sincronización antes de generar el instalador.
 - [x] 5.4 Preparar una nueva versión de escritorio para el canal `pilot`, manteniendo `stable` sin cambios.
-- [ ] 5.5 Publicar la corrección visual en la versión de escritorio `0.1.10` para el canal `pilot`, manteniendo `stable` sin cambios.
-- [ ] 5.6 Actualizar `PC-E24D57F3` y comprobar 0 pendientes, 0 errores, 0 conflictos y ausencia del paciente `PRUEBAOFFLINEPILOTO` en los listados activos, sin repetir la baja ya confirmada.
+- [x] 5.5 Publicar la corrección visual en la versión de escritorio `0.1.10` para el canal `pilot`, manteniendo `stable` sin cambios.
+- [x] 5.6 Actualizar `PC-E24D57F3` y comprobar 0 pendientes, 0 errores, 0 conflictos y ausencia del paciente `PRUEBAOFFLINEPILOTO` en los listados activos, sin repetir la baja ya confirmada.
