@@ -20,10 +20,9 @@ test("explica cuándo falta configurar la conexión central", () => {
 });
 
 test("solicita una nueva sesión cuando la autenticación central no está disponible", () => {
-  assert.equal(
-    desktopUpdateSummary({ ...baseState, status: "error", code: "auth_required" }),
-    "Volvé a iniciar sesión para buscar actualizaciones",
-  );
+  const summary = desktopUpdateSummary({ ...baseState, status: "error", code: "auth_required" });
+  assert.equal(summary, "Volvé a iniciar sesión para buscar actualizaciones");
+  assert.doesNotMatch(summary, /sin conexión/i);
 });
 
 test("confirma de forma visible que la versión instalada está vigente", () => {

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  classifyDesktopUpdatePolicyResponse,
   publicDesktopUpdateState,
   nextDesktopUpdateReminderAt,
   resolveDesktopCentralUrl,
@@ -97,4 +98,22 @@ test("expone al renderer sólo estados y campos técnicos permitidos", () => {
     status: "downloading", version: "0.2.0", kind: "mandatory", percent: 43,
     checkedAt: "2026-08-09T12:00:00.000Z", code: "download_ok",
   });
+});
+
+test("clasifica una sesión vencida sin exponer el token y permite continuar tras reautenticar", () => {
+  const expiredToken = "token-central-secreto-de-prueba";
+  const expiredState = publicDesktopUpdateState({
+    status: "error",
+    checkedAt: "2026-08-23T22:00:00.000Z",
+    code: classifyDesktopUpdatePolicyResponse(401),
+    token: expiredToken,
+  });
+
+  assert.equal(expiredState.code, "auth_required");
+  assert.equal("token" in expiredState, false);
+  assert.equal(JSON.stringify(expiredState).includes(expiredToken), false);
+  assert.equal(classifyDesktopUpdatePolicyResponse(403), "auth_required");
+  assert.equal(classifyDesktopUpdatePolicyResponse(200), "continue");
+  assert.equal(classifyDesktopUpdatePolicyResponse(500), "http_error");
+  assert.throws(() => classifyDesktopUpdatePolicyResponse(0), /inválido/);
 });
