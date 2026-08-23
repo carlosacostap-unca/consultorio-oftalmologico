@@ -38,6 +38,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_expired_ur
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_expired_url.mjs ./scripts/verify_desktop_expired_url.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_tampered_manifest_verifier_core.mjs ./scripts/desktop_update_tampered_manifest_verifier_core.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_tampered_manifest.mjs ./scripts/verify_desktop_tampered_manifest.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_corrupt_download_verifier_core.mjs ./scripts/desktop_update_corrupt_download_verifier_core.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_corrupt_download.mjs ./scripts/verify_desktop_corrupt_download.mjs
 
 USER nextjs
 EXPOSE 3000
