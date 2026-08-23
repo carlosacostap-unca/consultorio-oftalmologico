@@ -16,7 +16,7 @@ export async function fetchWithAdminAuth({
   let token = await getToken();
   let response = await fetchAsAdmin(fetcher, url, options, token);
 
-  if (response.status === 401) {
+  if (response.status === 401 || response.status === 403) {
     invalidateToken();
     token = await getToken();
     response = await fetchAsAdmin(fetcher, url, options, token);
