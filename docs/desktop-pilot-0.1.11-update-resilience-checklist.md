@@ -89,6 +89,14 @@ Cada caso se ejecuta por separado. Restaurar el estado limpio antes del siguient
 
 ### 4.3 URL prefirmada expirada
 
+La comprobación operativa se ejecuta dentro del contenedor de **staging** desplegado desde esta versión. Usa sólo el canal `pilot`, lee el puntero y manifiesto vigentes, solicita un byte del instalador y cancela el cuerpo inmediatamente. No escribe objetos, no reemplaza punteros y no imprime URLs ni credenciales.
+
+```sh
+cd /app && node scripts/verify_desktop_expired_url.mjs
+```
+
+El resultado aprobado debe informar una URL vencida rechazada y una URL nueva aceptada, junto con canal, versión, artefacto y códigos HTTP sanitizados. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio sigue disponible y conserva cualquier operación sintética pendiente.
+
 - [ ] Una URL local de ensayo expirada no descarga ni instala contenido parcial.
 - [ ] La aplicación permite solicitar una URL nueva y reintentar.
 - [ ] El trabajo local permanece disponible.
