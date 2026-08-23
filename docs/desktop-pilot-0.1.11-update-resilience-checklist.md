@@ -25,6 +25,7 @@ La suite `npm run test:sync-core` debe quedar en verde. En particular, ya existe
 | Riesgo | Prueba principal | Resultado esperado |
 | --- | --- | --- |
 | Token central vencido | `lib/desktop-updates/policy.test.ts` | Rechazo `invalid_session` sin filtrar credenciales |
+| URL prefirmada expirada | `lib/desktop-updates/gateway.test.ts` | Cada reintento autorizado genera una URL nueva y de vida corta |
 | Manifiesto alterado | `desktop/update-integrity.test.mjs` | Firma Ed25519 inválida y actualización rechazada |
 | Descarga corrupta | `desktop/update-integrity.test.mjs` | Tamaño o SHA-512 inválido y artefacto rechazado |
 | Respaldo alterado | `desktop/update-backup.test.mjs` | Respaldo inválido y actualización bloqueada |
@@ -36,6 +37,7 @@ La suite `npm run test:sync-core` debe quedar en verde. En particular, ya existe
 - [x] `npx tsc --noEmit` finaliza correctamente (2026-08-17).
 - [x] `npm run build` finaliza correctamente con Next.js 16.3.0 (2026-08-17).
 - [x] La validación OpenSpec estricta finaliza correctamente (2026-08-17).
+- [x] La suite completa de sincronización, autorización, integridad y política finaliza correctamente (144/144, 2026-08-23).
 
 ## 2. Preparación del piloto
 

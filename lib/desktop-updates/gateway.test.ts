@@ -55,6 +55,37 @@ test("redirecciona sólo un artefacto incluido en el manifiesto del canal", asyn
   ]);
 });
 
+test("genera una URL prefirmada nueva al reintentar una descarga expirada", async () => {
+  let attempt = 0;
+  const objects: Record<string, string> = channelObjects({
+    "releases/0.2.0/release-manifest.json": manifest,
+  });
+  const storage: DesktopUpdateObjectStorage = {
+    async readTextObject(key) {
+      const value = objects[key];
+      if (value === undefined) throw new DesktopUpdateStorageError("not_found");
+      return value;
+    },
+    async presignGetObject(key, expiresIn) {
+      attempt += 1;
+      return `https://s3.example.idrivee2.com/bucket/${encodeURIComponent(key)}?X-Amz-Signature=attempt-${attempt}&X-Amz-Expires=${expiresIn}`;
+    },
+  };
+
+  const first = await desktopUpdateFeedResponse({
+    channel: "stable", file: artifactFile, endpoint: "https://s3.example.idrivee2.com", presignedTtlSeconds: 60, storage,
+  });
+  const retry = await desktopUpdateFeedResponse({
+    channel: "stable", file: artifactFile, endpoint: "https://s3.example.idrivee2.com", presignedTtlSeconds: 60, storage,
+  });
+
+  assert.equal(first.status, 302);
+  assert.equal(retry.status, 302);
+  assert.notEqual(first.headers.get("location"), retry.headers.get("location"));
+  assert.match(first.headers.get("location") || "", /X-Amz-Signature=attempt-1/);
+  assert.match(retry.headers.get("location") || "", /X-Amz-Signature=attempt-2/);
+});
+
 test("rechaza traversal, objeto ajeno al manifiesto y redirección a otro origen", async () => {
   assert.throws(() => safeDesktopUpdateFile("../secret"));
   assert.throws(() => releaseMetadataKey("0.2.0", "other.yml"));
