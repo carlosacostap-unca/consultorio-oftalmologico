@@ -37,7 +37,7 @@ La suite `npm run test:sync-core` debe quedar en verde. En particular, ya existe
 - [x] `npx tsc --noEmit` finaliza correctamente (2026-08-17).
 - [x] `npm run build` finaliza correctamente con Next.js 16.3.0 (2026-08-17).
 - [x] La validación OpenSpec estricta finaliza correctamente (2026-08-17).
-- [x] La suite completa de sincronización, autorización, integridad y política finaliza correctamente (144/144, 2026-08-23).
+- [x] La suite completa de sincronización, autorización, integridad y política finaliza correctamente (149/149, 2026-08-23).
 
 ## 2. Preparación del piloto
 
@@ -97,9 +97,9 @@ cd /app && node scripts/verify_desktop_expired_url.mjs
 
 El resultado aprobado debe informar una URL vencida rechazada y una URL nueva aceptada, junto con canal, versión, artefacto y códigos HTTP sanitizados. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio sigue disponible y conserva cualquier operación sintética pendiente.
 
-- [ ] Una URL local de ensayo expirada no descarga ni instala contenido parcial.
-- [ ] La aplicación permite solicitar una URL nueva y reintentar.
-- [ ] El trabajo local permanece disponible.
+- [x] Una URL prefirmada de ensayo expirada no descarga ni instala contenido parcial.
+- [x] La aplicación permite solicitar una URL nueva y reintentar.
+- [x] El trabajo local permanece disponible.
 
 ### 4.4 Manifiesto alterado
 
@@ -152,7 +152,7 @@ Fecha: 2026-08-23
 - Después de `Reiniciar y actualizar`, la aplicación abrió en `0.1.11` con la misma sesión e identidad y mantuvo exactamente una operación pendiente, sin errores ni conflictos.
 - Al recuperar conectividad, la operación se sincronizó y el estado final quedó en `0` pendientes, `0` errores y `0` conflictos. El responsable confirmó el dato en escritorio y staging.
 - El respaldo `backup-2026-08-23T21-35-22-829Z-b6821b2a` declara origen `0.1.10`, destino `0.1.11` y 12 archivos. `verifyDesktopBackup` volvió a validar estructura, archivos requeridos, tamaños y SHA-512.
-- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1. El caso 4.2 también quedó aprobado con una operación sintética pendiente: la sesión vencida impidió el envío, la operación permaneció disponible para revisión y se aplicó después de volver a iniciar sesión. Los casos 4.3 a 4.6 continúan pendientes.
+- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1. El caso 4.2 también quedó aprobado con una operación sintética pendiente: la sesión vencida impidió el envío, la operación permaneció disponible para revisión y se aplicó después de volver a iniciar sesión. El caso 4.3 quedó aprobado mediante la evidencia operativa de la sección 9. Los casos 4.4 a 4.6 continúan pendientes.
 
 ## 7. Cobertura automatizada complementaria de la tarea 7.4
 
@@ -181,3 +181,16 @@ Fecha: 2026-08-23
 - Después de volver a iniciar sesión, `Sincronizar ahora` procesó la misma operación, asignó una ficha definitiva y dejó el estado en `0` pendientes, `0` errores y `0` conflictos.
 - El registro sintético se eliminó en línea y su baja se sincronizó al terminar el ensayo, sin dejar pendientes, errores ni conflictos.
 - La existencia de la credencial cifrada nueva y del respaldo temporal se comprobó sin leer sus contenidos. Después de limpiar el registro sintético se eliminó exclusivamente `central-auth-token.expired-session-pending-test.bin`; la credencial cifrada nueva permaneció disponible.
+
+## 9. Evidencia operativa de URL prefirmada expirada
+
+Fecha: 2026-08-23
+
+- La comprobación se ejecutó dentro del contenedor de staging desplegado desde el merge del PR `#84` (`21a99b97e2d6f342ca907c396d9a9f786000a6b2`).
+- Se consultó exclusivamente el canal `pilot`, versión `0.1.11`, y el artefacto `Consultorio-Oftalmologico-0.1.11-x64.exe`.
+- Una URL prefirmada con vigencia de un segundo fue rechazada después de expirar con HTTP `403`; no descargó ni habilitó contenido parcial.
+- El verificador solicitó una URL nueva para el mismo objeto y una lectura de rango de un byte fue aceptada con HTTP `206`. El cuerpo se canceló inmediatamente y no se descargó el instalador completo.
+- El comando informó de forma sanitizada el canal, la versión, el nombre del artefacto y los códigos HTTP. No imprimió URLs prefirmadas, credenciales ni contenido clínico.
+- La verificación fue de sólo lectura: no modificó objetos, punteros de `pilot` ni el canal `stable`.
+- Antes y después del ensayo, el responsable confirmó que la aplicación de escritorio permaneció operativa y que los datos y el trabajo local continuaron disponibles.
+- El caso 4.3 queda aprobado. Los casos 4.4, 4.5 y 4.6 continúan pendientes y no se autoriza todavía la promoción a `stable`.
