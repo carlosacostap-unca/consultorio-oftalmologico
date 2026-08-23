@@ -127,9 +127,11 @@ cd /app && node scripts/verify_desktop_corrupt_download.mjs
 
 El resultado aprobado debe informar el canal, versión, instalador, cantidad acotada de bytes y el rechazo por tamaño o SHA-512. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio y el trabajo local continúan disponibles.
 
-- [ ] Una copia local corrupta del instalador falla tamaño o SHA-512.
-- [ ] El archivo corrupto no queda marcado como listo.
-- [ ] No se invoca el instalador y el trabajo local permanece disponible.
+Evidencia del 23/08/2026 en staging: el verificador aprobó el canal `pilot`, versión `0.1.11`, artefacto `Consultorio-Oftalmologico-0.1.11-x64.exe`. Leyó una muestra temporal de 65.536 bytes sobre 179.302.406 bytes esperados y la barrera real de integridad la rechazó por tamaño. El verificador confirmó que la copia no quedó lista, eliminó el temporal, no invocó el instalador y no modificó objetos ni punteros. Después de la prueba se confirmó manualmente que la aplicación y el trabajo local permanecían disponibles.
+
+- [x] Una copia local corrupta del instalador falla tamaño o SHA-512.
+- [x] El archivo corrupto no queda marcado como listo.
+- [x] No se invoca el instalador y el trabajo local permanece disponible.
 
 ### 4.6 Actualización obligatoria
 
