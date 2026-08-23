@@ -39,9 +39,9 @@ La suite `npm run test:sync-core` debe quedar en verde. En particular, ya existe
 
 ## 2. Preparación del piloto
 
-- [ ] La aplicación instalada informa versión `0.1.10`.
-- [ ] El equipo `PC-E24D57F3` está habilitado y asignado a `pilot`.
-- [ ] La sincronización inicial muestra `0` pendientes, `0` errores y `0` conflictos.
+- [x] La aplicación instalada informa versión `0.1.10`.
+- [x] El equipo `PC-E24D57F3` está habilitado y asignado a `pilot`.
+- [x] La sincronización inicial muestra `0` pendientes, `0` errores y `0` conflictos.
 - [ ] Se exportó un diagnóstico previo sanitizado.
 - [ ] Se registró la versión del canal `stable` y no se modificará durante la prueba.
 - [ ] Se seleccionó un paciente sintético sin consultas ni recetas reales asociadas.
@@ -59,13 +59,13 @@ La suite `npm run test:sync-core` debe quedar en verde. En particular, ya existe
 9. Confirmar que la aplicación reabre en `0.1.11`, con la misma identidad y la operación todavía pendiente.
 10. Sincronizar y confirmar el dato sintético tanto en escritorio como en staging.
 
-- [ ] La detección y la descarga son visibles.
-- [ ] `Más tarde` no cierra la aplicación ni elimina trabajo local.
-- [ ] Se crea y verifica un respaldo antes de invocar el instalador.
-- [ ] El reinicio no requiere desinstalación manual.
-- [ ] Se conservan sesión, activación, identidad, base local y accesos directos.
-- [ ] La operación pendiente se confirma después de actualizar y sincronizar.
-- [ ] El estado final queda en `0` pendientes, `0` errores y `0` conflictos.
+- [x] La detección y la descarga son visibles.
+- [x] `Más tarde` no cierra la aplicación ni elimina trabajo local.
+- [x] Se crea y verifica un respaldo antes de invocar el instalador.
+- [x] El reinicio no requiere desinstalación manual.
+- [x] Se conservan sesión, activación, identidad, base local y accesos directos.
+- [x] La operación pendiente se confirma después de actualizar y sincronizar.
+- [x] El estado final queda en `0` pendientes, `0` errores y `0` conflictos.
 
 ## 4. Matriz de fallos aislados
 
@@ -73,9 +73,9 @@ Cada caso se ejecuta por separado. Restaurar el estado limpio antes del siguient
 
 ### 4.1 Falta de red
 
-- [ ] Buscar actualizaciones sin red muestra un estado recuperable.
-- [ ] La interfaz clínica sigue disponible y conserva la operación pendiente.
-- [ ] Al recuperar la red, una nueva búsqueda funciona sin reinstalar ni reiniciar.
+- [x] Buscar actualizaciones sin red muestra un estado recuperable.
+- [x] La interfaz clínica sigue disponible y conserva la operación pendiente.
+- [x] Al recuperar la red, una nueva búsqueda funciona sin reinstalar ni reiniciar.
 
 ### 4.2 Sesión central vencida
 
@@ -123,7 +123,23 @@ Registrar sin secretos:
 
 - [ ] Se exportó un diagnóstico posterior sanitizado.
 - [ ] Los seis casos de fallo quedaron aprobados.
-- [ ] El ciclo con operación pendiente quedó aprobado.
+- [x] El ciclo con operación pendiente quedó aprobado.
 - [ ] El resultado se registró como aprobado o rechazado.
 
 Sólo si todo lo anterior queda aprobado se puede iniciar la tarea 7.5: promover exactamente los mismos bytes a `stable` y actualizar los demás equipos uno por uno.
+
+## 6. Evidencia del ciclo aprobado para la tarea 7.3
+
+Fecha: 2026-08-23
+
+- Etiqueta: `desktop-v0.1.11` (tag anotado sobre el commit `fed6e57ec5693d5cc61f4028509ba150189b25f0`).
+- Ejecución de publicación piloto: https://github.com/carlosacostap-unca/consultorio-oftalmologico/actions/runs/32575898695, concluida correctamente.
+- Equipo piloto: `PC-E24D57F3`, Windows 11 x64.
+- Versión de origen y destino: `0.1.10` → `0.1.11`.
+- La interfaz detectó y descargó la versión, permitió elegir `Más tarde` y conservó una operación local pendiente al trabajar sin conexión.
+- Después de `Reiniciar y actualizar`, la aplicación abrió en `0.1.11` con la misma sesión e identidad y mantuvo exactamente una operación pendiente, sin errores ni conflictos.
+- Al recuperar conectividad, la operación se sincronizó y el estado final quedó en `0` pendientes, `0` errores y `0` conflictos. El responsable confirmó el dato en escritorio y staging.
+- El respaldo `backup-2026-08-23T21-35-22-829Z-b6821b2a` declara origen `0.1.10`, destino `0.1.11` y 12 archivos. `verifyDesktopBackup` volvió a validar estructura, archivos requeridos, tamaños y SHA-512.
+- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1; los otros cinco casos de la tarea 7.4 continúan pendientes.
+
+Las capturas fueron aportadas por el responsable del piloto. No se copiaron nombres, documentos, contenido clínico, tokens, secretos ni URLs prefirmadas a esta evidencia.
