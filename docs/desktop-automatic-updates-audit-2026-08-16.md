@@ -43,11 +43,7 @@ Esto demuestra la promoción técnica del mismo artefacto sin recompilar. No com
 
 La actualización `0.1.6` a `0.1.7` comprobó detección, descarga, disponibilidad de `Reiniciar y actualizar`, reinicio, instalación y conservación de sesión, identidad y sincronización. La instalación controlada sólo puede invocar NSIS después de crear y verificar el respaldo.
 
-La tarea 7.3 continúa abierta porque aún falta evidencia de:
-
-- usar efectivamente `Más tarde` y comprobar el recordatorio posterior;
-- iniciar la actualización con operaciones locales pendientes;
-- confirmar esas operaciones después del reinicio y la sincronización.
+La tarea 7.3 quedó aprobada el 2026-08-23 con la actualización piloto `0.1.10` → `0.1.11`. La evidencia sanitizada en `desktop-pilot-0.1.11-update-resilience-checklist.md` confirma el uso efectivo de `Más tarde`, respaldo verificable, reinicio controlado, conservación de una operación pendiente y sincronización final en `0` pendientes, `0` errores y `0` conflictos.
 
 ## Pruebas pendientes de fallo y despliegue
 
