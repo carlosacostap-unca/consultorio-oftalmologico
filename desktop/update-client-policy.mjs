@@ -60,6 +60,15 @@ export function publicDesktopUpdateState(value) {
   });
 }
 
+export function classifyDesktopUpdatePolicyResponse(status) {
+  if (!Number.isInteger(status) || status < 100 || status > 599) {
+    throw new Error("Estado HTTP de política de actualización inválido.");
+  }
+  if (status === 401 || status === 403) return "auth_required";
+  if (status >= 200 && status < 300) return "continue";
+  return "http_error";
+}
+
 export function nextDesktopUpdateReminderAt(now = new Date()) {
   if (!(now instanceof Date) || Number.isNaN(now.getTime())) throw new Error("Fecha de recordatorio inválida.");
   return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();

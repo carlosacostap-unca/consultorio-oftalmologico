@@ -144,4 +144,14 @@ Fecha: 2026-08-23
 - El respaldo `backup-2026-08-23T21-35-22-829Z-b6821b2a` declara origen `0.1.10`, destino `0.1.11` y 12 archivos. `verifyDesktopBackup` volvió a validar estructura, archivos requeridos, tamaños y SHA-512.
 - La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1; los otros cinco casos de la tarea 7.4 continúan pendientes.
 
+## 7. Cobertura automatizada complementaria de la tarea 7.4
+
+La simulación automatizada no reemplaza las casillas operativas de la sección 4, pero reduce el riesgo antes de ejecutarlas sobre el equipo piloto:
+
+- Una respuesta central `401` o `403` se clasifica como `auth_required`, no como falta de red.
+- El estado público enviado al renderer descarta cualquier token u otro campo no permitido.
+- La interfaz traduce `auth_required` a `Volvé a iniciar sesión para buscar actualizaciones` y no muestra `Sin conexión`.
+- Una respuesta `200` posterior a la reautenticación vuelve a habilitar la continuación normal de la consulta.
+- Los reintentos de descarga solicitan una URL prefirmada nueva; las pruebas de integridad rechazan manifiestos alterados y artefactos corruptos; la política obligatoria sólo habilita la instalación de una versión ya verificada.
+
 Las capturas fueron aportadas por el responsable del piloto. No se copiaron nombres, documentos, contenido clínico, tokens, secretos ni URLs prefirmadas a esta evidencia.
