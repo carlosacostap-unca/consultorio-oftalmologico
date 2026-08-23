@@ -81,9 +81,11 @@ Cada caso se ejecuta por separado. Restaurar el estado limpio antes del siguient
 
 ### 4.2 Sesión central vencida
 
-- [ ] Una sesión vencida produce un mensaje de autenticación, no un falso estado sin conexión.
-- [ ] No se registra ni muestra el token.
-- [ ] Volver a iniciar sesión permite reintentar y conserva la operación pendiente.
+- [x] Una sesión vencida produce un mensaje de autenticación, no un falso estado sin conexión.
+- [x] No se registra ni muestra el token.
+- [x] Volver a iniciar sesión permite reintentar la búsqueda de actualizaciones.
+- [x] Pacientes, consultas y recetas permanecen accesibles durante la prueba.
+- [ ] Repetir el caso con una operación sintética pendiente y confirmar que se conserva.
 
 ### 4.3 URL prefirmada expirada
 
@@ -142,7 +144,7 @@ Fecha: 2026-08-23
 - Después de `Reiniciar y actualizar`, la aplicación abrió en `0.1.11` con la misma sesión e identidad y mantuvo exactamente una operación pendiente, sin errores ni conflictos.
 - Al recuperar conectividad, la operación se sincronizó y el estado final quedó en `0` pendientes, `0` errores y `0` conflictos. El responsable confirmó el dato en escritorio y staging.
 - El respaldo `backup-2026-08-23T21-35-22-829Z-b6821b2a` declara origen `0.1.10`, destino `0.1.11` y 12 archivos. `verifyDesktopBackup` volvió a validar estructura, archivos requeridos, tamaños y SHA-512.
-- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1; los otros cinco casos de la tarea 7.4 continúan pendientes.
+- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1. Del caso 4.2 quedaron aprobados el mensaje, la confidencialidad, la continuidad de la interfaz y la recuperación; falta repetirlo con una operación sintética pendiente. Los casos 4.3 a 4.6 continúan pendientes.
 
 ## 7. Cobertura automatizada complementaria de la tarea 7.4
 
@@ -155,3 +157,16 @@ La simulación automatizada no reemplaza las casillas operativas de la sección 
 - Los reintentos de descarga solicitan una URL prefirmada nueva; las pruebas de integridad rechazan manifiestos alterados y artefactos corruptos; la política obligatoria sólo habilita la instalación de una versión ya verificada.
 
 Las capturas fueron aportadas por el responsable del piloto. No se copiaron nombres, documentos, contenido clínico, tokens, secretos ni URLs prefirmadas a esta evidencia.
+
+## 8. Evidencia operativa de sesión central vencida
+
+Fecha: 2026-08-23
+
+- Se aisló de forma reversible únicamente el archivo cifrado de la sesión central del equipo piloto. No se leyó, descifró, registró ni mostró su contenido.
+- La búsqueda manual de actualizaciones pidió volver a iniciar sesión y no presentó un falso estado `Sin conexión`.
+- Pacientes, consultas y recetas permanecieron disponibles mientras faltaba la sesión central.
+- Después de iniciar sesión nuevamente, la aplicación creó una credencial cifrada nueva y la búsqueda manual informó que la aplicación estaba actualizada.
+- Antes de limpiar el ensayo se verificó que la credencial nueva existiera. Luego se eliminó únicamente el respaldo temporal de la credencial anterior; no se modificaron activación, identidad, base local ni secretos restantes.
+- La cobertura automatizada complementaria verifica respuestas centrales `401` y `403`, sanitización del estado público y continuación normal tras una respuesta posterior `200`.
+- El canal `stable` no se modificó durante esta prueba.
+- Queda pendiente repetir esta variante con una operación sintética en cola para demostrar específicamente su conservación.
