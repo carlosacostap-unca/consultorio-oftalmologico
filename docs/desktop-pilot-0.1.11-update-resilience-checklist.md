@@ -111,9 +111,9 @@ cd /app && node scripts/verify_desktop_tampered_manifest.mjs
 
 El resultado aprobado debe informar que el manifiesto auténtico fue aceptado y que la copia alterada fue rechazada. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio y el trabajo local continúan disponibles.
 
-- [ ] Una copia local alterada del manifiesto falla la verificación de firma.
-- [ ] No se reemplaza el puntero válido de `pilot` ni se toca `stable`.
-- [ ] No se invoca el instalador.
+- [x] Una copia local alterada del manifiesto falla la verificación de firma.
+- [x] No se reemplaza el puntero válido de `pilot` ni se toca `stable`.
+- [x] No se invoca el instalador.
 
 ### 4.5 Descarga corrupta
 
@@ -160,7 +160,7 @@ Fecha: 2026-08-23
 - Después de `Reiniciar y actualizar`, la aplicación abrió en `0.1.11` con la misma sesión e identidad y mantuvo exactamente una operación pendiente, sin errores ni conflictos.
 - Al recuperar conectividad, la operación se sincronizó y el estado final quedó en `0` pendientes, `0` errores y `0` conflictos. El responsable confirmó el dato en escritorio y staging.
 - El respaldo `backup-2026-08-23T21-35-22-829Z-b6821b2a` declara origen `0.1.10`, destino `0.1.11` y 12 archivos. `verifyDesktopBackup` volvió a validar estructura, archivos requeridos, tamaños y SHA-512.
-- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1. El caso 4.2 también quedó aprobado con una operación sintética pendiente: la sesión vencida impidió el envío, la operación permaneció disponible para revisión y se aplicó después de volver a iniciar sesión. El caso 4.3 quedó aprobado mediante la evidencia operativa de la sección 9. Los casos 4.4 a 4.6 continúan pendientes.
+- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1. El caso 4.2 también quedó aprobado con una operación sintética pendiente: la sesión vencida impidió el envío, la operación permaneció disponible para revisión y se aplicó después de volver a iniciar sesión. El caso 4.3 quedó aprobado mediante la evidencia operativa de la sección 9 y el caso 4.4 mediante la sección 10. Los casos 4.5 y 4.6 continúan pendientes.
 
 ## 7. Cobertura automatizada complementaria de la tarea 7.4
 
@@ -201,4 +201,17 @@ Fecha: 2026-08-23
 - El comando informó de forma sanitizada el canal, la versión, el nombre del artefacto y los códigos HTTP. No imprimió URLs prefirmadas, credenciales ni contenido clínico.
 - La verificación fue de sólo lectura: no modificó objetos, punteros de `pilot` ni el canal `stable`.
 - Antes y después del ensayo, el responsable confirmó que la aplicación de escritorio permaneció operativa y que los datos y el trabajo local continuaron disponibles.
-- El caso 4.3 queda aprobado. Los casos 4.4, 4.5 y 4.6 continúan pendientes y no se autoriza todavía la promoción a `stable`.
+- El caso 4.3 queda aprobado. Los casos 4.5 y 4.6 continúan pendientes y no se autoriza todavía la promoción a `stable`.
+
+## 10. Evidencia operativa de manifiesto alterado
+
+Fecha: 2026-08-23
+
+- La comprobación se ejecutó dentro del contenedor de staging desplegado desde el merge del PR `#86` (`4684d1f5cc6536d46bdf9c66d2d5cb74c09b92b0`).
+- Se consultó exclusivamente el canal `pilot`, versión `0.1.11`, y el artefacto de metadatos `builder-debug.yml` referenciado por el manifiesto vigente.
+- La firma Ed25519 del manifiesto auténtico fue aceptada.
+- Se alteró únicamente el SHA-512 de una copia mantenida en memoria y la firma Ed25519 original fue rechazada para esa copia.
+- No se generaron URLs de descarga, no se descargó ni invocó el instalador y no se modificaron objetos ni punteros de `pilot` o `stable`.
+- La salida fue sanitizada: informó canal, versión, artefacto y resultados criptográficos sin imprimir credenciales, firmas completas, claves ni contenido clínico.
+- Antes y después del ensayo, el responsable confirmó que la aplicación de escritorio permaneció operativa y que pacientes, consultas, recetas, datos y trabajo local continuaron disponibles.
+- El caso 4.4 queda aprobado. Los casos 4.5 y 4.6 continúan pendientes y no se autoriza todavía la promoción a `stable`.
