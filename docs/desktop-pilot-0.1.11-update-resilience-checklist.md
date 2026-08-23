@@ -117,6 +117,16 @@ El resultado aprobado debe informar que el manifiesto auténtico fue aceptado y 
 
 ### 4.5 Descarga corrupta
 
+La comprobación operativa se ejecuta dentro del contenedor de **staging** desplegado desde esta versión. Valida la firma del manifiesto auténtico de `pilot`, selecciona exclusivamente el instalador `.exe` y lee como máximo 64 KiB del objeto mediante una solicitud de rango. Esa muestra se guarda con el nombre esperado en un directorio temporal y la barrera real de integridad debe rechazarla por tamaño o SHA-512. El temporal se elimina siempre.
+
+El verificador es de sólo lectura: no descarga el instalador completo, no genera ni imprime URLs, no marca ninguna actualización como lista, no invoca el instalador y no modifica objetos ni punteros del bucket.
+
+```sh
+cd /app && node scripts/verify_desktop_corrupt_download.mjs
+```
+
+El resultado aprobado debe informar el canal, versión, instalador, cantidad acotada de bytes y el rechazo por tamaño o SHA-512. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio y el trabajo local continúan disponibles.
+
 - [ ] Una copia local corrupta del instalador falla tamaño o SHA-512.
 - [ ] El archivo corrupto no queda marcado como listo.
 - [ ] No se invoca el instalador y el trabajo local permanece disponible.
