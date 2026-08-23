@@ -37,7 +37,7 @@ La suite `npm run test:sync-core` debe quedar en verde. En particular, ya existe
 - [x] `npx tsc --noEmit` finaliza correctamente (2026-08-17).
 - [x] `npm run build` finaliza correctamente con Next.js 16.3.0 (2026-08-17).
 - [x] La validación OpenSpec estricta finaliza correctamente (2026-08-17).
-- [x] La suite completa de sincronización, autorización, integridad y política finaliza correctamente (149/149, 2026-08-23).
+- [x] La suite completa de sincronización, autorización, integridad y política finaliza correctamente (153/153, 2026-08-23).
 
 ## 2. Preparación del piloto
 
@@ -102,6 +102,14 @@ El resultado aprobado debe informar una URL vencida rechazada y una URL nueva ac
 - [x] El trabajo local permanece disponible.
 
 ### 4.4 Manifiesto alterado
+
+La comprobación operativa se ejecuta dentro del contenedor de **staging** desplegado desde esta versión. Lee únicamente el puntero, manifiesto y firma vigentes de `pilot`, valida la firma auténtica y altera el SHA-512 de una copia mantenida en memoria. No genera URLs, no descarga el instalador y no dispone de ninguna operación de escritura sobre el bucket.
+
+```sh
+cd /app && node scripts/verify_desktop_tampered_manifest.mjs
+```
+
+El resultado aprobado debe informar que el manifiesto auténtico fue aceptado y que la copia alterada fue rechazada. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio y el trabajo local continúan disponibles.
 
 - [ ] Una copia local alterada del manifiesto falla la verificación de firma.
 - [ ] No se reemplaza el puntero válido de `pilot` ni se toca `stable`.
