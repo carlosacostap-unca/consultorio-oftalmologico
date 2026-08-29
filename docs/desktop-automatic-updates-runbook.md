@@ -61,6 +61,14 @@ Un objeto de release existente provoca un fallo; nunca se sobrescribe silenciosa
 
 ## Promover a estable
 
+Antes de solicitar la aprobación del entorno protegido, ejecutar en el contenedor de staging:
+
+```sh
+cd /app && node scripts/verify_desktop_stable_preflight.mjs
+```
+
+La prevalidación usa exclusivamente lecturas S3. Comprueba los punteros `pilot` y `stable`, la firma Ed25519 de ambos manifiestos, sus políticas `win32-x64`, la presencia de un único instalador y que la versión piloto sea estrictamente posterior. No descarga instaladores, no escribe objetos y no reemplaza punteros. Conservar su salida sanitizada como evidencia y solicitar una autorización separada antes de promover.
+
 Ejecutar manualmente `desktop-promote-stable.yml`, indicar la versión probada y aprobar el entorno `desktop-stable`. El flujo descarga y verifica manifiesto, firma y SHA-512 de cada objeto y actualiza únicamente el puntero estable. No recompila.
 
 ## Detener o revertir una distribución

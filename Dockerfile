@@ -43,6 +43,8 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_corrupt_do
 COPY --from=builder --chown=nextjs:nodejs /app/desktop/update-client-policy.mjs ./desktop/update-client-policy.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_mandatory_verifier_core.mjs ./scripts/desktop_update_mandatory_verifier_core.mjs
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_mandatory_update.mjs ./scripts/verify_desktop_mandatory_update.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_stable_preflight_verifier_core.mjs ./scripts/desktop_update_stable_preflight_verifier_core.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_stable_preflight.mjs ./scripts/verify_desktop_stable_preflight.mjs
 
 USER nextjs
 EXPOSE 3000
