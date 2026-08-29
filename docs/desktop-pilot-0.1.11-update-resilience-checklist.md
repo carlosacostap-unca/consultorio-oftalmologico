@@ -165,7 +165,7 @@ Registrar sin secretos:
 - ubicación y verificación del respaldo;
 - confirmación de que `stable` no cambió.
 
-- [ ] Se exportó un diagnóstico posterior sanitizado.
+- [x] Se exportó un diagnóstico posterior sanitizado.
 - [x] Los seis casos de fallo quedaron aprobados.
 - [x] El ciclo con operación pendiente quedó aprobado.
 - [x] El resultado se registró como aprobado o rechazado.
@@ -249,3 +249,14 @@ Fecha: 2026-08-29
 - La política obligatoria produjo `0` invocaciones del instalador durante la sesión activa y conservó una operación pendiente técnica.
 - El responsable confirmó que la aplicación de escritorio permaneció operativa y que pacientes, consultas y recetas continuaron accesibles después del último ensayo.
 - La tarea 7.4 queda aprobada. La tarea 7.5 no se inicia hasta exportar el diagnóstico posterior sanitizado y recibir una aprobación explícita para promover exactamente los mismos bytes a `stable`.
+
+## 12. Diagnóstico posterior y prevalidación de `stable`
+
+Fecha: 2026-08-29
+
+- El equipo piloto `PC-E24D57F3` exportó desde la aplicación el diagnóstico posterior sanitizado `diagnostico-2026-08-29T13-21-42-851Z.json`.
+- El resumen visible identifica la versión `0.1.11`, Windows x64, Electron `43.1.0`, Node `24.18.0` y los servicios locales PocketBase/Next.js mediante loopback.
+- Al exportarlo, la interfaz informó conexión en línea y `0` pendientes, `0` errores y `0` conflictos.
+- No se incorporó el contenido de `logTail`, información clínica, tokens, URLs prefirmadas, claves ni credenciales a esta evidencia.
+- Antes de promover se debe desplegar y ejecutar en staging `node scripts/verify_desktop_stable_preflight.mjs`. La salida debe registrar las versiones vigentes de `pilot` y `stable`, aceptar ambas firmas y confirmar que `pilot` es posterior, sin modificar el bucket.
+- La tarea 7.5 continúa abierta. La prevalidación no autoriza ni ejecuta la promoción.
