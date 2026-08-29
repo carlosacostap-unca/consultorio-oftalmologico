@@ -145,10 +145,12 @@ cd /app && node scripts/verify_desktop_mandatory_update.mjs
 
 El resultado aprobado debe informar `0` invocaciones del instalador durante el ensayo, una operación pendiente técnica conservada, rechazo de cualquier artefacto no verificado y autorización del artefacto verificado sólo ante el cierre limpio. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio y el trabajo local continúan disponibles.
 
-- [ ] Mientras la aplicación está abierta, una actualización obligatoria informa su estado sin cerrar la sesión clínica.
-- [ ] La instalación comienza únicamente después de que el usuario cierre la aplicación.
-- [ ] Sólo se instala un artefacto descargado y verificado.
-- [ ] Tras reabrir, se conservan identidad, datos locales y operación pendiente.
+Evidencia del 29/08/2026 en staging: el verificador desplegado desde el merge del PR `#90` (`b9fed53755ac982b0115dfc3839962fa3d9e0d90`) aprobó una política obligatoria sintética `0.1.12-test`. Informó el estado sin cerrar la sesión activa, rechazó la posposición y cualquier artefacto ausente, distinto o no verificado, y autorizó el artefacto verificado coincidente únicamente ante un cierre limpio. Registró `0` invocaciones del instalador y conservó una operación pendiente técnica junto con la identidad y el estado local sintéticos. El responsable confirmó después del ensayo que la aplicación de escritorio seguía operativa y que pacientes, consultas y recetas continuaban accesibles. La conservación real tras reinicio ya había sido aprobada en el ciclo `0.1.10` → `0.1.11` de la sección 6; la simulación obligatoria usa la misma ruta de instalación verificada.
+
+- [x] Mientras la aplicación está abierta, una actualización obligatoria informa su estado sin cerrar la sesión clínica.
+- [x] La instalación comienza únicamente después de que el usuario cierre la aplicación.
+- [x] Sólo se instala un artefacto descargado y verificado.
+- [x] Tras reabrir, se conservan identidad, datos locales y operación pendiente.
 
 ## 5. Evidencia y decisión
 
@@ -164,9 +166,9 @@ Registrar sin secretos:
 - confirmación de que `stable` no cambió.
 
 - [ ] Se exportó un diagnóstico posterior sanitizado.
-- [ ] Los seis casos de fallo quedaron aprobados.
+- [x] Los seis casos de fallo quedaron aprobados.
 - [x] El ciclo con operación pendiente quedó aprobado.
-- [ ] El resultado se registró como aprobado o rechazado.
+- [x] El resultado se registró como aprobado o rechazado.
 
 Sólo si todo lo anterior queda aprobado se puede iniciar la tarea 7.5: promover exactamente los mismos bytes a `stable` y actualizar los demás equipos uno por uno.
 
@@ -182,7 +184,7 @@ Fecha: 2026-08-23
 - Después de `Reiniciar y actualizar`, la aplicación abrió en `0.1.11` con la misma sesión e identidad y mantuvo exactamente una operación pendiente, sin errores ni conflictos.
 - Al recuperar conectividad, la operación se sincronizó y el estado final quedó en `0` pendientes, `0` errores y `0` conflictos. El responsable confirmó el dato en escritorio y staging.
 - El respaldo `backup-2026-08-23T21-35-22-829Z-b6821b2a` declara origen `0.1.10`, destino `0.1.11` y 12 archivos. `verifyDesktopBackup` volvió a validar estructura, archivos requeridos, tamaños y SHA-512.
-- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1. El caso 4.2 también quedó aprobado con una operación sintética pendiente: la sesión vencida impidió el envío, la operación permaneció disponible para revisión y se aplicó después de volver a iniciar sesión. El caso 4.3 quedó aprobado mediante la evidencia operativa de la sección 9 y el caso 4.4 mediante la sección 10. Los casos 4.5 y 4.6 continúan pendientes.
+- La prueba sin red produjo un estado recuperable, mantuvo disponible la interfaz local y conservó la operación. Esta evidencia cubre el caso 4.1. El caso 4.2 también quedó aprobado con una operación sintética pendiente: la sesión vencida impidió el envío, la operación permaneció disponible para revisión y se aplicó después de volver a iniciar sesión. El caso 4.3 quedó aprobado mediante la evidencia operativa de la sección 9, el caso 4.4 mediante la sección 10, el caso 4.5 en su procedimiento operativo y el caso 4.6 mediante la evidencia registrada el 29/08/2026. Los seis casos de la tarea 7.4 quedaron aprobados.
 
 ## 7. Cobertura automatizada complementaria de la tarea 7.4
 
@@ -223,7 +225,7 @@ Fecha: 2026-08-23
 - El comando informó de forma sanitizada el canal, la versión, el nombre del artefacto y los códigos HTTP. No imprimió URLs prefirmadas, credenciales ni contenido clínico.
 - La verificación fue de sólo lectura: no modificó objetos, punteros de `pilot` ni el canal `stable`.
 - Antes y después del ensayo, el responsable confirmó que la aplicación de escritorio permaneció operativa y que los datos y el trabajo local continuaron disponibles.
-- El caso 4.3 queda aprobado. Los casos 4.5 y 4.6 continúan pendientes y no se autoriza todavía la promoción a `stable`.
+- El caso 4.3 queda aprobado. La promoción a `stable` permanece separada y requiere completar la decisión de la sección 5.
 
 ## 10. Evidencia operativa de manifiesto alterado
 
@@ -236,4 +238,14 @@ Fecha: 2026-08-23
 - No se generaron URLs de descarga, no se descargó ni invocó el instalador y no se modificaron objetos ni punteros de `pilot` o `stable`.
 - La salida fue sanitizada: informó canal, versión, artefacto y resultados criptográficos sin imprimir credenciales, firmas completas, claves ni contenido clínico.
 - Antes y después del ensayo, el responsable confirmó que la aplicación de escritorio permaneció operativa y que pacientes, consultas, recetas, datos y trabajo local continuaron disponibles.
-- El caso 4.4 queda aprobado. Los casos 4.5 y 4.6 continúan pendientes y no se autoriza todavía la promoción a `stable`.
+- El caso 4.4 queda aprobado. La promoción a `stable` permanece separada y requiere completar la decisión de la sección 5.
+
+## 11. Cierre de la tarea 7.4
+
+Fecha: 2026-08-29
+
+- Los seis casos quedaron aprobados: falta de red, sesión central vencida, URL prefirmada expirada, manifiesto alterado, descarga corrupta y actualización obligatoria.
+- Las comprobaciones destructivas se limitaron a copias temporales o sintéticas y se eliminaron al terminar; no se modificaron punteros de `pilot` ni `stable`.
+- La política obligatoria produjo `0` invocaciones del instalador durante la sesión activa y conservó una operación pendiente técnica.
+- El responsable confirmó que la aplicación de escritorio permaneció operativa y que pacientes, consultas y recetas continuaron accesibles después del último ensayo.
+- La tarea 7.4 queda aprobada. La tarea 7.5 no se inicia hasta exportar el diagnóstico posterior sanitizado y recibir una aprobación explícita para promover exactamente los mismos bytes a `stable`.
