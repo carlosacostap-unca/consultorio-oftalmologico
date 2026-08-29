@@ -135,6 +135,16 @@ Evidencia del 23/08/2026 en staging: el verificador aprobó el canal `pilot`, ve
 
 ### 4.6 Actualización obligatoria
 
+La comprobación operativa se ejecuta dentro del contenedor de **staging** desplegado desde esta versión. Usa las mismas funciones puras de política que Electron para simular una actualización obligatoria visible, un artefacto ausente o no verificado y un artefacto verificado coincidente ante un cierre limpio.
+
+El verificador no consulta ni modifica el bucket, no lee contenido clínico, no cierra la aplicación y no invoca el instalador. Mantiene una instantánea técnica sintética con identidad, estado local y una operación pendiente para comprobar que la evaluación no la modifica.
+
+```sh
+cd /app && node scripts/verify_desktop_mandatory_update.mjs
+```
+
+El resultado aprobado debe informar `0` invocaciones del instalador durante el ensayo, una operación pendiente técnica conservada, rechazo de cualquier artefacto no verificado y autorización del artefacto verificado sólo ante el cierre limpio. Antes y después de ejecutarlo, confirmar visualmente que la aplicación de escritorio y el trabajo local continúan disponibles.
+
 - [ ] Mientras la aplicación está abierta, una actualización obligatoria informa su estado sin cerrar la sesión clínica.
 - [ ] La instalación comienza únicamente después de que el usuario cierre la aplicación.
 - [ ] Sólo se instala un artefacto descargado y verificado.
