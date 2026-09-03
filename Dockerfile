@@ -32,6 +32,19 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@aws-sdk/s3-request-presigner ./node_modules/@aws-sdk/s3-request-presigner
+COPY --from=builder --chown=nextjs:nodejs /app/desktop/update-integrity.mjs ./desktop/update-integrity.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_expired_url_verifier_core.mjs ./scripts/desktop_update_expired_url_verifier_core.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_expired_url.mjs ./scripts/verify_desktop_expired_url.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_tampered_manifest_verifier_core.mjs ./scripts/desktop_update_tampered_manifest_verifier_core.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_tampered_manifest.mjs ./scripts/verify_desktop_tampered_manifest.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_corrupt_download_verifier_core.mjs ./scripts/desktop_update_corrupt_download_verifier_core.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_corrupt_download.mjs ./scripts/verify_desktop_corrupt_download.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/desktop/update-client-policy.mjs ./desktop/update-client-policy.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_mandatory_verifier_core.mjs ./scripts/desktop_update_mandatory_verifier_core.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_mandatory_update.mjs ./scripts/verify_desktop_mandatory_update.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/desktop_update_stable_preflight_verifier_core.mjs ./scripts/desktop_update_stable_preflight_verifier_core.mjs
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/verify_desktop_stable_preflight.mjs ./scripts/verify_desktop_stable_preflight.mjs
 
 USER nextjs
 EXPOSE 3000

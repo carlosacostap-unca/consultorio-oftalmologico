@@ -22,6 +22,7 @@ import {
   resolveElectronAutoUpdater,
 } from "./update-loader.mjs";
 import {
+  classifyDesktopUpdatePolicyResponse,
   publicDesktopUpdateState,
   nextDesktopUpdateReminderAt,
   resolveDesktopCentralUrl,
@@ -608,11 +609,12 @@ async function checkDesktopUpdates(reason = "manual") {
     const headers = updateRequestHeaders(token);
     const response = await fetch(policyUrl, { headers, signal: AbortSignal.timeout(20_000) });
     const body = await response.json().catch(() => ({}));
-    if (response.status === 401 || response.status === 403) {
+    const policyResponse = classifyDesktopUpdatePolicyResponse(response.status);
+    if (policyResponse === "auth_required") {
       await log("warn", "Consulta de actualización rechazada", `reason=${reason} code=auth_required source=${central.source}`);
       return setDesktopUpdateState({ status: "error", checkedAt, code: "auth_required" });
     }
-    if (!response.ok) throw new Error(`Política de actualización HTTP ${response.status}`);
+    if (policyResponse === "http_error") throw new Error(`Política de actualización HTTP ${response.status}`);
     if (body?.evaluation?.status === "up-to-date") {
       updateKind = null;
       await log("info", "Consulta de actualización completada", `reason=${reason} result=up_to_date source=${central.source}`);

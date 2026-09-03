@@ -17,11 +17,13 @@ El proceso de release MUST impedir la publicación cuando las dependencias inclu
 - **THEN** la dependencia afectada y su lockfile se actualizan antes de generar el artefacto final
 
 ### Requirement: Auditoría separada de herramientas de desarrollo
-El proyecto MUST auditar también el árbol completo y resolver los hallazgos altos o críticos cuando exista una actualización compatible sin ruptura.
+El proyecto MUST auditar también el árbol completo y resolver los hallazgos altos o críticos cuando exista una actualización compatible sin ruptura. La resolución corregida MUST quedar registrada en el lockfile y reproducirse mediante una instalación limpia antes de autorizar una promoción.
 
 #### Scenario: Hallazgo exclusivo de desarrollo con corrección compatible
 - **WHEN** `npm audit` identifica una vulnerabilidad alta o crítica fuera del runtime
 - **THEN** se actualiza la dependencia directa o transitiva dentro de un rango compatible
+- **AND** la resolución corregida queda registrada en el lockfile
+- **AND** `npm ci` reproduce el árbol actualizado desde cero
 - **AND** se repiten las verificaciones de build, pruebas y empaquetado afectadas
 
 #### Scenario: Hallazgo sin corrección compatible
