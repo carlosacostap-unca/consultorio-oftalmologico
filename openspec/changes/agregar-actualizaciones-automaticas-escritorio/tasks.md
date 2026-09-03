@@ -54,5 +54,5 @@
 - [x] 7.2 Generar el instalador bootstrap y probar manualmente la actualización desde 0.1.1 preservando base, identidad, activación y accesos directos
 - [x] 7.3 Publicar una versión posterior sólo en `pilot` y probar detección, descarga, posposición, respaldo, reinicio e instalación con datos de prueba y operaciones pendientes
 - [x] 7.4 Simular falta de red, token vencido, URL expirada, manifiesto alterado, descarga corrupta y actualización obligatoria sin interrumpir el trabajo local
-- [ ] 7.5 Promover el artefacto probado a `stable`, actualizar los equipos restantes uno por uno y registrar versión, resultado y evidencia de conservación de datos
+- [x] 7.5 Promover el artefacto probado a `stable`, actualizar los equipos restantes uno por uno y registrar versión, resultado y evidencia de conservación de datos
 - [x] 7.6 Completar el manual operativo para publicar, promover, detener, diagnosticar y recuperar una actualización, incluyendo la advertencia de SmartScreen por ausencia de certificado comercial

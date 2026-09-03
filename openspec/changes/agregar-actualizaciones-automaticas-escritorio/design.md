@@ -2,7 +2,7 @@
 
 La versión 0.1.1 se distribuye como instalador NSIS por usuario para Windows x64. Una instalación posterior reemplaza los binarios sin borrar `app.getPath("userData")`, pero el usuario todavía debe recibir y ejecutar manualmente cada instalador. El proceso principal ejecuta Next.js standalone y PocketBase local, conserva la identidad del equipo y un token central cifrado, y ya autentica solicitudes centrales mediante el usuario y `x-consultorio-device-id`.
 
-Las versiones se almacenarán en un bucket privado de iDrive e2. La aplicación web central corre en Dokploy y puede conservar credenciales S3 sólo del lado servidor. No habrá certificado comercial de firma de código, habrá inicialmente entre cuatro y seis equipos, y Windows 11 x64 será la plataforma soportada.
+Las versiones se almacenarán en un bucket privado de iDrive e2. La aplicación web central corre en Dokploy y puede conservar credenciales S3 sólo del lado servidor. No habrá certificado comercial de firma de código. Al cierre del primer despliegue existe una única instalación activa, el equipo piloto `PC-E24D57F3`; el canal `stable` queda preparado para las incorporaciones posteriores. Windows 11 x64 será la plataforma soportada.
 
 ## Goals / Non-Goals
 
@@ -97,7 +97,7 @@ Una versión ya instalada no se revertirá automáticamente a un número inferio
 4. Integrar el updater, estado visual, respaldo y recuperación en una versión bootstrap que todavía se instalará manualmente sobre 0.1.1.
 5. Probar 0.1.1 → bootstrap → versión piloto, incluyendo red cortada, firma inválida, descarga corrupta, respaldo fallido y operaciones pendientes.
 6. Instalar la versión bootstrap en un equipo piloto, promover una actualización de prueba y verificar datos, identidad y sincronización.
-7. Habilitar `stable` y actualizar los demás equipos uno por uno; conservar los instaladores y respaldos anteriores.
+7. Habilitar `stable` y actualizar los demás equipos existentes uno por uno; si no hay otras instalaciones activas, registrar explícitamente el inventario vacío y aplicar el mismo control individual a cada equipo que se incorpore después. Conservar los instaladores y respaldos anteriores.
 
 Rollback: antes de la promoción se deshabilita `pilot` o se restaura su puntero. Después de una instalación se publica un hotfix de versión superior; si la aplicación no inicia, soporte reinstala el último instalador conocido y restaura el respaldo verificado. Deshabilitar la puerta de actualización no afecta el funcionamiento offline ni el despliegue web ordinario.
 
@@ -105,5 +105,5 @@ Rollback: antes de la promoción se deshabilita `pilot` o se restaura su puntero
 
 - Endpoint y región exactos de la cuenta iDrive e2, nombre definitivo del bucket y límites de enlaces prefirmados.
 - Equipo que se asignará al canal `pilot`.
-- Confirmación del sistema operativo y arquitectura de las cuatro a seis computadoras.
+- Confirmación de Windows 11 x64 para cada equipo que se incorpore después del piloto.
 - Política final de retención de respaldos por espacio disponible, manteniendo tres como mínimo.
