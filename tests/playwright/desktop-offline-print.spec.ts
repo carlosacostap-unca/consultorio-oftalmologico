@@ -89,6 +89,39 @@ test.describe("Impresiones locales de escritorio", () => {
             authenticate: async () => { throw new Error("Sin conexión"); },
             request: async () => ({ status: 503, ok: false, body: {} }),
           },
+          updates: {
+            getState: async () => ({
+              status: "idle",
+              version: null,
+              kind: null,
+              percent: null,
+              checkedAt: null,
+              code: null,
+            }),
+            check: async () => ({
+              status: "idle",
+              version: null,
+              kind: null,
+              percent: null,
+              checkedAt: null,
+              code: null,
+            }),
+            postpone: async () => ({
+              status: "idle",
+              version: null,
+              kind: null,
+              percent: null,
+              checkedAt: null,
+              code: null,
+            }),
+            install: async () => ({ ok: true, backupDirectory: "" }),
+            onState: () => () => undefined,
+          },
+          maintenance: {
+            ready: async () => true,
+            onPrepare: () => () => undefined,
+            onRelease: () => () => undefined,
+          },
         },
       });
     }, { localToken, userId });
