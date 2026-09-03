@@ -45,7 +45,7 @@ La suite `npm run test:sync-core` debe quedar en verde. En particular, ya existe
 - [x] El equipo `PC-E24D57F3` está habilitado y asignado a `pilot`.
 - [x] La sincronización inicial muestra `0` pendientes, `0` errores y `0` conflictos.
 - [ ] Se exportó un diagnóstico previo sanitizado.
-- [ ] Se registró la versión del canal `stable` y no se modificará durante la prueba.
+- [x] Se registró la versión del canal `stable` y no se modificó durante la prueba.
 - [ ] Se seleccionó un paciente sintético sin consultas ni recetas reales asociadas.
 
 ## 3. Operación pendiente durante la actualización
@@ -260,3 +260,16 @@ Fecha: 2026-08-29
 - No se incorporó el contenido de `logTail`, información clínica, tokens, URLs prefirmadas, claves ni credenciales a esta evidencia.
 - Antes de promover se debe desplegar y ejecutar en staging `node scripts/verify_desktop_stable_preflight.mjs`. La salida debe registrar las versiones vigentes de `pilot` y `stable`, aceptar ambas firmas y confirmar que `pilot` es posterior, sin modificar el bucket.
 - La tarea 7.5 continúa abierta. La prevalidación no autoriza ni ejecuta la promoción.
+
+## 13. Promoción a `stable` y cierre de la flota actual
+
+Promoción: 2026-08-29. Confirmación del inventario: 2026-09-03.
+
+- La prevalidación de sólo lectura se ejecutó en staging y fue aprobada: `stable` apuntaba a `0.1.7`, `pilot` a `0.1.11`, ambos manifiestos aceptaron su firma Ed25519 y cada release declaró cuatro artefactos para Windows x64.
+- El responsable autorizó explícitamente promover exactamente `0.1.11` después de revisar esa evidencia.
+- El workflow protegido `desktop-promote-stable.yml` se ejecutó desde `main`: https://github.com/carlosacostap-unca/consultorio-oftalmologico/actions/runs/33255547818.
+- La ejecución verificó los bytes firmados y concluyó correctamente con `Release 0.1.11 promovido a stable sin recompilar`; sólo reemplazó el puntero `channels/stable/current.json`.
+- El responsable confirmó que la flota actual contiene una única instalación: el equipo piloto `PC-E24D57F3`. No existen equipos `stable` adicionales pendientes de actualización, por lo que el conjunto que debía procesarse uno por uno es vacío.
+- El equipo piloto permanece en `0.1.11`, en línea y operativo. La comprobación visual posterior muestra `0` pendientes, `0` errores y `0` conflictos, con pacientes, consultas y recetas disponibles.
+- El canal `stable` queda preparado en `0.1.11`. Cada equipo futuro deberá incorporarse de forma individual, verificando Windows 11 x64, diagnóstico previo, respaldo, identidad, versión final y ausencia de pendientes, errores o conflictos.
+- No se registraron secretos, URLs prefirmadas ni contenido clínico. Con la promoción completada y sin otros equipos existentes, la tarea 7.5 queda aprobada para la flota actual.
