@@ -14,4 +14,4 @@
 ## 3. Integración previa al release
 
 - [x] 3.1 Revisar el diff final, crear el commit y publicar la rama dedicada.
-- [ ] 3.2 Crear un pull request hacia `develop` con la evidencia de auditoría y validación; mantener separada la posterior promoción a `main`.
+- [x] 3.2 Crear un pull request hacia `develop` con la evidencia de auditoría y validación; mantener separada la posterior promoción a `main`.
