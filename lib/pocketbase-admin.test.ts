@@ -1,6 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fetchWithAdminAuth } from "./pocketbase-admin-request.ts";
+import { ADMIN_TOKEN_REFRESH_SKEW_MS, isAdminTokenReusable } from "./pocketbase-admin-token.ts";
+
+const NOW_MS = Date.UTC(2026, 7, 31, 12, 0, 0);
+
+function unsignedToken(payload: Record<string, unknown>) {
+  const encodedHeader = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  return `${encodedHeader}.${encodedPayload}.test-signature`;
+}
+
+test("reutiliza un token administrativo con vigencia posterior al margen preventivo", () => {
+  const token = unsignedToken({ exp: (NOW_MS + ADMIN_TOKEN_REFRESH_SKEW_MS + 1_000) / 1000 });
+
+  assert.equal(isAdminTokenReusable(token, NOW_MS), true);
+});
+
+test("renueva un token administrativo que vence dentro del margen preventivo", () => {
+  const token = unsignedToken({ exp: (NOW_MS + ADMIN_TOKEN_REFRESH_SKEW_MS) / 1000 });
+
+  assert.equal(isAdminTokenReusable(token, NOW_MS), false);
+});
+
+test("renueva un token administrativo vencido", () => {
+  const token = unsignedToken({ exp: (NOW_MS - 1_000) / 1000 });
+
+  assert.equal(isAdminTokenReusable(token, NOW_MS), false);
+});
+
+test("no reutiliza tokens administrativos sin expiracion verificable", () => {
+  assert.equal(isAdminTokenReusable(unsignedToken({}), NOW_MS), false);
+  assert.equal(isAdminTokenReusable(unsignedToken({ exp: "invalid" }), NOW_MS), false);
+  assert.equal(isAdminTokenReusable("token-malformado", NOW_MS), false);
+  assert.equal(isAdminTokenReusable("", NOW_MS), false);
+});
 
 for (const rejectedStatus of [401, 403]) {
   test(`renueva un token rechazado con ${rejectedStatus} y reintenta la operacion una vez`, async () => {
