@@ -3,6 +3,7 @@ import { hasAdminRole } from "./permissions";
 import { normalizePocketBaseUrl } from "./pocketbase-url";
 import { isUserRole, normalizeUserRoles } from "./permissions";
 import { fetchWithAdminAuth } from "./pocketbase-admin-request";
+import { isAdminTokenReusable } from "./pocketbase-admin-token";
 
 const PB_URL = normalizePocketBaseUrl(process.env.POCKETBASE_URL || process.env.NEXT_PUBLIC_POCKETBASE_URL || "");
 
@@ -68,9 +69,11 @@ export async function requireAdmin(request: Request) {
 }
 
 async function adminToken() {
-  if (cachedAdminToken) {
+  if (isAdminTokenReusable(cachedAdminToken)) {
     return cachedAdminToken;
   }
+
+  cachedAdminToken = "";
 
   const identity = process.env.POCKETBASE_ADMIN_EMAIL;
   const password = process.env.POCKETBASE_ADMIN_PASSWORD;
@@ -101,6 +104,11 @@ async function adminToken() {
   }
 
   const data = await response.json();
-  cachedAdminToken = data.token || "";
+  const token = typeof data.token === "string" ? data.token : "";
+  if (!isAdminTokenReusable(token)) {
+    throw new Error("PocketBase no devolvió una credencial admin vigente");
+  }
+
+  cachedAdminToken = token;
   return cachedAdminToken;
 }
