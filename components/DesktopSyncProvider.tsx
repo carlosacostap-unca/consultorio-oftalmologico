@@ -12,6 +12,7 @@ import {
 export function DesktopSyncProvider() {
   useEffect(() => {
     if (!window.consultorioDesktop) return;
+    document.documentElement.dataset.desktop = "true";
     let disposed = false;
 
     const trigger = async () => {
@@ -43,6 +44,7 @@ export function DesktopSyncProvider() {
     const unsubscribeRelease = window.consultorioDesktop.maintenance.onRelease(() => releaseDesktopSyncMaintenance());
 
     return () => {
+      delete document.documentElement.dataset.desktop;
       disposed = true;
       unsubscribe();
       window.removeEventListener("online", handleOnline);
