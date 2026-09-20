@@ -6,6 +6,14 @@ const runtime = Object.freeze(ipcRenderer.sendSync("desktop:runtime"));
 
 contextBridge.exposeInMainWorld("consultorioDesktop", Object.freeze({
   runtime,
+  typography: process.platform === "win32" ? Object.freeze({
+    getScale: () => ipcRenderer.sendSync("desktop:typography:get"),
+    onScale: (callback) => {
+      const listener = (_event, scale) => callback(scale);
+      ipcRenderer.on("desktop:typography:changed", listener);
+      return () => ipcRenderer.removeListener("desktop:typography:changed", listener);
+    },
+  }) : undefined,
   secrets: Object.freeze({
     get: (key) => ipcRenderer.invoke("desktop:secret:get", key),
     set: (key, value) => ipcRenderer.invoke("desktop:secret:set", key, value),

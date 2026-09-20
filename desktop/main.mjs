@@ -8,6 +8,7 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { normalizeLocalSystemSetting, normalizeLocalUserId } from "./local-record-policy.mjs";
+import { installDesktopTypography } from "./typography.mjs";
 import { createVerifiedDesktopBackup, verifyDesktopBackup } from "./update-backup.mjs";
 import {
   parseDesktopReleaseManifestJson,
@@ -915,6 +916,9 @@ function createMainWindow() {
     },
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  installDesktopTypography(mainWindow.webContents, path.join(app.getPath("userData"), "typography.json"), {
+    onError: (error) => void log("warn", "No se pudo leer o guardar el tamaño de fuente", error.message),
+  });
   mainWindow.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
     if (!maintenanceBarrier || !["POST", "PUT", "PATCH", "DELETE"].includes(details.method)) return callback({ cancel: false });
     try {
