@@ -13,6 +13,13 @@ export function DesktopSyncProvider() {
   useEffect(() => {
     if (!window.consultorioDesktop) return;
     document.documentElement.dataset.desktop = "true";
+    const typography = window.consultorioDesktop.typography;
+    const applyScale = (scale: number) => {
+      if (!Number.isFinite(scale) || scale < 0.8 || scale > 2) return;
+      document.documentElement.style.setProperty("--desktop-font-scale", String(scale));
+    };
+    const unsubscribeTypography = typography?.onScale(applyScale);
+    if (typography) applyScale(typography.getScale());
     let disposed = false;
 
     const trigger = async () => {
@@ -45,6 +52,8 @@ export function DesktopSyncProvider() {
 
     return () => {
       delete document.documentElement.dataset.desktop;
+      unsubscribeTypography?.();
+      document.documentElement.style.removeProperty("--desktop-font-scale");
       disposed = true;
       unsubscribe();
       window.removeEventListener("online", handleOnline);

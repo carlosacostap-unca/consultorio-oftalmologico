@@ -27,21 +27,21 @@ body {
 }
 
 @media screen {
-  /* Compact desktop typography without changing spacing or printed documents. */
+  /* Scale desktop fonts without changing rem spacing or printed documents. */
   html[data-desktop="true"] {
-    --text-xs: 0.65625rem;
-    --text-sm: 0.765625rem;
-    --text-base: 0.875rem;
-    --text-lg: 0.984375rem;
-    --text-xl: 1.09375rem;
-    --text-2xl: 1.3125rem;
-    --text-3xl: 1.640625rem;
-    --text-4xl: 1.96875rem;
-    --text-5xl: 2.625rem;
-    --text-6xl: 3.28125rem;
-    --text-7xl: 3.9375rem;
-    --text-8xl: 5.25rem;
-    --text-9xl: 7rem;
+    --text-xs: calc(0.65625rem * var(--desktop-font-scale, 1));
+    --text-sm: calc(0.765625rem * var(--desktop-font-scale, 1));
+    --text-base: calc(0.875rem * var(--desktop-font-scale, 1));
+    --text-lg: calc(0.984375rem * var(--desktop-font-scale, 1));
+    --text-xl: calc(1.09375rem * var(--desktop-font-scale, 1));
+    --text-2xl: calc(1.3125rem * var(--desktop-font-scale, 1));
+    --text-3xl: calc(1.640625rem * var(--desktop-font-scale, 1));
+    --text-4xl: calc(1.96875rem * var(--desktop-font-scale, 1));
+    --text-5xl: calc(2.625rem * var(--desktop-font-scale, 1));
+    --text-6xl: calc(3.28125rem * var(--desktop-font-scale, 1));
+    --text-7xl: calc(3.9375rem * var(--desktop-font-scale, 1));
+    --text-8xl: calc(5.25rem * var(--desktop-font-scale, 1));
+    --text-9xl: calc(7rem * var(--desktop-font-scale, 1));
   }
 
   html[data-desktop="true"] body {
@@ -49,11 +49,11 @@ body {
   }
 
   html[data-desktop="true"] .text-\[10px\] {
-    font-size: 8.75px;
+    font-size: calc(8.75px * var(--desktop-font-scale, 1));
   }
 
   html[data-desktop="true"] .text-\[11px\] {
-    font-size: 9.625px;
+    font-size: calc(9.625px * var(--desktop-font-scale, 1));
   }
 
   body:has(> aside) main > [class*="min-h-screen"] > .mx-auto[class*="max-w-"] {

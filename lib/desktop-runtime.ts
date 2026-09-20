@@ -12,6 +12,10 @@ export interface DesktopRuntimeConfig {
 
 export interface ConsultorioDesktopBridge {
   runtime: DesktopRuntimeConfig;
+  typography?: {
+    getScale(): number;
+    onScale(callback: (scale: number) => void): () => void;
+  };
   secrets: {
     get(key: string): Promise<string | null>;
     set(key: string, value: string): Promise<boolean>;
