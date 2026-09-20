@@ -27,6 +27,35 @@ body {
 }
 
 @media screen {
+  /* Compact desktop typography without changing spacing or printed documents. */
+  html[data-desktop="true"] {
+    --text-xs: 0.65625rem;
+    --text-sm: 0.765625rem;
+    --text-base: 0.875rem;
+    --text-lg: 0.984375rem;
+    --text-xl: 1.09375rem;
+    --text-2xl: 1.3125rem;
+    --text-3xl: 1.640625rem;
+    --text-4xl: 1.96875rem;
+    --text-5xl: 2.625rem;
+    --text-6xl: 3.28125rem;
+    --text-7xl: 3.9375rem;
+    --text-8xl: 5.25rem;
+    --text-9xl: 7rem;
+  }
+
+  html[data-desktop="true"] body {
+    font-size: var(--text-base);
+  }
+
+  html[data-desktop="true"] .text-\[10px\] {
+    font-size: 8.75px;
+  }
+
+  html[data-desktop="true"] .text-\[11px\] {
+    font-size: 9.625px;
+  }
+
   body:has(> aside) main > [class*="min-h-screen"] > .mx-auto[class*="max-w-"] {
     width: 100%;
     max-width: 100% !important;
