@@ -68,8 +68,17 @@ jobs:
       - name: Pruebas
         run: npm run test:sync-core
 
+      - name: Pruebas de antecedentes clínicos
+        run: node --import tsx --test lib/clinical-antecedents.test.ts
+
       - name: Build y empaquetado NSIS x64
         run: npm run desktop:dist
+
+      - name: Preparar navegador para regresión local
+        run: npx playwright install chromium
+
+      - name: Verificar antecedentes en renderer empaquetado con datos sintéticos
+        run: node scripts/verify_desktop_antecedents.mjs
 
       - name: Generar política, manifiesto canónico y firma Ed25519
         shell: pwsh

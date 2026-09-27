@@ -18,6 +18,11 @@ import { clinicalDateToStoredDateTime, todayClinicalDateKey } from "@/lib/clinic
 import { formatDate } from "@/lib/utils";
 import { patientBirthAge } from "@/lib/patient-birth-date";
 import { ClinicalDateInput } from "@/components/clinical-date-input";
+import {
+  mergeClinicalAntecedents,
+  normalizeClinicalAntecedents,
+  type ClinicalAntecedentsSource,
+} from "@/lib/clinical-antecedents";
 
 interface Paciente {
   id: string;
@@ -56,29 +61,6 @@ const formatPacienteLabel = (paciente: Paciente) => {
   const documento = getPacienteDocumento(paciente);
   return `${paciente.apellido}, ${paciente.nombre}${documento ? ` - DNI: ${documento}` : ""}${paciente.numero_ficha ? ` - Ficha: ${paciente.numero_ficha}` : ""}`;
 };
-
-const getAntecedentesFromPaciente = (paciente: Paciente) => ({
-  ant_diabetes: paciente.ant_diabetes || false,
-  ant_glaucoma: paciente.ant_glaucoma || false,
-  ant_maculopatia: paciente.ant_maculopatia || false,
-  ant_asmatico: paciente.ant_asmatico || false,
-  ant_hipertension: paciente.ant_hipertension || false,
-  ant_alergico: paciente.ant_alergico || false,
-  ant_reuma: paciente.ant_reuma || false,
-  ant_herpes: paciente.ant_herpes || false,
-  ant_otra: paciente.ant_otra || "",
-});
-
-const hasAntecedentes = (antecedentes: ReturnType<typeof getAntecedentesFromPaciente>) =>
-  antecedentes.ant_diabetes ||
-  antecedentes.ant_glaucoma ||
-  antecedentes.ant_maculopatia ||
-  antecedentes.ant_asmatico ||
-  antecedentes.ant_hipertension ||
-  antecedentes.ant_alergico ||
-  antecedentes.ant_reuma ||
-  antecedentes.ant_herpes ||
-  antecedentes.ant_otra.trim() !== "";
 
 interface TurnoContext {
   id: string;
@@ -338,55 +320,56 @@ function NuevaConsultaForm() {
     loadPatientSearchResults();
   }, [isMounted, formData.paciente_id, debouncedPatientSearchQuery]);
 
-  // Actualizar cabecera de paciente cuando se selecciona uno
+  // Combinar la ficha confirmada con la ultima atencion, no con la ultima importacion.
   useEffect(() => {
-    if (formData.paciente_id) {
-      const p = pacientes.find(p => p.id === formData.paciente_id) || null;
-      setSelectedPacienteData(p);
-      if (p) {
-        setPatientSearchQuery(formatPacienteLabel(p));
+    const pacienteId = formData.paciente_id;
+    if (!pacienteId) {
+      setSelectedPacienteData(null);
+      return;
+    }
 
-        const antecedentesPaciente = getAntecedentesFromPaciente(p);
-        setFormData(prev => ({
-          ...prev,
-          numero_ficha: prev.numero_ficha || p.numero_ficha || "",
-          ...antecedentesPaciente,
-        }));
-      }
+    if (!selectedPacienteData || selectedPacienteData.id !== pacienteId) {
+      return;
+    }
 
-      // Cargar antecedentes fijos de la ultima consulta solo como respaldo.
-      const loadAntecedentes = async () => {
-        if (p && hasAntecedentes(getAntecedentesFromPaciente(p))) {
+    const paciente = selectedPacienteData;
+    const antecedentesPaciente = normalizeClinicalAntecedents(paciente);
+    setPatientSearchQuery(formatPacienteLabel(paciente));
+    setFormData((prev) => ({
+      ...prev,
+      numero_ficha: prev.numero_ficha || paciente.numero_ficha || "",
+      ...antecedentesPaciente,
+    }));
+
+    let shouldIgnore = false;
+    const loadAntecedentes = async () => {
+      try {
+        const lastConsulta = await pb
+          .collection("consultas")
+          .getFirstListItem<ClinicalAntecedentsSource>(`paciente_id="${pacienteId}"`, {
+            sort: "-fecha,-created",
+            requestKey: null,
+          });
+        if (shouldIgnore) {
           return;
         }
 
-        try {
-          const lastConsulta = await pb.collection("consultas").getFirstListItem(`paciente_id="${formData.paciente_id}"`, {
-            sort: "-created",
-          });
-          if (lastConsulta) {
-            setFormData(prev => ({
-              ...prev,
-              ant_diabetes: lastConsulta.ant_diabetes || false,
-              ant_glaucoma: lastConsulta.ant_glaucoma || false,
-              ant_maculopatia: lastConsulta.ant_maculopatia || false,
-              ant_asmatico: lastConsulta.ant_asmatico || false,
-              ant_hipertension: lastConsulta.ant_hipertension || false,
-              ant_alergico: lastConsulta.ant_alergico || false,
-              ant_reuma: lastConsulta.ant_reuma || false,
-              ant_herpes: lastConsulta.ant_herpes || false,
-              ant_otra: lastConsulta.ant_otra || "",
-            }));
-          }
-        } catch {
-          // Si no hay consulta previa, no hacemos nada
-        }
-      };
-      loadAntecedentes();
-    } else {
-      setSelectedPacienteData(null);
-    }
-  }, [formData.paciente_id, pacientes]);
+        const antecedentesCombinados = mergeClinicalAntecedents(lastConsulta, antecedentesPaciente);
+        setFormData((prev) => (
+          prev.paciente_id === pacienteId
+            ? { ...prev, ...antecedentesCombinados }
+            : prev
+        ));
+      } catch {
+        // Si no hay consulta previa, no hacemos nada.
+      }
+    };
+
+    void loadAntecedentes();
+    return () => {
+      shouldIgnore = true;
+    };
+  }, [formData.paciente_id, selectedPacienteData]);
 
   useEffect(() => {
     if (!isMounted || !pb.authStore.isValid || !formData.paciente_id) {
@@ -1041,6 +1024,7 @@ function NuevaConsultaForm() {
                         setPatientSearchQuery(e.target.value);
                         setShowPatientDropdown(true);
                         if (formData.paciente_id) {
+                          setSelectedPacienteData(null);
                           setFormData(prev => ({ ...prev, paciente_id: "" }));
                         }
                       }}
@@ -1068,6 +1052,7 @@ function NuevaConsultaForm() {
                               onMouseDown={(event) => event.preventDefault()}
                               className="block w-full px-3 py-2 text-left hover:bg-zinc-100 dark:hover:bg-zinc-700 text-sm"
                               onClick={() => {
+                                setSelectedPacienteData(p);
                                 setFormData(prev => ({ ...prev, paciente_id: p.id }));
                                 setPatientSearchQuery(formatPacienteLabel(p));
                                 setShowPatientDropdown(false);

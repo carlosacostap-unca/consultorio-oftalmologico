@@ -1451,6 +1451,76 @@ test.describe("roles y otorgamiento de turnos", () => {
     }
   });
 
+  test("nueva consulta combina antecedentes de la ficha y la consulta historica aunque responda tarde", async ({ page, request }) => {
+    const env = loadTestEnv();
+    assertTestingPocketBase(env);
+    const adminToken = await getAdminToken(request, env);
+    const suffix = Date.now().toString().slice(-8);
+    let patientId = "";
+    let consultaId = "";
+
+    try {
+      const patient = await createDemoPatient(request, env, adminToken, {
+        nombre: "OSCAR",
+        apellido: "ANTECEDENTES PLAYWRIGHT",
+        tipo_documento: "DNI",
+        numero_documento: `96${suffix}`,
+        ant_diabetes: true,
+      });
+      patientId = String(patient.id || "");
+
+      const consulta = await createDemoConsultation(
+        request,
+        env,
+        adminToken,
+        patientId,
+        `Consulta historica con antecedentes complementarios ${suffix}`,
+      );
+      consultaId = String(consulta.id || "");
+      const updatedConsulta = await request.patch(
+        `${pocketBaseUrl(env)}/api/collections/consultas/records/${consultaId}`,
+        {
+          headers: { Authorization: `Bearer ${adminToken}` },
+          data: {
+            ant_maculopatia: true,
+            ant_otra: "UVEITIS",
+          },
+        },
+      );
+      expect(updatedConsulta.ok()).toBeTruthy();
+
+      await login(page, "medico.demo@consultorio.local");
+      await page.route("**/api/collections/consultas/records*", async (route) => {
+        if (route.request().method() === "GET") {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+        await route.continue();
+      });
+
+      await page.goto(`/consultas/nueva?paciente_id=${patientId}`);
+      await expect(page).toHaveURL(new RegExp(`/consultas/nueva\\?paciente_id=${patientId}`));
+      await expect(page.getByRole("button", { name: "DIABETES", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByRole("button", { name: "MACULOPATIA", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator('input[name="ant_otra"]:visible')).toHaveValue("UVEITIS");
+      await page.waitForTimeout(750);
+      await expect(page.getByRole("button", { name: "DIABETES", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.getByRole("button", { name: "MACULOPATIA", exact: true })).toHaveAttribute("aria-pressed", "true");
+      await expect(page.locator('input[name="ant_otra"]:visible')).toHaveValue("UVEITIS");
+    } finally {
+      if (consultaId) {
+        await cleanupConsultationEvents(request, env, adminToken, consultaId);
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/consultas/records/${consultaId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+      if (patientId) {
+        await request.delete(`${pocketBaseUrl(env)}/api/collections/pacientes/records/${patientId}`, {
+          headers: { Authorization: `Bearer ${adminToken}` },
+        });
+      }
+    }
+  });
+
   test("api crea consulta manual atribuyendo el medico activo", async ({ request }) => {
     const env = loadTestEnv();
     assertTestingPocketBase(env);
