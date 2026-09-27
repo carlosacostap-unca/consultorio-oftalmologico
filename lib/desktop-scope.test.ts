@@ -33,6 +33,8 @@ test("identifica la colección de una escritura PocketBase", () => {
 });
 
 test("admite sólo rutas de trabajo incluidas en escritorio", () => {
+  assert.equal(isDesktopSupportedPath("/backups"), true);
+  assert.equal(isDesktopSupportedPath("/backups/restaurar"), false);
   for (const pathname of ["/", "/pacientes", "/pacientes/nuevo", "/consultas/abc", "/recetas", "/sincronizacion"]) {
     assert.equal(isDesktopSupportedPath(pathname), true, pathname);
   }

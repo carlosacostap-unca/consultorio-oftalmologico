@@ -6,6 +6,9 @@ const runtime = Object.freeze(ipcRenderer.sendSync("desktop:runtime"));
 
 contextBridge.exposeInMainWorld("consultorioDesktop", Object.freeze({
   runtime,
+  backups: Object.freeze({
+    request: (input) => ipcRenderer.invoke("desktop:backups:request", input),
+  }),
   typography: process.platform === "win32" ? Object.freeze({
     getScale: () => ipcRenderer.sendSync("desktop:typography:get"),
     onScale: (callback) => {

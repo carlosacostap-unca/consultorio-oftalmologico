@@ -532,7 +532,10 @@ function getMenuSections(activeRole: UserRole | null, isDesktop = false): MenuSe
       },
       {
         title: "Sistema",
-        items: [{ name: "Sincronización", href: "/sincronizacion" }],
+        items: [
+          { name: "Sincronización", href: "/sincronizacion" },
+          ...(activeRole === "admin" ? [{ name: "Backups", href: "/backups" }] : []),
+        ],
       },
     ];
   }
@@ -544,6 +547,7 @@ function getMenuSections(activeRole: UserRole | null, isDesktop = false): MenuSe
         items: [
           { name: "Usuarios", href: "/usuarios" },
           { name: "Permisos", href: "/permisos" },
+          { name: "Backups", href: "/backups" },
           { name: "Edicion de consultas", href: "/edicion-consultas" },
           { name: "Horarios medicos", href: "/horarios-medicos" },
           { name: "Bloqueos y feriados", href: "/bloqueos-agenda" },

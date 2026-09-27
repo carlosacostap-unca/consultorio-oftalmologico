@@ -12,6 +12,9 @@ export interface DesktopRuntimeConfig {
 
 export interface ConsultorioDesktopBridge {
   runtime: DesktopRuntimeConfig;
+  backups?: {
+    request(input: { action: "list" | "download"; localToken: string; activeRole: string; key?: string }): Promise<{ ok: boolean; status: number; body: Record<string, unknown> }>;
+  };
   typography?: {
     getScale(): number;
     onScale(callback: (scale: number) => void): () => void;

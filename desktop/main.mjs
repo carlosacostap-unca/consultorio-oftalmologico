@@ -9,6 +9,7 @@ import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { normalizeLocalSystemSetting, normalizeLocalUserId } from "./local-record-policy.mjs";
 import { installDesktopTypography } from "./typography.mjs";
+import { requestCentralBackups } from "./backup-client.mjs";
 import { createVerifiedDesktopBackup, verifyDesktopBackup } from "./update-backup.mjs";
 import {
   parseDesktopReleaseManifestJson,
@@ -851,6 +852,21 @@ function registerIpc() {
       signal: AbortSignal.timeout(30_000),
     });
     return { status: response.status, ok: response.ok, body: await response.json().catch(() => ({})) };
+  });
+  ipcMain.handle("desktop:backups:request", async (event, input) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+      throw new Error("Ventana no autorizada.");
+    }
+    try {
+      const central = await resolveDesktopCentralConfiguration();
+      return await requestCentralBackups(input, {
+        pocketBaseUrl: runtime.pocketBaseUrl,
+        centralUrl: central?.url,
+        centralToken: await readEncryptedSecret("central-auth-token"),
+      });
+    } catch {
+      return { ok: false, status: 502, body: { error: "No se pudo acceder a los backups. Comprobá tu conexión e intentá nuevamente." } };
+    }
   });
   ipcMain.handle("desktop:local:user-exists", async (_event, input) => {
     const id = normalizeLocalUserId(input?.id);
