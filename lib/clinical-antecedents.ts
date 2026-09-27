@@ -21,6 +21,28 @@ export type ClinicalAntecedents = Record<FixedClinicalAntecedentKey, boolean> & 
   ant_otra: string;
 };
 
+export function normalizeClinicalAntecedents(
+  source?: ClinicalAntecedentsSource | null,
+): ClinicalAntecedents {
+  const normalized = Object.fromEntries(
+    FIXED_CLINICAL_ANTECEDENT_KEYS.map((key) => [key, Boolean(source?.[key])]),
+  ) as Record<FixedClinicalAntecedentKey, boolean>;
+
+  return {
+    ...normalized,
+    ant_otra: String(source?.ant_otra || ""),
+  };
+}
+
+export function hasClinicalAntecedents(source?: ClinicalAntecedentsSource | null): boolean {
+  const antecedentes = normalizeClinicalAntecedents(source);
+
+  return (
+    FIXED_CLINICAL_ANTECEDENT_KEYS.some((key) => antecedentes[key]) ||
+    antecedentes.ant_otra.trim().length > 0
+  );
+}
+
 export function mergeClinicalAntecedents(
   consulta: ClinicalAntecedentsSource,
   paciente?: ClinicalAntecedentsSource | null,
