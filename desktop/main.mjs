@@ -8,6 +8,8 @@ import path from "node:path";
 import os from "node:os";
 import { fileURLToPath } from "node:url";
 import { normalizeLocalSystemSetting, normalizeLocalUserId } from "./local-record-policy.mjs";
+import { installDesktopTypography } from "./typography.mjs";
+import { requestCentralBackups } from "./backup-client.mjs";
 import { createVerifiedDesktopBackup, verifyDesktopBackup } from "./update-backup.mjs";
 import {
   parseDesktopReleaseManifestJson,
@@ -851,6 +853,21 @@ function registerIpc() {
     });
     return { status: response.status, ok: response.ok, body: await response.json().catch(() => ({})) };
   });
+  ipcMain.handle("desktop:backups:request", async (event, input) => {
+    if (!mainWindow || event.sender !== mainWindow.webContents || event.senderFrame !== mainWindow.webContents.mainFrame) {
+      throw new Error("Ventana no autorizada.");
+    }
+    try {
+      const central = await resolveDesktopCentralConfiguration();
+      return await requestCentralBackups(input, {
+        pocketBaseUrl: runtime.pocketBaseUrl,
+        centralUrl: central?.url,
+        centralToken: await readEncryptedSecret("central-auth-token"),
+      });
+    } catch {
+      return { ok: false, status: 502, body: { error: "No se pudo acceder a los backups. Comprobá tu conexión e intentá nuevamente." } };
+    }
+  });
   ipcMain.handle("desktop:local:user-exists", async (_event, input) => {
     const id = normalizeLocalUserId(input?.id);
     return localUserExists(id);
@@ -915,6 +932,9 @@ function createMainWindow() {
     },
   });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  installDesktopTypography(mainWindow.webContents, path.join(app.getPath("userData"), "typography.json"), {
+    onError: (error) => void log("warn", "No se pudo leer o guardar el tamaño de fuente", error.message),
+  });
   mainWindow.webContents.session.webRequest.onBeforeRequest({ urls: ["<all_urls>"] }, (details, callback) => {
     if (!maintenanceBarrier || !["POST", "PUT", "PATCH", "DELETE"].includes(details.method)) return callback({ cancel: false });
     try {

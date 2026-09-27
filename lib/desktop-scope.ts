@@ -34,6 +34,7 @@ export function desktopCollectionFromRequest(url: string): string | null {
 }
 
 export function isDesktopSupportedPath(pathname: string): boolean {
+  if (pathname === "/backups") return true;
   if (pathname === "/") return true;
   return ["/pacientes", "/consultas", "/recetas", "/sincronizacion"].some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
