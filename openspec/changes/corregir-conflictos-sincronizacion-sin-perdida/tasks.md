@@ -19,8 +19,10 @@
 - [x] 3.7 Corregir los avisos de dependencias que bloquean el empaquetado mediante parches compatibles y repetir la auditoría de producción.
 - [x] 3.8 Generar la versión nativa Windows 0.1.17 solicitada para el oftalmólogo conservando el código probado, verificar paquete/arranque/hashes y preparar también la revisión del backend central autorizada, sin cambios de interfaz web.
 
+- [x] 3.9 Permitir la distribución automática solicitada: cabecera de versión del runtime, bloqueo de sincronización antigua y pruebas de preservación y acceso al actualizador.
+
 ## 4. Recuperación del equipo afectado
 
-- [ ] 4.1 Verificar respaldo local del equipo equipo afectado y respaldo central restaurable.
-- [ ] 4.2 Publicar cliente protegido y servidor compatible de forma controlada, conservando el esquema actual.
+- [ ] 4.1 Renovar y verificar el respaldo central; registrar el respaldo manual confirmado por el usuario y verificar el mecanismo automático de respaldo de 0.1.16 antes de instalar.
+- [ ] 4.2 Desplegar servidor con guarda de compatibilidad y distribuir 0.1.17 firmada mediante los canales pilot y stable, conservando el esquema y verificando el acceso del equipo al actualizador.
 - [ ] 4.3 Conciliar las 12 operaciones originales contra confirmaciones/conflictos y comprobar contenido y relaciones.

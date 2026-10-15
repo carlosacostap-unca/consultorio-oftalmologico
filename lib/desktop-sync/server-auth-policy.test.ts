@@ -5,6 +5,7 @@ import {
   desktopConflictOwnershipFilters,
   desktopDeviceAccess,
   isDesktopOperationAllowed,
+  isDesktopSyncVersionCompatible,
 } from "./server-auth-policy.ts";
 
 test("la activación no exige que el equipo ya exista aunque envíe su identidad", () => {
@@ -84,4 +85,13 @@ test("los conflictos no administrativos quedan limitados por equipo y actor", ()
     ['device_id = "device-a"', 'actor_id = "doctor-a"'],
   );
   assert.deepEqual(desktopConflictOwnershipFilters(["admin"], "device-a", "admin-a"), []);
+});
+
+test("sincronización exige la versión protegida y rechaza clientes antiguos o sin versión", () => {
+  for (const version of [null, "", "0.1.16", "0.1.17-pilot.1", "v0.1.17", "garbage", "0.01.17", "0.1.17, 0.1.16"]) {
+    assert.equal(isDesktopSyncVersionCompatible(version), false, String(version));
+  }
+  for (const version of ["0.1.17", "0.1.17+build.1", "0.1.18", "0.2.0", "1.0.0"]) {
+    assert.equal(isDesktopSyncVersionCompatible(version), true, version);
+  }
 });

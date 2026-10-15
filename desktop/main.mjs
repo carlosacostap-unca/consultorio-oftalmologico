@@ -850,6 +850,7 @@ function registerIpc() {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         "x-consultorio-device-id": runtime.deviceId,
+        "x-consultorio-app-version": runtime.appVersion,
       },
       body: input?.body === undefined ? undefined : JSON.stringify(input.body),
       signal: AbortSignal.timeout(30_000),

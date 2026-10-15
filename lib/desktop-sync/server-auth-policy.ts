@@ -1,5 +1,14 @@
 import type { PermissionKey, UserRole } from "../permissions";
+import { compareSemVer, parseStrictSemVer } from "../desktop-updates/release-policy";
 import type { SyncEntity, SyncOperationAction, SyncRecord } from "./types";
+
+export const DESKTOP_SYNC_VERSION_HEADER = "x-consultorio-app-version";
+export const DESKTOP_SYNC_MINIMUM_VERSION = "0.1.17";
+
+export function isDesktopSyncVersionCompatible(version: string | null) {
+  if (!version || !parseStrictSemVer(version)) return false;
+  return compareSemVer(version, DESKTOP_SYNC_MINIMUM_VERSION) >= 0;
+}
 
 export type DesktopDeviceAccess = "skip" | "missing" | "lookup";
 

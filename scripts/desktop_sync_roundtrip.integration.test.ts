@@ -5,7 +5,7 @@ import { once } from "node:events";
 import { cp, mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { createServer as createHttpServer } from "node:http";
-import { randomBytes, createHash } from "node:crypto";
+import { randomBytes, createHash, generateKeyPairSync } from "node:crypto";
 import path from "node:path";
 import { createRequire, type ResolveHookContext, type ResolveFnOutput } from "node:module";
 import type { ConsultorioDesktopBridge } from "../lib/desktop-runtime";
@@ -72,6 +72,14 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
   const root = await mkdtemp(path.resolve(".tmp/desktop-sync-roundtrip-"));
   const central = await startSyntheticPocketBase(t, root, false);
   const local = await startSyntheticPocketBase(t, root, true);
+  const updateEnvironment = {
+    DESKTOP_UPDATES_ENABLED: "true",
+    DESKTOP_UPDATE_FEED_URL: "https://updates.example.invalid/api/desktop-updates/v1/feed",
+    DESKTOP_UPDATE_PUBLIC_KEY: generateKeyPairSync("ed25519").publicKey.export({ type: "spki", format: "der" }).toString("base64"),
+    IDRIVE_E2_ENDPOINT: "https://storage.example.invalid", IDRIVE_E2_REGION: "us-east-1",
+    IDRIVE_E2_BUCKET: "synthetic-updates", IDRIVE_E2_ACCESS_KEY_ID: "synthetic-access",
+    IDRIVE_E2_SECRET_ACCESS_KEY: "synthetic-secret",
+  };
   const nativeFetch = globalThis.fetch;
   let failAppliedWrite = false;
   const allowedOrigins = new Set([central.origin, local.origin]);
@@ -117,7 +125,7 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
       if (value && /^(?:systemroot|windir|path|pathext|temp|tmp|appdata|localappdata|userprofile|comspec)$/i.test(key)) environment[key] = value;
     }
     const server = spawn(process.execPath, [path.join(packagedServerRoot, "server.js")], { cwd: packagedServerRoot,
-      windowsHide: true, stdio: "ignore", env: { ...environment, HOSTNAME: "127.0.0.1", PORT: String(port),
+      windowsHide: true, stdio: "ignore", env: { ...environment, ...updateEnvironment, HOSTNAME: "127.0.0.1", PORT: String(port),
         POCKETBASE_URL: proxyOrigin, POCKETBASE_ADMIN_TOKEN: String(central.admin.token), DESKTOP_SYNC_ENABLED: "true", NODE_ENV: "production" } });
     t.after(async () => { if (server.exitCode === null) { const exited = once(server, "exit"); server.kill(); await exited; } });
     for (let attempt = 0; ; attempt++) {
@@ -159,9 +167,9 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
   await central.request("/api/collections/users/records", "POST", { id: userId, email: "actor@example.invalid", password: userPassword, passwordConfirm: userPassword, role: "admin", name: "Usuario ficticio" });
   const centralAuth = await central.request("/api/collections/users/auth-with-password", "POST", { identity: "actor@example.invalid", password: userPassword });
   await central.request("/api/collections", "POST", { name: "sync_devices", type: "base", fields: [
-    ...["device_id", "device_key", "code", "activated_by", "last_seen_at", "ultimo_contacto_at", "last_sync_at"].map(text), { name: "enabled", type: "bool" },
+    ...["device_id", "device_key", "code", "activated_by", "last_seen_at", "ultimo_contacto_at", "last_sync_at", "update_channel", "installed_version", "last_update_status", "last_update_at", "last_update_version", "last_update_code"].map(text), { name: "enabled", type: "bool" }, { name: "updates_enabled", type: "bool" },
   ] });
-  await central.request("/api/collections/sync_devices/records", "POST", { device_id: deviceId, device_key: deviceId, code: "PC-FICTICIO", enabled: true, activated_by: userId });
+  await central.request("/api/collections/sync_devices/records", "POST", { device_id: deviceId, device_key: deviceId, code: "PC-FICTICIO", enabled: true, updates_enabled: true, update_channel: "stable", activated_by: userId });
   await central.request("/api/collections", "POST", { name: "sync_applied_operations", type: "base", fields: [
     ...["operation_id", "device_id", "entity", "record_id", "status", "actor_id", "applied_at"].map(text), json("result_json"),
   ], indexes: ["CREATE UNIQUE INDEX idx_fixture_applied ON sync_applied_operations (operation_id)"] });
@@ -175,7 +183,7 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
   ] });
 
   const originalEnvironment = new Map<string, string | undefined>();
-  for (const [key, value] of Object.entries({ POCKETBASE_URL: central.origin, NEXT_PUBLIC_POCKETBASE_URL: central.origin, POCKETBASE_ADMIN_TOKEN: String(central.admin.token), DESKTOP_SYNC_ENABLED: "true" })) {
+  for (const [key, value] of Object.entries({ ...updateEnvironment, POCKETBASE_URL: central.origin, NEXT_PUBLIC_POCKETBASE_URL: central.origin, POCKETBASE_ADMIN_TOKEN: String(central.admin.token), DESKTOP_SYNC_ENABLED: "true" })) {
     originalEnvironment.set(key, process.env[key]); process.env[key] = value;
   }
   t.after(() => { for (const [key, value] of originalEnvironment) { if (value === undefined) delete process.env[key]; else process.env[key] = value; } });
@@ -200,13 +208,13 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
   let centralRequests = 0;
   const events = new EventTarget();
   const bridge = {
-    runtime: { appVersion: "0.0.0-test", isDesktop: true, isDevelopment: true, pocketBaseUrl: local.origin, centralUrl: apiOrigin, deviceId, deviceCode: "PC-FICTICIO" },
+    runtime: { appVersion: "0.1.17", isDesktop: true, isDevelopment: true, pocketBaseUrl: local.origin, centralUrl: apiOrigin, deviceId, deviceCode: "PC-FICTICIO" },
     secrets: { get: async () => JSON.stringify({ bootstrapCompleted: true, centralAppUrl: apiOrigin }) },
     central: { request: async (input) => {
       centralRequests++;
       assert.equal(input.baseUrl, apiOrigin);
       const request = new Request(apiOrigin + input.path, { method: input.method || "POST",
-        headers: { Authorization: `Bearer ${centralAuth.token}`, "x-consultorio-device-id": deviceId, "Content-Type": "application/json" }, body: JSON.stringify(input.body) });
+        headers: { Authorization: `Bearer ${centralAuth.token}`, "x-consultorio-device-id": deviceId, "x-consultorio-app-version": "0.1.17", "Content-Type": "application/json" }, body: JSON.stringify(input.body) });
       const response = packagedServerRoot ? await fetch(request) : input.path.endsWith("/push") ? await pushRoute.POST(request)
         : input.path.endsWith("/pull") ? await pullRoute.POST(request)
           : await conflictRoute.POST(request, { params: Promise.resolve({ id: input.path.split("/").at(-1)! }) });
@@ -240,6 +248,49 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
   for (const entity of ["pacientes", "consultas", "recetas"] as const) {
     await central.request(`/api/collections/${entity}/records`, "POST", { id: seeded[entity], texto: `central ${entity}`, numero_ficha: entity === "pacientes" ? "100" : "", paciente_id: entity === "pacientes" ? "" : seeded.pacientes });
   }
+
+  await t.test("cliente antiguo no modifica ni descarga datos y conserva acceso a autenticación del actualizador", async () => {
+    const before: Record<string, string> = {};
+    for (const table of ["pacientes", "consultas", "recetas", "sync_applied_operations", "sync_conflicts", "sync_devices"]) {
+      before[table] = snapshot(await items(central, table));
+    }
+    const bootstrapRoute = await import("../app/api/desktop-sync/v1/bootstrap/route");
+    const listConflictsRoute = await import("../app/api/desktop-sync/v1/conflicts/route");
+    const cases = [
+      { path: "/push", method: "POST", handler: pushRoute.POST, body: { operations: [] } },
+      { path: "/pull", method: "POST", handler: pullRoute.POST, body: {} },
+      { path: "/bootstrap", method: "POST", handler: bootstrapRoute.POST, body: { entity: "pacientes" } },
+      { path: "/conflicts", method: "GET", handler: listConflictsRoute.GET },
+      { path: "/conflicts/nonexistent1234", method: "POST", handler: (request: Request) => conflictRoute.POST(request, { params: Promise.resolve({ id: "nonexistent1234" }) }), body: {} },
+    ];
+    for (const version of [undefined, "0.1.16"]) {
+      for (const item of cases) {
+        const headers = new Headers({ Authorization: `Bearer ${centralAuth.token}`, "x-consultorio-device-id": deviceId, "Content-Type": "application/json" });
+        if (version) headers.set("x-consultorio-app-version", version);
+        const request = new Request(apiOrigin + "/api/desktop-sync/v1" + item.path, { method: item.method, headers, body: item.body ? JSON.stringify(item.body) : undefined });
+        const response = packagedServerRoot ? await fetch(request) : await item.handler(request);
+        assert.equal(response.status, 426, item.path);
+        assert.equal((await response.json()).code, "desktop_update_required");
+      }
+    }
+    for (const table of Object.keys(before)) assert.equal(snapshot(await items(central, table)), before[table], table);
+    assert.equal((await queue()).length, 0);
+    // El cliente 0.1.16 no envía la nueva cabecera. La autenticación compartida
+    // por feed, política y reportes debe seguir admitiéndolo para actualizar.
+    const reportRoute = await import("../app/api/desktop-updates/v1/report/route");
+    const report = new Request(apiOrigin + "/api/desktop-updates/v1/report", { method: "POST",
+      headers: { Authorization: "Bearer " + centralAuth.token, "x-consultorio-device-id": deviceId, "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "checking", installedVersion: "0.1.16" }),
+    });
+    const response = packagedServerRoot ? await fetch(report) : await reportRoute.POST(report);
+    assert.equal(response.status, 204, await response.text());
+    const device = (await items(central, "sync_devices"))[0];
+    assert.equal(device.installed_version, "0.1.16");
+    assert.equal(device.last_update_status, "checking");
+    for (const table of Object.keys(before).filter((name) => name !== "sync_devices")) {
+      assert.equal(snapshot(await items(central, table)), before[table], table);
+    }
+  });
 
   await t.test("descarga inicial y segunda sincronización vacía conservan datos sin crear cola", async () => {
     const status = await engine.runDesktopSync();
@@ -405,7 +456,7 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
     assert.equal((await queue()).find((op) => op.id === pending.id)?.status, "confirmed");
   });
   await writeFile(path.join(root, "verification.json"), JSON.stringify({ syntheticOnly: true, realClientEngine: true, realPushPullAndResolutionHandlers: true,
-    packagedServerOverHttp: Boolean(packagedServerRoot),
+    packagedServerOverHttp: Boolean(packagedServerRoot), oldClientSyncBlockedWithoutWrites: true, oldClientUpdateAccessPreserved: true,
     separateLocalAndCentralDatabases: true, externalNetworkBlocked: true, normalCreateUpdateAllEntities: true,
     lostResponseRetry: true, ledgerInterruptionRetry: true, logicalDeletionPreservesRecords: true,
     editsDuringAcknowledgmentPreserved: true, mixedSchemaConflictAndExplicitResolution: true,
