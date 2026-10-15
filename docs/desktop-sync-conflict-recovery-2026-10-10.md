@@ -37,4 +37,3 @@ La publicación del instalador y el despliegue del backend son pasos distintos. 
 ## Separación de respaldos por entorno
 
 Antes de confiar en respaldos automáticos, comprobar que producción y pruebas usan almacenes y retención separados. Un nombre automático y un horario compartidos pueden dejar una copia íntegra correspondiente al entorno equivocado. La intervención utiliza un respaldo manual de producción con nombre exclusivo y verifica su contenido técnico; conservar los respaldos existentes. Separar la configuración requiere verificar el destino y la retención, sin borrar ni mover las copias previas. Cambiar solamente la hora no separa la retención.
-
