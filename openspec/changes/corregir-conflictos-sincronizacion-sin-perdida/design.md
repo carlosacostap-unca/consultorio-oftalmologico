@@ -1,0 +1,36 @@
+## Context
+
+Producción mantiene un esquema mixto de `sync_conflicts`: campos actuales y campos heredados obligatorios. El endpoint sólo envía los actuales, recibe HTTP 400 de PocketBase y devuelve HTTP 500 a Windows. El lote puede haber confirmado operaciones anteriores antes de fallar. El usuario autoriza corregir el problema y exige que no se elimine ningún dato.
+
+## Goals / Non-Goals
+
+**Goals:** persistir conflictos en ambos esquemas, conservar snapshots y colas, reutilizar `operation_id` durante recuperación, proteger ediciones locales pendientes y demostrar preservación con datos sintéticos.
+
+**Non-Goals:** resolver automáticamente diferencias clínicas, borrar registros/campos, reinicializar bases, cambiar permisos, ejecutar migraciones masivas o publicar con respaldos pendientes.
+
+## Decisions
+
+1. Serializar los campos actuales junto con sus equivalentes heredados al crear y resolver conflictos. Mantener `kind` exacto, incluidos los conflictos de baja; su equivalente heredado será `version_concurrente`. Los campos desconocidos se omiten en un esquema exclusivamente actual. No se relajan restricciones ni se elimina evidencia histórica.
+2. Buscar un conflicto existente por operación, equipo y actor antes de crearlo; reutilizar su confirmación y no modificar sus snapshots. Una interrupción entre persistir el conflicto y persistir `sync_applied_operations` no debe multiplicar conflictos en reintentos secuenciales. No se instala un índice único que pudiera afectar duplicados históricos; las carreras concurrentes requieren una verificación posterior y conservan toda evidencia.
+3. Antes de aplicar una versión central, revisar operaciones sin confirmar sobre ese registro. Una confirmación ignora únicamente su propia operación y deja intacto el registro si existen otras. El pull se detiene conservando el cursor cuando encuentra registros protegidos. El hook local vuelve a comprobar la cola dentro de la transacción de escritura; las ediciones y su cola también comparten transacción para evitar carreras y escrituras sin evidencia. Se bloquea el borrado físico, incluso con origen central. No se borra la cola al confirmar.
+4. El conflicto local se guarda antes de cambiar el estado de su operación a `conflict`, para que una falla de persistencia no deje una operación excluida del reintento y sin evidencia local.
+5. La validación usa una instancia PocketBase nueva en loopback, sin datos del cliente, y pruebas de los flujos reales de persistencia y reintento. Los ensayos nunca usan bases clínicas. La intervención renueva el respaldo central; la instalación automática verifica el local antes de permitir reintentos con la versión protegida.
+6. Si una edición o baja ya dejó su `sync_operation_id` en el registro central pero falló la confirmación durable, el reintento valida identidad y permisos y confirma el registro existente sin reescribirlo ni generar un conflicto contra sí mismo. El ensayo completo usa dos bases nuevas, el motor real y los endpoints reales, con acceso externo bloqueado.
+7. Preparar `0.1.17-pilot.1` en una copia de trabajo basada en la etiqueta publicada `desktop-v0.1.16`, incorporando sólo los archivos de esta corrección. Conservar identidad de producto y rutas normales; las pruebas de arranque `--smoke-test` exigen una carpeta de perfil nueva, absoluta y separada de la habitual antes de iniciar PocketBase. El instalador piloto se conserva localmente con hashes y no mueve canales de distribución ni instala sobre perfiles existentes. La corrección del servidor sigue requiriendo una publicación coordinada: instalar el escritorio no actualiza por sí mismo el backend central.
+8. La auditoría previa al piloto detectó avisos de dependencia publicados después de la validación anterior: Next 16.3.5, sharp anterior a 0.35.5 y source-map-js anterior a 1.2.2. Actualizar Next y eslint-config-next a 16.3.8, manteniendo la línea 16.3, y los dos transitivos a versiones corregidas compatibles; no ejecutar `audit fix --force`. Repetir auditoría, análisis estático, build y ensayos del paquete exacto. Estos parches son un requisito de empaquetado del piloto, no una modificación de datos ni de esquemas.
+9. Distribuir 0.1.17 automáticamente desde 0.1.16. El usuario confirma el respaldo manual existente. El actualizador ya detiene servicios y crea/verifica una copia durable antes de instalar; una falla aborta la actualización. No atribuir al respaldo manual una verificación técnica que no se realizó.
+10. Incorporar una cabecera de versión emitida por el runtime y exigir al menos 0.1.17 en las rutas de sincronización con equipo autenticado. La ausencia de cabecera, una versión inválida o antigua devuelve 426 antes de escrituras clínicas; las rutas de política, feed y reporte de actualización mantienen su autenticación y siguen disponibles para 0.1.16. La cabecera verifica compatibilidad y no reemplaza autenticación ni permisos.
+11. Desplegar el servidor protegido tras renovar su respaldo; el usuario confirma que el push a main activa el despliegue automático. Publicar y firmar 0.1.17 en pilot, validar la prepromoción y promover el mismo artefacto a stable. La autorización incluye que aparezca en el actualizador del doctor. El workflow de promoción ejecuta la prevalidación de solo lectura antes de verificar los artefactos y mover el puntero.
+12. Conservar los instaladores locales anteriores como evidencia. El artefacto firmado final se compila con la cabecera nueva; los instaladores anteriores a esa cabecera no se distribuyen para este despliegue. No cambiar la interfaz web ni el esquema. No declarar recuperadas las operaciones sin evidencia posterior.
+
+## Risks / Trade-offs
+
+- [El pull no puede aplicar un registro protegido] → detiene esa página y conserva el cursor para reanudar después de resolver; favorece preservación frente a progreso aparente.
+- [Se sigue editando durante la recuperación] → hacer el primer reintento con el trabajo clínico detenido; agregar protección local al recibir escrituras centrales y conservar los payloads aun ante carreras.
+- [Un servidor corregido libera los reintentos de un escritorio antiguo] → exigir versión 0.1.17 por solicitud en el servidor; los clientes antiguos conservan la cola y pueden descargar la actualización antes de volver a sincronizar.
+- [No hay acceso al equipo ni al despliegue] → completar la implementación y las pruebas, documentar exactamente los pasos pendientes y no afirmar recuperación de las 12 operaciones.
+
+## Migration Plan
+
+
+Registrar el respaldo manual confirmado por el usuario. Renovar el respaldo central y verificar ZIP y SQLite sobre una copia separada; no confundir esas comprobaciones con una restauración completa. Tras las pruebas aisladas y la validación del contenedor, desplegar el servidor con la guarda de versión y comprobar su respuesta. Publicar el artefacto firmado en pilot y promoverlo a stable después de verificarlo. El doctor acepta la actualización: 0.1.16 crea y verifica un respaldo adicional antes de instalar. En 0.1.17, reintentar y conciliar cada operation_id contra confirmación, registro o conflicto con ambas versiones. Conservar el respaldo manual y los campos heredados. Ante falla, detener reintentos y conservar evidencia; nunca restaurar encima de datos nuevos.

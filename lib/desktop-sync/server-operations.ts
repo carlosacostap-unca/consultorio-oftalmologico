@@ -12,6 +12,7 @@ import { createConsultaEventoServer } from "@/lib/consulta-eventos-server";
 import { findDuplicatePatientDocument } from "@/lib/patient-document-server";
 import { getNextFichaNumber } from "@/lib/patient-ficha-server";
 import { pbAdmin } from "@/lib/pocketbase-admin";
+import { persistConflictOnce } from "./conflict-storage";
 
 const RECORD_ID_PATTERN = /^[a-z0-9]{15}$/;
 const SYSTEM_FIELDS = new Set(["id", "collectionId", "collectionName", "created", "updated", "expand"]);
@@ -100,6 +101,12 @@ async function applyOperation(context: DesktopSyncContext, operation: SyncOperat
   const central = await findRecord(collection, operation.recordId);
   if (!central) throw new DesktopSyncHttpError("El registro central ya no existe", 409, "missing_central_record");
   assertOperationAllowed(context, operation.entity, operation.action, local, central);
+
+  // El registro puede haberse guardado antes de interrumpirse su confirmación
+  // durable. Reintentar esa misma operación no debe competir con su escritura.
+  if (String(central.sync_operation_id || "") === operation.operationId) {
+    return confirmation(operation, central);
+  }
 
   if (operation.action === "delete") {
     const fields = deleteConflictFields(
@@ -190,9 +197,7 @@ async function createConflict(
   fields: string[],
 ): Promise<SyncOperationConfirmation> {
   const detectedAt = new Date().toISOString();
-  const record = await pbAdmin("/api/collections/sync_conflicts/records", {
-    method: "POST",
-    body: JSON.stringify({
+  return persistConflictOnce(operation, {
       operation_id: operation.operationId,
       entity: operation.entity,
       record_id: operation.recordId,
@@ -205,17 +210,21 @@ async function createConflict(
       device_id: context.device!.deviceId,
       status: "open",
       detected_at: detectedAt,
-    }),
-  });
-
-  return {
-    operationId: operation.operationId,
-    status: "conflict",
-    entity: operation.entity,
-    recordId: operation.recordId,
-    centralRecord: central || undefined,
-    conflictId: record.id,
-  };
+    }, {
+      find: async () => {
+        const filter = [
+          `operation_id = "${escapeFilterValue(operation.operationId)}"`,
+          `device_id = "${escapeFilterValue(context.device!.deviceId)}"`,
+          `actor_id = "${escapeFilterValue(context.user.id)}"`,
+        ].join(" && ");
+        const params = new URLSearchParams({ page: "1", perPage: "1", filter, sort: "detected_at,id" });
+        const result = await pbAdmin(`/api/collections/sync_conflicts/records?${params}`);
+        return result.items?.[0] || null;
+      },
+      create: (payload) => pbAdmin("/api/collections/sync_conflicts/records", {
+        method: "POST", body: JSON.stringify(payload),
+      }),
+    });
 }
 
 async function findPossibleDuplicatePatient(patient: SyncRecord): Promise<(SyncRecord & { fields: string[] }) | null> {

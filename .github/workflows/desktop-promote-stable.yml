@@ -42,5 +42,8 @@ jobs:
       - name: Instalar dependencias de producción sin ejecutar scripts
         run: npm ci --omit=dev --ignore-scripts
 
+      - name: Prevalidar canales y firmas sin modificar objetos
+        run: node scripts/verify_desktop_stable_preflight.mjs
+
       - name: Verificar bytes firmados y promover el mismo release
         run: node scripts/promote_desktop_release.mjs --version "${{ inputs.version }}"

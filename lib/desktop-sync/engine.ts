@@ -13,6 +13,11 @@ import {
 import { desktopCentralRequest, loadDesktopActivation } from "./client";
 import { createSyncContinuationScheduler } from "./sync-continuation";
 import {
+  applyProtectedCentralRecord,
+  CENTRAL_ACKNOWLEDGED_OPERATION_HEADER,
+  persistLocalConflictBeforeStatus,
+} from "./local-write-protection";
+import {
   createSingleFlightRunner,
   DESKTOP_PULL_MAX_PAGES_PER_SLICE,
   DESKTOP_PULL_PAGE_SIZE,
@@ -105,10 +110,10 @@ export async function resolveDesktopConflict(
   const linkedPatientId = String(body.linkedPatientId || "");
 
   if (linkedPatientId && entity === "pacientes") {
-    if (centralRecord) await upsertCentralRecord("pacientes", centralRecord);
+    if (centralRecord) await upsertCentralRecord("pacientes", centralRecord, String(conflict.operation_id));
     await relinkLocalPatient(String(conflict.record_id), linkedPatientId);
   } else if (centralRecord) {
-    await upsertCentralRecord(entity, centralRecord);
+    await upsertCentralRecord(entity, centralRecord, String(conflict.operation_id));
   }
 
   await pb.collection("sync_local_conflicts").update(conflict.id, { status: "resolved" }, { requestKey: null });
@@ -212,14 +217,16 @@ async function applyConfirmation(confirmation: SyncOperationConfirmation, batch:
   if (!operation) return;
 
   if (confirmation.status === "confirmed") {
-    if (confirmation.centralRecord) await upsertCentralRecord(confirmation.entity, confirmation.centralRecord);
+    if (confirmation.centralRecord) await upsertCentralRecord(confirmation.entity, confirmation.centralRecord, operation.operationId);
     await pb.collection("sync_operations").update(operation.localQueueId, { status: "confirmed", last_error: "" }, { requestKey: null });
     return;
   }
 
   if (confirmation.status === "conflict") {
-    await pb.collection("sync_operations").update(operation.localQueueId, { status: "conflict", last_error: "Conflicto pendiente de resolución" }, { requestKey: null });
-    await upsertLocalConflict(confirmation, operation);
+    await persistLocalConflictBeforeStatus(
+      () => upsertLocalConflict(confirmation, operation),
+      async () => { await pb.collection("sync_operations").update(operation.localQueueId, { status: "conflict", last_error: "Conflicto pendiente de resolución" }, { requestKey: null }); },
+    );
     return;
   }
 
@@ -260,7 +267,7 @@ async function pullCentralChanges(centralAppUrl: string, deviceId: string) {
       if (!page) throw new Error(`El servidor no devolvió la página de ${entity}.`);
       return page;
     },
-    upsertCentralRecord,
+    async (entity, record) => { await upsertCentralRecord(entity, record); },
     async (cursor) => {
       cursors[cursor.entity] = cursor;
       await saveCursor(cursor);
@@ -281,14 +288,33 @@ async function pullCentralChanges(centralAppUrl: string, deviceId: string) {
   );
 }
 
-async function upsertCentralRecord(entity: SyncEntity, record: SyncRecord) {
+async function upsertCentralRecord(entity: SyncEntity, record: SyncRecord, acknowledgedOperationId?: string) {
+  return applyProtectedCentralRecord(entity, record, acknowledgedOperationId, {
+    hasUnconfirmed: async (collection, id, acknowledgedId) => {
+      const filter = [
+        `entity = "${collection}"`,
+        `record_id = "${escapeFilter(id)}"`,
+        'status != "confirmed"',
+        ...(acknowledgedId ? [`operation_id != "${escapeFilter(acknowledgedId)}"`] : []),
+      ].join(" && ");
+      const result = await pb.collection("sync_operations").getList(1, 1, { filter, fields: "id", requestKey: null });
+      return result.items.length > 0;
+    },
+    write: writeCentralRecord,
+  });
+}
+
+async function writeCentralRecord(entity: SyncEntity, record: SyncRecord, acknowledgedOperationId?: string) {
   const id = String(record.id || "");
   if (!id) return;
   const payload = sanitizeLocalPayload(record);
   if (typeof record.updated === "string" && record.updated.trim()) {
     payload.sync_base_updated = record.updated;
   }
-  const options = { headers: { "x-consultorio-sync-origin": "central" }, requestKey: null };
+  const options = { headers: {
+    "x-consultorio-sync-origin": "central",
+    ...(acknowledgedOperationId ? { [CENTRAL_ACKNOWLEDGED_OPERATION_HEADER]: acknowledgedOperationId } : {}),
+  }, requestKey: null };
   try {
     await pb.collection(entity).getOne(id, { requestKey: null });
     await pb.collection(entity).update(id, payload, options);

@@ -10,7 +10,10 @@ import {
   type PermissionKey,
   type UserRole,
 } from "@/lib/permissions";
-import { desktopDeviceAccess, isDesktopOperationAllowed } from "./server-auth-policy";
+import {
+  desktopDeviceAccess, isDesktopOperationAllowed, isDesktopSyncVersionCompatible,
+  DESKTOP_SYNC_VERSION_HEADER, DESKTOP_SYNC_MINIMUM_VERSION,
+} from "./server-auth-policy";
 import {
   desktopDeviceTouchPayload,
   lookupDesktopDeviceRecord,
@@ -70,6 +73,13 @@ export async function requireDesktopSyncContext(
   if (!device) throw new DesktopSyncHttpError("El equipo no está activado", 403, "unknown_device");
   if (device.enabled !== true) throw new DesktopSyncHttpError("El equipo está deshabilitado", 403, "disabled_device");
 
+  if (!isDesktopSyncVersionCompatible(request.headers.get(DESKTOP_SYNC_VERSION_HEADER))) {
+    throw new DesktopSyncHttpError(
+      "Para sincronizar, actualice la aplicación a la versión " + DESKTOP_SYNC_MINIMUM_VERSION + " o posterior. Sus operaciones locales se conservan. Puede actualizar desde Buscar actualizaciones.",
+      426, "desktop_update_required",
+    );
+  }
+
   return { user, roles, permissions, device };
 }
 
@@ -95,7 +105,10 @@ export function assertOperationAllowed(
 
 export function desktopSyncErrorResponse(error: unknown) {
   if (error instanceof DesktopSyncHttpError) {
-    return Response.json({ error: error.message, code: error.code }, { status: error.status });
+    return Response.json({ error: error.message, code: error.code }, {
+      status: error.status,
+      headers: { "X-Consultorio-Sync-Minimum-Version": DESKTOP_SYNC_MINIMUM_VERSION },
+    });
   }
 
   console.error("Error de sincronización de escritorio:", error);

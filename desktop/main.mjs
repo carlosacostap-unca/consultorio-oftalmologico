@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { normalizeLocalSystemSetting, normalizeLocalUserId } from "./local-record-policy.mjs";
 import { installDesktopTypography } from "./typography.mjs";
 import { requestCentralBackups } from "./backup-client.mjs";
+import { prepareSmokeTestProfile } from "./smoke-profile.mjs";
 import { createVerifiedDesktopBackup, verifyDesktopBackup } from "./update-backup.mjs";
 import {
   parseDesktopReleaseManifestJson,
@@ -54,6 +55,8 @@ let maintenanceWaiter = null;
 let updateReminderTimeout = null;
 let updateInstallInFlight = null;
 
+const smokeTestProfile = prepareSmokeTestProfile(process.argv, app.getPath("userData"));
+if (smokeTestProfile) app.setPath("userData", smokeTestProfile);
 app.commandLine.appendSwitch("disable-features", "AutofillServerCommunication");
 
 function sanitizeLog(value) {
@@ -847,6 +850,7 @@ function registerIpc() {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
         "x-consultorio-device-id": runtime.deviceId,
+        "x-consultorio-app-version": runtime.appVersion,
       },
       body: input?.body === undefined ? undefined : JSON.stringify(input.body),
       signal: AbortSignal.timeout(30_000),
