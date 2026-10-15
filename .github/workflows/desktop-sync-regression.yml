@@ -1,0 +1,92 @@
+name: Regresión de sincronización sin pérdida de datos
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/desktop-sync-regression.yml"
+      - ".github/workflows/desktop-release.yml"
+      - "lib/desktop-sync/**"
+      - "lib/pocketbase*.ts"
+      - "app/api/desktop-sync/**"
+      - "desktop/pocketbase/**"
+      - "desktop/main.mjs"
+      - "desktop/smoke-profile*"
+      - "desktop/scripts/prepare-pocketbase.mjs"
+      - "scripts/desktop_sync*.test.ts"
+      - "scripts/verify_desktop_sync_backup*"
+      - "package*.json"
+  push:
+    branches: [main, develop]
+    paths:
+      - ".github/workflows/desktop-sync-regression.yml"
+      - ".github/workflows/desktop-release.yml"
+      - "lib/desktop-sync/**"
+      - "lib/pocketbase*.ts"
+      - "app/api/desktop-sync/**"
+      - "desktop/pocketbase/**"
+      - "desktop/main.mjs"
+      - "desktop/smoke-profile*"
+      - "desktop/scripts/prepare-pocketbase.mjs"
+      - "scripts/desktop_sync*.test.ts"
+      - "scripts/verify_desktop_sync_backup*"
+      - "package*.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-sync-regression-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Compilar el contenedor del servidor sin credenciales de producción
+        run: docker build --build-arg NEXT_PUBLIC_POCKETBASE_URL=http://127.0.0.1:8090 --tag consultorio-sync-check .
+      - name: Verificar arranque y rechazo de sesión ausente sin conectar una base real
+        shell: bash
+        run: |
+          set -euo pipefail
+          container_id=$(docker run --detach --network none --env DESKTOP_SYNC_ENABLED=true --env POCKETBASE_URL=http://127.0.0.1:8090 consultorio-sync-check)
+          trap 'docker stop "$container_id" >/dev/null' EXIT
+          docker exec "$container_id" node --input-type=module -e '
+            import assert from "node:assert/strict";
+            for (let attempt = 0; attempt < 30; attempt++) {
+              try {
+                const response = await fetch("http://127.0.0.1:3000/api/desktop-sync/v1/conflicts?status=open&page=1");
+                assert.equal(response.status, 401);
+                assert.equal((await response.json()).code, "invalid_session");
+                console.log("Contenedor aislado: arranque y rechazo de sesión aprobados.");
+                process.exit(0);
+              } catch { await new Promise(resolve => setTimeout(resolve, 1000)); }
+            }
+            throw new Error("El contenedor no devolvió el rechazo de sesión esperado.");
+          '
+
+  synthetic-databases:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22.22.0
+          cache: npm
+      - name: Instalar dependencias
+        run: npm ci
+      - name: Preparar binario PocketBase verificado
+        run: npm run desktop:prepare-pocketbase
+      - name: Pruebas de regresión
+        run: npm run test:sync-core
+      - name: Preservación ante fallos
+        run: npm run test:sync-preservation
+      - name: Motor y endpoints con bases sintéticas separadas
+        run: npm run test:sync-roundtrip

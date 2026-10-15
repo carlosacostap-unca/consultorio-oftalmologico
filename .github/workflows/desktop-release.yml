@@ -71,6 +71,17 @@ jobs:
       - name: Pruebas de antecedentes clínicos
         run: node --import tsx --test lib/clinical-antecedents.test.ts
 
+      - name: Preparar PocketBase aislado para ensayos de sincronización
+        run: npm run desktop:prepare-pocketbase
+
+      - name: Verificar preservación y recorrido completo antes de empaquetar
+        shell: pwsh
+        run: |
+          npm run test:sync-preservation
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:sync-roundtrip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Build y empaquetado NSIS x64
         run: npm run desktop:dist
 
@@ -79,6 +90,13 @@ jobs:
 
       - name: Verificar antecedentes en renderer empaquetado con datos sintéticos
         run: node scripts/verify_desktop_antecedents.mjs
+
+      - name: Repetir sincronización contra los endpoints empaquetados
+        shell: pwsh
+        run: |
+          $env:SYNC_PILOT_PACKAGED_SERVER = (Resolve-Path 'dist-desktop/win-unpacked/resources/app').Path
+          npm run test:sync-roundtrip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Generar política, manifiesto canónico y firma Ed25519
         shell: pwsh

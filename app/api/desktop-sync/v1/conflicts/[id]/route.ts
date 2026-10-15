@@ -13,6 +13,7 @@ import {
 } from "@/lib/desktop-sync/server-auth";
 import type { SyncConflictResolution, SyncEntity, SyncRecord } from "@/lib/desktop-sync/types";
 import { pbAdmin } from "@/lib/pocketbase-admin";
+import { compatibleConflictResolution } from "@/lib/desktop-sync/conflict-storage";
 
 const RECORD_ID_PATTERN = /^[a-z0-9]{15}$/;
 
@@ -102,13 +103,13 @@ export async function POST(request: Request, contextValue: { params: Promise<{ i
     const resolvedAt = new Date().toISOString();
     const updatedConflict = await pbAdmin(`/api/collections/sync_conflicts/records/${encodeURIComponent(id)}`, {
       method: "PATCH",
-      body: JSON.stringify({
+      body: JSON.stringify(compatibleConflictResolution({
         status: "resolved",
         resolved_at: resolvedAt,
         resolved_by: context.user.id,
         resolution,
         resolution_note: linkedPatientId ? JSON.stringify({ linkedPatientId }) : resolutionNote,
-      }),
+      })),
     });
 
     await updateAppliedResult(conflict.operation_id, {
