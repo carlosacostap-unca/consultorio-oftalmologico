@@ -33,3 +33,8 @@ El arranque del ejecutable empaquetado exige `--smoke-test --smoke-test-profile=
 El piloto 0.1.17-pilot.1 se conserva inmutable; 0.1.17 mantiene su código probado, con metadatos de versión finales. Next/eslint-config-next se actualizaron a 16.3.8 y se aplicaron parches compatibles de sharp/source-map-js; la auditoría de producción quedó sin vulnerabilidades. Las pruebas locales no acreditan todavía la recuperación del incidente real ni reemplazan la comprobación del respaldo del equipo afectado.
 
 La publicación del instalador y el despliegue del backend son pasos distintos. El instalador local carece de Authenticode y no se publicó en canales automáticos. La firma Ed25519 y las barreras de publicación existentes siguen siendo obligatorias para distribuir mediante el actualizador.
+
+## Separación de respaldos por entorno
+
+Antes de confiar en respaldos automáticos, comprobar que producción y pruebas usan almacenes y retención separados. Un nombre automático y un horario compartidos pueden dejar una copia íntegra correspondiente al entorno equivocado. La intervención utiliza un respaldo manual de producción con nombre exclusivo y verifica su contenido técnico; conservar los respaldos existentes. Separar la configuración requiere verificar el destino y la retención, sin borrar ni mover las copias previas. Cambiar solamente la hora no separa la retención.
+
