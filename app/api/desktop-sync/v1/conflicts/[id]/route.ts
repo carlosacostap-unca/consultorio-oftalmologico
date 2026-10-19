@@ -20,6 +20,43 @@ const RECORD_ID_PATTERN = /^[a-z0-9]{15}$/;
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+// Recovery is read-only: an open or incompletely persisted resolution is
+// never interpreted as authorization to choose a clinical version.
+export async function GET(request: Request, contextValue: { params: Promise<{ id: string }> }) {
+  try {
+    const context = await requireDesktopSyncContext(request, { requireDevice: true });
+    const { id } = await contextValue.params;
+    if (!RECORD_ID_PATTERN.test(id)) throw new DesktopSyncHttpError("Conflicto inválido", 400, "invalid_conflict");
+    const conflict = await pbAdmin(`/api/collections/sync_conflicts/records/${encodeURIComponent(id)}`);
+    if (conflict.device_id !== context.device!.deviceId || conflict.actor_id !== context.user.id) {
+      throw new DesktopSyncHttpError("Este conflicto pertenece a otro usuario o equipo", 403, "conflict_forbidden");
+    }
+    if (conflict.status !== "resolved" || !["keep_central", "apply_local"].includes(conflict.resolution)) {
+      return Response.json({ resolved: false });
+    }
+    const entity = String(conflict.entity);
+    if (!["pacientes", "consultas", "recetas"].includes(entity) || !RECORD_ID_PATTERN.test(String(conflict.record_id))) {
+      throw new DesktopSyncHttpError("El conflicto requiere revisión", 409, "invalid_conflict");
+    }
+    const filter = encodeURIComponent(`operation_id = "${escapeFilterValue(String(conflict.operation_id))}"`);
+    const ledger = await pbAdmin(`/api/collections/sync_applied_operations/records?page=1&perPage=2&filter=${filter}`);
+    const applied = ledger.items?.[0];
+    const result = applied?.result_json;
+    if (ledger.items?.length !== 1 || applied.status !== "confirmed" || applied.device_id !== conflict.device_id
+      || applied.actor_id !== conflict.actor_id || applied.entity !== entity || applied.record_id !== conflict.record_id
+      || result?.status !== "confirmed" || result?.operationId !== conflict.operation_id || result?.conflictId !== id
+      || result?.entity !== entity || result?.recordId !== conflict.record_id) {
+      throw new DesktopSyncHttpError("La resolución central está incompleta; se conserva el conflicto", 409, "resolution_incomplete");
+    }
+    const centralRecord = await pbAdmin(`/api/collections/${entity}/records/${encodeURIComponent(conflict.record_id)}`);
+    return Response.json({ resolved: true, conflictId: id, operationId: conflict.operation_id,
+      actorId: conflict.actor_id, deviceId: conflict.device_id,
+      entity, recordId: conflict.record_id, centralRecord }, { headers: { "Cache-Control": "no-store" } });
+  } catch (error) {
+    return desktopSyncErrorResponse(error);
+  }
+}
+
 export async function POST(request: Request, contextValue: { params: Promise<{ id: string }> }) {
   try {
     const context = await requireDesktopSyncContext(request, { requireDevice: true });
@@ -71,6 +108,14 @@ export async function POST(request: Request, contextValue: { params: Promise<{ i
       }
     }
 
+    if (resolution === "keep_central" && !isDeleteConflict) {
+      const current = await pbAdmin(`/api/collections/${entity}/records/${encodeURIComponent(conflict.record_id)}`);
+      if (!conflictCentralIsCurrent(conflict.central_snapshot, current)) {
+        throw new DesktopSyncHttpError("La versión central volvió a cambiar; actualizá el conflicto", 409, "central_changed_again");
+      }
+      centralRecord = current;
+    }
+
     if (resolution === "apply_local" && !isDeleteConflict) {
       const current = await pbAdmin(`/api/collections/${entity}/records/${encodeURIComponent(conflict.record_id)}`);
       const conflictCentralUpdated = String(conflict.central_snapshot?.updated || "");
@@ -79,7 +124,7 @@ export async function POST(request: Request, contextValue: { params: Promise<{ i
       }
 
       const local = sanitizeRecordPayload(conflict.local_snapshot || {});
-      assertOperationAllowed(context, entity, "update", local);
+      assertOperationAllowed(context, entity, "update", local, current);
       centralRecord = await pbAdmin(`/api/collections/${entity}/records/${encodeURIComponent(conflict.record_id)}`, {
         method: "PATCH",
         body: JSON.stringify({

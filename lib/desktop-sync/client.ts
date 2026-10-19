@@ -147,6 +147,27 @@ export async function desktopLoginWithPassword(
   }
 }
 
+// Mutuals are read-only in desktop mode. Refresh without removing local rows.
+export async function refreshDesktopMutuales(baseUrl: string) {
+  let page = 1;
+  let totalPages = 1;
+  do {
+    const result = await desktopCentralRequest(baseUrl, "/api/desktop-sync/v1/bootstrap", { entity: "mutuales", page, perPage: 200 });
+    totalPages = Number(result.totalPages);
+    if (result.entity !== "mutuales" || result.page !== page || !Array.isArray(result.items)
+      || !Number.isSafeInteger(totalPages) || totalPages < 1 || totalPages > 100_000) {
+      throw new Error("El servidor devolvió un catálogo de mutuales inválido.");
+    }
+    for (const item of result.items) {
+      if (!item || typeof item !== "object" || !/^[a-z0-9]{15}$/.test(String(item.id || ""))) {
+        throw new Error("El servidor devolvió una mutual inválida.");
+      }
+      await upsertLocalRecord("mutuales", item);
+    }
+    page++;
+  } while (page <= totalPages);
+}
+
 async function downloadBootstrapEntity(
   baseUrl: string,
   entity: BootstrapEntity,
