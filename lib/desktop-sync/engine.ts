@@ -10,7 +10,7 @@ import {
   sortOperationsByDependencies,
   sortSyncEntitiesByDependencies,
 } from "./core";
-import { desktopCentralRequest, loadDesktopActivation } from "./client";
+import { desktopCentralRequest, loadDesktopActivation, refreshDesktopMutuales } from "./client";
 import { createSyncContinuationScheduler } from "./sync-continuation";
 import {
   applyProtectedCentralRecord,
@@ -113,13 +113,40 @@ export async function resolveDesktopConflict(
     if (centralRecord) await upsertCentralRecord("pacientes", centralRecord, String(conflict.operation_id));
     await relinkLocalPatient(String(conflict.record_id), linkedPatientId);
   } else if (centralRecord) {
-    await upsertCentralRecord(entity, centralRecord, String(conflict.operation_id));
+    const written = await upsertCentralRecord(entity, centralRecord, String(conflict.operation_id));
+    if (!written) throw new Error("Hay otra edición local del registro. Se conserva el conflicto para revisión.");
   }
 
-  await pb.collection("sync_local_conflicts").update(conflict.id, { status: "resolved" }, { requestKey: null });
   const operation = await findOne("sync_operations", `operation_id = "${escapeFilter(String(conflict.operation_id))}"`);
   if (operation) await pb.collection("sync_operations").update(operation.id, { status: "confirmed", last_error: "" }, { requestKey: null });
+  await pb.collection("sync_local_conflicts").update(conflict.id, { status: "resolved" }, { requestKey: null });
   return body;
+}
+
+async function recoverResolvedConflicts(centralAppUrl: string) {
+  const conflicts = await pb.collection("sync_local_conflicts").getFullList({ filter: 'status = "open"', requestKey: null });
+  for (const conflict of conflicts) {
+    const operation = await findOne("sync_operations", `operation_id = "${escapeFilter(String(conflict.operation_id))}"`);
+    const body = await desktopCentralRequest(centralAppUrl,
+      `/api/desktop-sync/v1/conflicts/${String(conflict.conflict_id)}`, undefined, "GET");
+    if (body.resolved !== true) continue;
+    if (!operation || operation.entity !== conflict.entity || operation.record_id !== conflict.record_id
+      || operation.actor_id !== body.actorId || operation.device_id !== body.deviceId) {
+      throw new Error("La operación local del conflicto requiere revisión; se conserva sin cambios.");
+    }
+    const record = body.centralRecord as SyncRecord | undefined;
+    if (body.conflictId !== conflict.conflict_id || body.operationId !== operation.operation_id
+      || body.entity !== conflict.entity || body.recordId !== conflict.record_id
+      || !record || record.id !== conflict.record_id || !record.updated) {
+      throw new Error("La confirmación central no coincide con el conflicto local; se conserva sin cambios.");
+    }
+    const written = await upsertCentralRecord(conflict.entity as SyncEntity, record, String(operation.operation_id));
+    if (!written) throw new Error("Hay otra edición local del registro. Se conserva el conflicto para revisión.");
+    // Keep the original payload and snapshots; a failure between these writes
+    // leaves the conflict open so the same resolution can be recovered again.
+    await pb.collection("sync_operations").update(operation.id, { status: "confirmed", last_error: "" }, { requestKey: null });
+    await pb.collection("sync_local_conflicts").update(conflict.id, { status: "resolved" }, { requestKey: null });
+  }
 }
 
 async function executeSync(): Promise<SyncStatusSnapshot> {
@@ -141,6 +168,8 @@ async function executeSync(): Promise<SyncStatusSnapshot> {
 
   try {
     if (!navigator.onLine) throw new Error("Sin conexión al servidor central.");
+    await refreshDesktopMutuales(activation.centralAppUrl);
+    await recoverResolvedConflicts(activation.centralAppUrl);
     await pushPendingOperations(activation.centralAppUrl, window.consultorioDesktop.runtime.deviceId);
     const pullResult = await pullCentralChanges(activation.centralAppUrl, window.consultorioDesktop.runtime.deviceId);
     if (!pullResult.complete) {

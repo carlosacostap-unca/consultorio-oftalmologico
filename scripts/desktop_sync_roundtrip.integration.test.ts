@@ -82,6 +82,9 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
   };
   const nativeFetch = globalThis.fetch;
   let failAppliedWrite = false;
+  let failCatalog = false;
+  let failLocalRecord = false;
+  let failLocalClose = false;
   const allowedOrigins = new Set([central.origin, local.origin]);
   let apiOrigin = central.origin;
   const packagedServerRoot = process.env.SYNC_PILOT_PACKAGED_SERVER;
@@ -142,15 +145,27 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
       failAppliedWrite = false;
       throw new Error("Interrupción sintética después de guardar el registro y antes de guardar su confirmación");
     }
+    const parsedUrl = new URL(url);
+    if (parsedUrl.origin === local.origin && init?.method !== "GET") {
+      const table = parsedUrl.pathname.split("/")[3];
+      if ((failCatalog && table === "mutuales") || (failLocalRecord && table === "consultas")
+        || (failLocalClose && table === "sync_local_conflicts")) {
+        failCatalog = false; failLocalRecord = false; failLocalClose = false;
+        return Promise.resolve(Response.json({ message: "Fallo local sintético" }, { status: 503 }));
+      }
+    }
     return nativeFetch(input, init);
   };
   t.after(() => { globalThis.fetch = nativeFetch; });
 
   const rules = { listRule: "@request.auth.id != ''", viewRule: "@request.auth.id != ''", createRule: "@request.auth.id != ''", updateRule: "@request.auth.id != ''" };
   for (const db of [central, local]) {
+    const mutuales = await db.request("/api/collections", "POST", { name: "mutuales", type: "base", ...rules,
+      fields: [text("nombre"), text("codigo"), text("direccion"), text("telefono"), date("created"), date("updated")] });
     for (const entity of ["pacientes", "consultas", "recetas"] as const) {
       const collection = await db.request("/api/collections", "POST", { name: entity, type: "base", ...rules, fields: [
         ...["texto", "nombre", "apellido", "numero_ficha", "numero_documento", "tipo_documento", "estado_registro", "fecha_nacimiento", "paciente_id", "consulta_id", "medico_id", "sync_device_id", "sync_operation_id", "sync_base_updated", "sync_deleted_at", "sync_deleted_by", "sync_ficha_provisoria", "sync_ficha_definitiva"].map(text),
+        ...(entity === "pacientes" ? [{ name: "mutual_id", type: "relation", collectionId: mutuales.id, maxSelect: 1, cascadeDelete: false }] : []),
         { name: "sync_deleted", type: "bool" }, date("created"), date("updated"),
       ] });
       assert.equal(collection.name, entity);
@@ -201,8 +216,10 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
   t.after(() => { serverBoundary.deregister(); });
   const pushRoute = await import("../app/api/desktop-sync/v1/push/route");
   const pullRoute = await import("../app/api/desktop-sync/v1/pull/route");
+  const bootstrapRoute = await import("../app/api/desktop-sync/v1/bootstrap/route");
   const conflictRoute = await import("../app/api/desktop-sync/v1/conflicts/[id]/route");
   let loseResponse = false;
+  let loseRecoveryResponse = false;
   let afterPush: (() => Promise<void>) | undefined;
   let online = true;
   let centralRequests = 0;
@@ -214,14 +231,20 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
       centralRequests++;
       assert.equal(input.baseUrl, apiOrigin);
       const request = new Request(apiOrigin + input.path, { method: input.method || "POST",
-        headers: { Authorization: `Bearer ${centralAuth.token}`, "x-consultorio-device-id": deviceId, "x-consultorio-app-version": "0.1.17", "Content-Type": "application/json" }, body: JSON.stringify(input.body) });
+        headers: { Authorization: `Bearer ${centralAuth.token}`, "x-consultorio-device-id": deviceId, "x-consultorio-app-version": "0.1.17", "Content-Type": "application/json" }, body: input.method === "GET" ? undefined : JSON.stringify(input.body) });
       const response = packagedServerRoot ? await fetch(request) : input.path.endsWith("/push") ? await pushRoute.POST(request)
         : input.path.endsWith("/pull") ? await pullRoute.POST(request)
+          : input.path.endsWith("/bootstrap") ? await bootstrapRoute.POST(request)
+          : input.method === "GET" ? await conflictRoute.GET(request, { params: Promise.resolve({ id: input.path.split("/").at(-1)! }) })
           : await conflictRoute.POST(request, { params: Promise.resolve({ id: input.path.split("/").at(-1)! }) });
       if (input.path.endsWith("/push")) {
         assert.equal(response.status, 200, await response.clone().text());
         if (afterPush) { const task = afterPush; afterPush = undefined; await task(); }
         if (loseResponse) { loseResponse = false; throw new Error("connection reset después de persistir el lote ficticio"); }
+      }
+      if (loseRecoveryResponse && input.method === "GET" && input.path.includes("/conflicts/")) {
+        loseRecoveryResponse = false;
+        throw new Error("Respuesta de recuperación perdida");
       }
       return { status: response.status, ok: response.ok, body: await response.json() };
     } },
@@ -302,6 +325,29 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
     assert.equal((await engine.runDesktopSync()).phase, "caught_up");
     assert.deepEqual(await items(local, "sync_cursors"), cursors);
     assert.equal((await queue()).length, 0);
+  });
+
+  await t.test("mutual faltante reproduce el error; catálogo fallido conserva cursor y reintento conserva relación", async () => {
+    const mutualId = "mutualnew000001";
+    const retainedId = "mutuallocal0001";
+    await local.request("/api/collections/mutuales/records", "POST", { id: retainedId, nombre: "Catálogo local conservado" });
+    await central.request("/api/collections/mutuales/records", "POST", { id: mutualId, nombre: "Mutual ficticia nueva" });
+    await central.request(`/api/collections/pacientes/records/${seeded.pacientes}`, "PATCH", { mutual_id: mutualId });
+    const cursors = await items(local, "sync_cursors");
+    const queueBefore = await queue();
+    await assert.rejects(pb.collection("pacientes").update(seeded.pacientes, { mutual_id: mutualId },
+      { headers: { "x-consultorio-sync-origin": "central" } }), (e: unknown) => (e as { status: number }).status === 400);
+    assert.deepEqual(await queue(), queueBefore);
+    failCatalog = true;
+    assert.equal((await engine.runDesktopSync()).phase, "error");
+    assert.deepEqual(await items(local, "sync_cursors"), cursors);
+    assert.deepEqual(await queue(), queueBefore);
+    const status = await engine.runDesktopSync();
+    assert.equal(status.phase, "caught_up", status.lastError);
+    assert.equal((await pb.collection("pacientes").getOne(seeded.pacientes)).mutual_id, mutualId);
+    assert.equal((await pb.collection("mutuales").getOne(mutualId)).nombre, "Mutual ficticia nueva");
+    assert.equal((await pb.collection("mutuales").getOne(retainedId)).nombre, "Catálogo local conservado");
+    assert.deepEqual(await queue(), queueBefore);
   });
 
   await t.test("altas offline de paciente, consulta y receta se confirman con sus relaciones intactas", async () => {
@@ -412,6 +458,12 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
     await engine.runDesktopSync();
     assert.deepEqual(await items(central, "sync_conflicts"), conflicts);
     assert.equal((await pb.collection("consultas").getOne(created.consultas)).texto, "segunda edición mientras llega la confirmación");
+    // Si guardar evidencia funcionó pero cambiar estado falló, la cola vuelve
+    // a error. Recuperación no debe impedir el reenvío de ese conflicto abierto.
+    await pb.collection("sync_operations").update(String(pending.id), { status: "error", next_attempt_at: "" });
+    await engine.runDesktopSync();
+    assert.equal((await pb.collection("sync_operations").getOne(String(pending.id))).status, "conflict");
+    assert.deepEqual(await items(central, "sync_conflicts"), conflicts);
     // Elección explícita únicamente sobre el conflicto ficticio de esta prueba.
     const localConflict = await pb.collection("sync_local_conflicts").getFirstListItem(`conflict_id = "${conflict.id}"`);
     await engine.resolveDesktopConflict(localConflict, "apply_local");
@@ -454,6 +506,74 @@ test("motor Windows y endpoints reales sincronizan dos bases aisladas sin perder
     assert.equal(retained.paciente_id, previous.paciente_id);
     assert.deepEqual((await queue()).find((op) => op.id === pending.id)?.payload, pending.payload);
     assert.equal((await queue()).find((op) => op.id === pending.id)?.status, "confirmed");
+  });
+  await t.test("recupera resolución externa vigente tras respuestas y escrituras interrumpidas conservando evidencia", async () => {
+    await pb.collection("consultas").update(seeded.consultas, { texto: "alternativa local ficticia" });
+    await central.request(`/api/collections/consultas/records/${seeded.consultas}`, "PATCH", { texto: "alternativa central ficticia" });
+    assert.equal((await engine.runDesktopSync()).conflicts, 1);
+    const conflict = (await items(central, "sync_conflicts")).find(c => c.record_id === seeded.consultas)!;
+    const localConflict = (await items(local, "sync_local_conflicts")).find(c => c.conflict_id === conflict.id)!;
+    const operation = (await queue()).find(o => o.operation_id === conflict.operation_id)!;
+    const merged = await central.request(`/api/collections/consultas/records/${seeded.consultas}`, "PATCH", { texto: "ambas alternativas aprobadas" });
+    // Una elección basada en el snapshot antiguo no puede cerrar el conflicto.
+    await assert.rejects(engine.resolveDesktopConflict(await pb.collection("sync_local_conflicts").getOne(String(localConflict.id)), "keep_central"));
+    assert.equal((await central.request(`/api/collections/sync_conflicts/records/${conflict.id}`)).status, "open");
+    const ledger = (await items(central, "sync_applied_operations")).find(o => o.operation_id === conflict.operation_id)!;
+    await central.request(`/api/collections/sync_conflicts/records/${conflict.id}`, "PATCH", { status: "resolved", estado: "resuelto", resolution: "keep_central", resolution_note: "Combinación ficticia revisada explícitamente" });
+    // Un cierre sin confirmación durable no se aplica localmente.
+    assert.equal((await engine.runDesktopSync()).phase, "error");
+    assert.equal((await pb.collection("sync_local_conflicts").getOne(String(localConflict.id))).status, "open");
+    await central.request(`/api/collections/sync_applied_operations/records/${ledger.id}`, "PATCH", { status: "confirmed", result_json: {
+      operationId: conflict.operation_id, status: "confirmed", entity: "consultas", recordId: seeded.consultas, conflictId: conflict.id, centralRecord: conflict.central_snapshot,
+    } });
+    // El ledger puede contener una revisión anterior; GET devuelve la actual.
+    loseRecoveryResponse = true;
+    assert.equal((await engine.runDesktopSync()).phase, "error");
+    failLocalRecord = true;
+    assert.equal((await engine.runDesktopSync()).phase, "error");
+    assert.equal((await pb.collection("sync_operations").getOne(String(operation.id))).status, "conflict");
+    failLocalClose = true;
+    assert.equal((await engine.runDesktopSync()).phase, "error");
+    assert.equal((await pb.collection("sync_operations").getOne(String(operation.id))).status, "confirmed");
+    assert.equal((await pb.collection("sync_local_conflicts").getOne(String(localConflict.id))).status, "open");
+    const status = await engine.runDesktopSync();
+    assert.equal(status.phase, "caught_up", status.lastError);
+    assert.equal(status.pending + status.errors + status.conflicts, 0);
+    assert.equal((await pb.collection("consultas").getOne(seeded.consultas)).texto, merged.texto);
+    assert.deepEqual(await central.request(`/api/collections/consultas/records/${seeded.consultas}`), merged);
+    const savedConflict = await central.request(`/api/collections/sync_conflicts/records/${conflict.id}`);
+    for (const field of ["local_snapshot", "central_snapshot", "base_snapshot"]) assert.deepEqual(savedConflict[field], conflict[field]);
+    const savedLocal = await pb.collection("sync_local_conflicts").getOne(String(localConflict.id));
+    assert.equal(savedLocal.status, "resolved");
+    assert.deepEqual(savedLocal.local_snapshot, localConflict.local_snapshot);
+    assert.deepEqual(savedLocal.central_snapshot, localConflict.central_snapshot);
+    assert.deepEqual((await pb.collection("sync_operations").getOne(String(operation.id))).payload, operation.payload);
+    // Tampoco un admin puede recuperar datos para otro dispositivo o actor.
+    for (const patch of [{ device_id: "other-device" }, { actor_id: "otheractor00001" }]) {
+      await central.request(`/api/collections/sync_conflicts/records/${conflict.id}`, "PATCH", patch);
+      const response = await bridge.central.request({ baseUrl: apiOrigin, path: `/api/desktop-sync/v1/conflicts/${conflict.id}`, method: "GET" });
+      assert.equal(response.status, 403);
+      assert.equal(response.body.centralRecord, undefined);
+      await central.request(`/api/collections/sync_conflicts/records/${conflict.id}`, "PATCH", { device_id: deviceId, actor_id: userId });
+    }
+  });
+
+  await t.test("otra edición pendiente impide aplicar y cerrar una resolución externa", async () => {
+    await pb.collection("consultas").update(seeded.consultas, { texto: "primera edición pendiente" });
+    await central.request(`/api/collections/consultas/records/${seeded.consultas}`, "PATCH", { texto: "cambio central nuevo" });
+    assert.equal((await engine.runDesktopSync()).conflicts, 1);
+    const conflict = (await items(central, "sync_conflicts")).find(c => c.status === "open")!;
+    const ledger = (await items(central, "sync_applied_operations")).find(o => o.operation_id === conflict.operation_id)!;
+    await central.request(`/api/collections/sync_conflicts/records/${conflict.id}`, "PATCH", { status: "resolved", estado: "resuelto", resolution: "keep_central" });
+    await central.request(`/api/collections/sync_applied_operations/records/${ledger.id}`, "PATCH", { status: "confirmed", result_json: {
+      operationId: conflict.operation_id, status: "confirmed", entity: "consultas", recordId: seeded.consultas, conflictId: conflict.id,
+    } });
+    await pb.collection("consultas").update(seeded.consultas, { texto: "segunda edición que debe conservarse" });
+    const queued = await queue();
+    assert.equal((await engine.runDesktopSync()).phase, "error");
+    assert.equal((await pb.collection("consultas").getOne(seeded.consultas)).texto, "segunda edición que debe conservarse");
+    assert.deepEqual(await queue(), queued);
+    assert.equal((await items(local, "sync_local_conflicts")).find(c => c.conflict_id === conflict.id)?.status, "open");
   });
   await writeFile(path.join(root, "verification.json"), JSON.stringify({ syntheticOnly: true, realClientEngine: true, realPushPullAndResolutionHandlers: true,
     packagedServerOverHttp: Boolean(packagedServerRoot), oldClientSyncBlockedWithoutWrites: true, oldClientUpdateAccessPreserved: true,
